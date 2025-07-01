@@ -4,26 +4,26 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: [
       'build', 
-      '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-dashboard-qe:$COMMIT_SHA', 
-      '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-dashboard-qe:latest',
+      '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-qe:$COMMIT_SHA', 
+      '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-qe:latest',
       '.'
     ]
 
   # Push the container image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-dashboard-qe:$COMMIT_SHA']
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-qe:$COMMIT_SHA']
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-dashboard-qe:latest']
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-qe:latest']
 
   # Deploy container image to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
     - 'run'
     - 'deploy'
-    - 'etl-dashboard-qe'
+    - 'etl-automation-qe'
     - '--image'
-    - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-dashboard-qe:$COMMIT_SHA'
+    - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-qe:$COMMIT_SHA'
     - '--region'
     - 'us-central1'
     - '--platform'
@@ -42,8 +42,8 @@ steps:
 
 # Store images in Artifact Registry
 images:
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-dashboard-qe:$COMMIT_SHA'
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-dashboard-qe:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-qe:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-qe:latest'
 
 # Build options
 options:
