@@ -552,6 +552,10 @@
         document.getElementById('validationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
+            // Clear any previous error messages
+            const existingErrors = document.querySelectorAll('.error-message');
+            existingErrors.forEach(error => error.remove());
+
             const tableName = document.getElementById('tableName').value;
             const nullColumns = parseColumns(document.getElementById('nullColumns').value);
             const duplicateColumns = parseColumns(document.getElementById('duplicateColumns').value);
@@ -562,7 +566,7 @@
                 return;
             }
 
-            // Show loading
+            // Show loading and hide previous results
             document.getElementById('loadingSection').style.display = 'block';
             document.getElementById('dashboardSection').style.display = 'none';
             document.getElementById('runValidation').disabled = true;
@@ -592,15 +596,17 @@
                 document.getElementById('dashboardSection').style.display = 'block';
                 document.getElementById('runValidation').disabled = false;
 
-                // Populate dashboard
+                // Populate dashboard with new results
                 createMetrics(result.data);
                 createCharts(result.data);
                 populateTable(result.data);
 
             } catch (error) {
+                // Clear loading state
                 document.getElementById('loadingSection').style.display = 'none';
                 document.getElementById('runValidation').disabled = false;
                 
+                // Create new error message
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'error-message';
                 errorDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
