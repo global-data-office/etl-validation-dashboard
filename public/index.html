@@ -285,13 +285,159 @@
             border-left: 5px solid #17a2b8;
         }
 
-        .error-message {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 20px;
+        /* Enhanced Error Display Styles */
+        .error-container {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            border-left: 5px solid #e53e3e;
             border-radius: 8px;
-            margin: 20px;
-            border-left: 5px solid #dc3545;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(229, 62, 62, 0.1);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .error-header {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .error-icon {
+            font-size: 2rem;
+            margin-right: 15px;
+            color: #e53e3e;
+            flex-shrink: 0;
+        }
+
+        .error-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #742a2a;
+            margin: 0 0 8px 0;
+        }
+
+        .error-type-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #fed7d7;
+            color: #742a2a;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .error-message {
+            color: #744210;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .error-details {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #4a5568;
+            font-family: monospace;
+        }
+
+        .error-suggestions {
+            background: #f0fff4;
+            border: 1px solid #c6f6d5;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .error-suggestions h4 {
+            color: #2d3748;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .error-suggestions ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .error-suggestions li {
+            padding: 6px 0;
+            color: #2d3748;
+            position: relative;
+            padding-left: 25px;
+            line-height: 1.5;
+        }
+
+        .error-suggestions li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            top: 6px;
+            color: #38a169;
+            font-weight: bold;
+        }
+
+        .error-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .error-actions button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn-retry {
+            background: #3182ce;
+            color: white;
+        }
+
+        .btn-retry:hover {
+            background: #2c5282;
+            transform: translateY(-1px);
+        }
+
+        .btn-clear {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-clear:hover {
+            background: #cbd5e0;
+        }
+
+        .success-message {
+            animation: slideIn 0.3s ease-out;
         }
 
         @media (max-width: 768px) {
@@ -305,6 +451,23 @@
             
             .header h1 {
                 font-size: 2rem;
+            }
+
+            .error-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .error-icon {
+                margin-bottom: 10px;
+            }
+            
+            .error-actions {
+                flex-direction: column;
+            }
+            
+            .error-actions button {
+                width: 100%;
             }
         }
     </style>
@@ -389,6 +552,75 @@
     </div>
 
     <script>
+        // Function to clear all error messages
+        function clearErrorMessages() {
+            const existingErrors = document.querySelectorAll('.error-container');
+            existingErrors.forEach(error => error.remove());
+        }
+
+        // Function to display detailed error information
+        function displayErrorMessage(errorData) {
+            // Clear any existing errors first
+            clearErrorMessages();
+            
+            // Create error container
+            const errorContainer = document.createElement('div');
+            errorContainer.className = 'error-container';
+            
+            // Get error icon based on type
+            const getErrorIcon = (type) => {
+                switch(type) {
+                    case 'TABLE_NOT_FOUND': return '🔍';
+                    case 'COLUMN_NOT_FOUND': return '📋';
+                    case 'PERMISSION_DENIED': return '🔒';
+                    case 'SYNTAX_ERROR': return '⚠️';
+                    case 'PROJECT_DATASET_ERROR': return '🗂️';
+                    case 'INVALID_TABLE_FORMAT': return '📝';
+                    case 'MISSING_TABLE_NAME': return '❌';
+                    case 'DATASET_NOT_FOUND': return '🗂️';
+                    case 'PROJECT_NOT_FOUND': return '🏗️';
+                    case 'PROCEDURE_NOT_FOUND': return '⚙️';
+                    case 'QUERY_TIMEOUT': return '⏱️';
+                    default: return '❗';
+                }
+            };
+            
+            // Create error HTML
+            errorContainer.innerHTML = `
+                <div class="error-header">
+                    <div class="error-icon">${getErrorIcon(errorData.type)}</div>
+                    <div>
+                        <h3 class="error-title">${errorData.title}</h3>
+                        <span class="error-type-badge">${errorData.type.replace(/_/g, ' ')}</span>
+                    </div>
+                </div>
+                <div class="error-message">${errorData.message}</div>
+                ${errorData.details ? `<div class="error-details"><strong>Details:</strong> ${errorData.details}</div>` : ''}
+                <div class="error-suggestions">
+                    <h4>💡 Suggestions:</h4>
+                    <ul>
+                        ${errorData.suggestions.map(suggestion => `<li>${suggestion}</li>`).join('')}
+                    </ul>
+                </div>
+                <div class="error-actions">
+                    <button class="btn-retry" onclick="focusOnTableName()">Fix Table Name</button>
+                    <button class="btn-clear" onclick="clearErrorMessages()">Dismiss</button>
+                </div>
+            `;
+            
+            // Insert error after the form
+            const form = document.getElementById('validationForm');
+            form.parentNode.insertBefore(errorContainer, form.nextSibling);
+            
+            // Scroll to error message
+            errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Helper function to focus on table name input
+        function focusOnTableName() {
+            document.getElementById('tableName').focus();
+        }
+
         function createMetrics(data) {
             const metricsContainer = document.getElementById('metricsContainer');
             metricsContainer.innerHTML = '';
@@ -552,17 +784,27 @@
         document.getElementById('validationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            // Clear any previous error messages
-            const existingErrors = document.querySelectorAll('.error-message');
-            existingErrors.forEach(error => error.remove());
+            // Clear any previous error messages immediately
+            clearErrorMessages();
 
-            const tableName = document.getElementById('tableName').value;
+            const tableName = document.getElementById('tableName').value.trim();
             const nullColumns = parseColumns(document.getElementById('nullColumns').value);
             const duplicateColumns = parseColumns(document.getElementById('duplicateColumns').value);
             const specialCharColumns = parseColumns(document.getElementById('specialCharColumns').value);
 
+            // Basic client-side validation
             if (!tableName) {
-                alert('Please enter a table name');
+                displayErrorMessage({
+                    type: 'MISSING_TABLE_NAME',
+                    title: 'Missing Table Name',
+                    message: 'Please enter a BigQuery table name to run validation.',
+                    details: 'Table name field is empty',
+                    suggestions: [
+                        'Enter a valid BigQuery table name',
+                        'Use format: project.dataset.table',
+                        'Example: my-project.my_dataset.customer_table'
+                    ]
+                });
                 return;
             }
 
@@ -585,32 +827,61 @@
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
                 const result = await response.json();
-                
+
                 // Hide loading
                 document.getElementById('loadingSection').style.display = 'none';
-                document.getElementById('dashboardSection').style.display = 'block';
                 document.getElementById('runValidation').disabled = false;
 
-                // Populate dashboard with new results
-                createMetrics(result.data);
-                createCharts(result.data);
-                populateTable(result.data);
+                if (result.success) {
+                    // Show successful results
+                    document.getElementById('dashboardSection').style.display = 'block';
+                    
+                    // Populate dashboard with results
+                    createMetrics(result.data);
+                    createCharts(result.data);
+                    populateTable(result.data);
+                    
+                    // Show success message briefly
+                    const successMessage = document.createElement('div');
+                    successMessage.className = 'success-message';
+                    successMessage.innerHTML = `
+                        <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 5px solid #28a745;">
+                            <strong>✅ Validation Completed Successfully!</strong><br>
+                            Processed ${result.data.length} validation checks for table: ${result.table}
+                        </div>
+                    `;
+                    document.querySelector('.controls').appendChild(successMessage);
+                    
+                    // Auto-remove success message after 5 seconds
+                    setTimeout(() => {
+                        if (successMessage.parentNode) {
+                            successMessage.remove();
+                        }
+                    }, 5000);
+                    
+                } else {
+                    // Display detailed error information
+                    displayErrorMessage(result.error);
+                }
 
             } catch (error) {
-                // Clear loading state
+                // Hide loading
                 document.getElementById('loadingSection').style.display = 'none';
                 document.getElementById('runValidation').disabled = false;
-                
-                // Create new error message
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error-message';
-                errorDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
-                document.querySelector('.controls').appendChild(errorDiv);
+
+                // Display network or parsing error
+                displayErrorMessage({
+                    type: 'NETWORK_ERROR',
+                    title: 'Connection Error',
+                    message: 'Unable to connect to the validation service.',
+                    details: error.message,
+                    suggestions: [
+                        'Check your internet connection',
+                        'Try again in a few moments',
+                        'Refresh the page if the issue persists'
+                    ]
+                });
             }
         });
     </script>
