@@ -25,7 +25,8 @@ app.post('/api/validate', async (req, res) => {
       tableName, 
       nullCheckColumns, 
       duplicateKeyColumns, 
-      specialCharCheckColumns 
+      specialCharCheckColumns,
+      compositeKeyColumns  // NEW: Add composite key columns
     } = req.body;
 
     // Enhanced input validation
@@ -71,7 +72,8 @@ app.post('/api/validate', async (req, res) => {
         @table_name,
         @null_check_columns,
         @duplicate_key_columns,
-        @special_char_check_columns
+        @special_char_check_columns,
+        @composite_key_columns
       )
     `;
 
@@ -81,13 +83,15 @@ app.post('/api/validate', async (req, res) => {
         table_name: tableName,
         null_check_columns: nullCheckColumns || [],
         duplicate_key_columns: duplicateKeyColumns || [],
-        special_char_check_columns: specialCharCheckColumns || []
+        special_char_check_columns: specialCharCheckColumns || [],
+        composite_key_columns: compositeKeyColumns || []  // NEW: Add composite key parameter
       },
       types: {
         table_name: 'STRING',
         null_check_columns: ['STRING'],
         duplicate_key_columns: ['STRING'],
-        special_char_check_columns: ['STRING']
+        special_char_check_columns: ['STRING'],
+        composite_key_columns: ['STRING']  // NEW: Add composite key type
       }
     };
 

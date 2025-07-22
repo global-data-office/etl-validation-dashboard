@@ -90,6 +90,30 @@
             gap: 20px;
         }
 
+        /* NEW: Field Notice Styles */
+        .field-notice {
+            display: block;
+            margin-top: 5px;
+            font-size: 0.85rem;
+            color: #666;
+            font-style: italic;
+            padding: 5px 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+
+        .field-notice.info {
+            color: #2563eb;
+            background: #eff6ff;
+            border-left: 3px solid #2563eb;
+        }
+
+        .field-notice.warning {
+            color: #dc2626;
+            background: #fef2f2;
+            border-left: 3px solid #dc2626;
+        }
+
         .btn {
             background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
             color: white;
@@ -481,7 +505,7 @@
 
         <div class="controls">
             <div class="info-box">
-                <strong>Instructions:</strong> Enter your BigQuery table name and specify columns for validation checks. The system will run null checks, duplicate detection, and special character validation.
+                <strong>Instructions:</strong> Enter your BigQuery table name and specify columns for validation checks. The system will run null checks, duplicate detection, composite key duplicates, and special character validation.
             </div>
             
             <form id="validationForm">
@@ -501,9 +525,18 @@
                     </div>
                 </div>
 
+                <!-- NEW: Composite Key Duplicate Check -->
+                <div class="form-group">
+                    <label for="compositeKeyColumns">Composite Key Duplicate Check (comma-separated)</label>
+                    <textarea id="compositeKeyColumns" placeholder="e.g., first_name, last_name, email"></textarea>
+                    <small class="field-notice info">💡 Check for duplicates across multiple columns combined (e.g., first_name + last_name + email)</small>
+                </div>
+
                 <div class="form-group">
                     <label for="specialCharColumns">Special Character Check Columns (comma-separated)</label>
                     <textarea id="specialCharColumns" placeholder="e.g., first_name, last_name, address"></textarea>
+                    <!-- NEW: Special Character Notice -->
+                    <small class="field-notice warning">⚠️ Provide only STRING columns for special characters check</small>
                 </div>
 
                 <button type="submit" class="btn" id="runValidation">🚀 Run Data Validation</button>
@@ -781,6 +814,7 @@
             return input.split(',').map(col => col.trim()).filter(col => col.length > 0);
         }
 
+        // UPDATED: Form submission handler with composite key support
         document.getElementById('validationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -791,6 +825,7 @@
             const nullColumns = parseColumns(document.getElementById('nullColumns').value);
             const duplicateColumns = parseColumns(document.getElementById('duplicateColumns').value);
             const specialCharColumns = parseColumns(document.getElementById('specialCharColumns').value);
+            const compositeKeyColumns = parseColumns(document.getElementById('compositeKeyColumns').value);  // NEW
 
             // Basic client-side validation
             if (!tableName) {
@@ -823,7 +858,8 @@
                         tableName: tableName,
                         nullCheckColumns: nullColumns,
                         duplicateKeyColumns: duplicateColumns,
-                        specialCharCheckColumns: specialCharColumns
+                        specialCharCheckColumns: specialCharColumns,
+                        compositeKeyColumns: compositeKeyColumns  // NEW: Include composite key
                     })
                 });
 
