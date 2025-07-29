@@ -33,3 +33,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Add to .gitignore to keep keys secure
+config/*.json

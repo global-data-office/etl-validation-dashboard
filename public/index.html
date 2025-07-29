@@ -90,7 +90,6 @@
             gap: 20px;
         }
 
-        /* NEW: Field Notice Styles */
         .field-notice {
             display: block;
             margin-top: 5px;
@@ -511,7 +510,7 @@
             <form id="validationForm">
                 <div class="form-group">
                     <label for="tableName">BigQuery Table Name (project.dataset.table)</label>
-                    <input type="text" id="tableName" placeholder="e.g., my-project.my_dataset.customer_table" required>
+                    <input type="text" id="tableName" placeholder="e.g., rax-landing-dev.mydatapipe_ods.location" required>
                 </div>
 
                 <div class="form-row">
@@ -525,7 +524,6 @@
                     </div>
                 </div>
 
-                <!-- NEW: Composite Key Duplicate Check -->
                 <div class="form-group">
                     <label for="compositeKeyColumns">Composite Key Duplicate Check (comma-separated)</label>
                     <textarea id="compositeKeyColumns" placeholder="e.g., first_name, last_name, email"></textarea>
@@ -535,7 +533,6 @@
                 <div class="form-group">
                     <label for="specialCharColumns">Special Character Check Columns (comma-separated)</label>
                     <textarea id="specialCharColumns" placeholder="e.g., first_name, last_name, address"></textarea>
-                    <!-- NEW: Special Character Notice -->
                     <small class="field-notice warning">⚠️ Provide only STRING columns for special characters check</small>
                 </div>
 
@@ -593,32 +590,23 @@
 
         // Function to display detailed error information
         function displayErrorMessage(errorData) {
-            // Clear any existing errors first
             clearErrorMessages();
             
-            // Create error container
             const errorContainer = document.createElement('div');
             errorContainer.className = 'error-container';
             
-            // Get error icon based on type
             const getErrorIcon = (type) => {
                 switch(type) {
                     case 'TABLE_NOT_FOUND': return '🔍';
                     case 'COLUMN_NOT_FOUND': return '📋';
                     case 'PERMISSION_DENIED': return '🔒';
                     case 'SYNTAX_ERROR': return '⚠️';
-                    case 'PROJECT_DATASET_ERROR': return '🗂️';
                     case 'INVALID_TABLE_FORMAT': return '📝';
                     case 'MISSING_TABLE_NAME': return '❌';
-                    case 'DATASET_NOT_FOUND': return '🗂️';
-                    case 'PROJECT_NOT_FOUND': return '🏗️';
-                    case 'PROCEDURE_NOT_FOUND': return '⚙️';
-                    case 'QUERY_TIMEOUT': return '⏱️';
                     default: return '❗';
                 }
             };
             
-            // Create error HTML
             errorContainer.innerHTML = `
                 <div class="error-header">
                     <div class="error-icon">${getErrorIcon(errorData.type)}</div>
@@ -641,15 +629,12 @@
                 </div>
             `;
             
-            // Insert error after the form
             const form = document.getElementById('validationForm');
             form.parentNode.insertBefore(errorContainer, form.nextSibling);
             
-            // Scroll to error message
             errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
-        // Helper function to focus on table name input
         function focusOnTableName() {
             document.getElementById('tableName').focus();
         }
@@ -658,12 +643,9 @@
             const metricsContainer = document.getElementById('metricsContainer');
             metricsContainer.innerHTML = '';
 
-            // Get row count from data
             const rowCountItem = data.find(item => item.ValidationType === 'Row Count');
             const totalRecords = rowCountItem ? rowCountItem.Count : 0;
             
-            // Calculate validation metrics
-            const validationChecks = data.filter(item => item.ValidationType !== 'Row Count');
             const totalChecks = data.length;
             const passedChecks = data.filter(item => item.Status === 'Pass').length;
             const failedChecks = totalChecks - passedChecks;
@@ -695,7 +677,6 @@
             if (statusCtx.chart) statusCtx.chart.destroy();
             if (typeCtx.chart) typeCtx.chart.destroy();
 
-            // Status Chart
             const statusCounts = data.reduce((acc, item) => {
                 acc[item.Status] = (acc[item.Status] || 0) + 1;
                 return acc;
@@ -721,7 +702,6 @@
                 }
             });
 
-            // Type Chart - show failed validation counts by type
             const failedValidations = data.filter(item => item.Status === 'Fail' && item.Count > 0);
             const typeCounts = failedValidations.reduce((acc, item) => {
                 acc[item.ValidationType] = (acc[item.ValidationType] || 0) + item.Count;
@@ -793,7 +773,6 @@
             data.forEach(row => {
                 const tr = document.createElement('tr');
                 
-                // Special formatting for Row Count
                 let countDisplay = row.Count.toLocaleString();
                 if (row.ValidationType === 'Row Count') {
                     countDisplay = `${countDisplay} records`;
@@ -814,36 +793,30 @@
             return input.split(',').map(col => col.trim()).filter(col => col.length > 0);
         }
 
-        // UPDATED: Form submission handler with composite key support
         document.getElementById('validationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            // Clear any previous error messages immediately
             clearErrorMessages();
 
             const tableName = document.getElementById('tableName').value.trim();
             const nullColumns = parseColumns(document.getElementById('nullColumns').value);
             const duplicateColumns = parseColumns(document.getElementById('duplicateColumns').value);
             const specialCharColumns = parseColumns(document.getElementById('specialCharColumns').value);
-            const compositeKeyColumns = parseColumns(document.getElementById('compositeKeyColumns').value);  // NEW
+            const compositeKeyColumns = parseColumns(document.getElementById('compositeKeyColumns').value);
 
-            // Basic client-side validation
             if (!tableName) {
                 displayErrorMessage({
                     type: 'MISSING_TABLE_NAME',
                     title: 'Missing Table Name',
                     message: 'Please enter a BigQuery table name to run validation.',
-                    details: 'Table name field is empty',
                     suggestions: [
                         'Enter a valid BigQuery table name',
-                        'Use format: project.dataset.table',
-                        'Example: my-project.my_dataset.customer_table'
+                        'Use format: project.dataset.table'
                     ]
                 });
                 return;
             }
 
-            // Show loading and hide previous results
             document.getElementById('loadingSection').style.display = 'block';
             document.getElementById('dashboardSection').style.display = 'none';
             document.getElementById('runValidation').disabled = true;
@@ -859,63 +832,35 @@
                         nullCheckColumns: nullColumns,
                         duplicateKeyColumns: duplicateColumns,
                         specialCharCheckColumns: specialCharColumns,
-                        compositeKeyColumns: compositeKeyColumns  // NEW: Include composite key
+                        compositeKeyColumns: compositeKeyColumns
                     })
                 });
 
                 const result = await response.json();
 
-                // Hide loading
                 document.getElementById('loadingSection').style.display = 'none';
                 document.getElementById('runValidation').disabled = false;
 
                 if (result.success) {
-                    // Show successful results
                     document.getElementById('dashboardSection').style.display = 'block';
-                    
-                    // Populate dashboard with results
                     createMetrics(result.data);
                     createCharts(result.data);
                     populateTable(result.data);
-                    
-                    // Show success message briefly
-                    const successMessage = document.createElement('div');
-                    successMessage.className = 'success-message';
-                    successMessage.innerHTML = `
-                        <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 5px solid #28a745;">
-                            <strong>✅ Validation Completed Successfully!</strong><br>
-                            Processed ${result.data.length} validation checks for table: ${result.table}
-                        </div>
-                    `;
-                    document.querySelector('.controls').appendChild(successMessage);
-                    
-                    // Auto-remove success message after 5 seconds
-                    setTimeout(() => {
-                        if (successMessage.parentNode) {
-                            successMessage.remove();
-                        }
-                    }, 5000);
-                    
                 } else {
-                    // Display detailed error information
                     displayErrorMessage(result.error);
                 }
 
             } catch (error) {
-                // Hide loading
                 document.getElementById('loadingSection').style.display = 'none';
                 document.getElementById('runValidation').disabled = false;
 
-                // Display network or parsing error
                 displayErrorMessage({
                     type: 'NETWORK_ERROR',
                     title: 'Connection Error',
                     message: 'Unable to connect to the validation service.',
-                    details: error.message,
                     suggestions: [
                         'Check your internet connection',
-                        'Try again in a few moments',
-                        'Refresh the page if the issue persists'
+                        'Try again in a few moments'
                     ]
                 });
             }
