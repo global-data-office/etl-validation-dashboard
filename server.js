@@ -4,6 +4,7 @@ const express = require('express');
 const { BigQuery } = require('@google-cloud/bigquery');
 const cors = require('cors');
 const path = require('path');
+const jsonUploadRouter = require('./routes/json-upload');
 require('dotenv').config();
 
 const app = express();
@@ -13,6 +14,9 @@ const port = process.env.PORT || 8080;
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// JSON Upload Routes
+app.use('/api', jsonUploadRouter);
 
 // Initialize BigQuery client
 const bigquery = new BigQuery({

@@ -152,6 +152,208 @@
             line-height: 1.5;
         }
 
+        /* JSON Upload Interface Styles */
+        .upload-section {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .upload-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+
+        .file-upload-area {
+            border: 3px dashed #3498db;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            background: white;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-upload-area:hover {
+            border-color: #2980b9;
+            background: #f0f8ff;
+            transform: translateY(-2px);
+        }
+
+        .file-upload-area.dragover {
+            border-color: #27ae60;
+            background: #f0fff4;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #3498db;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            font-size: 1.1rem;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .upload-subtext {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .comparison-options {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .option-group {
+            margin-bottom: 20px;
+        }
+
+        .option-group label {
+            display: block;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .option-group select, .option-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .option-group select:focus, .option-group input:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        .file-preview {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .preview-header {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #3498db;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-top: 5px;
+        }
+
+        .preview-table {
+            overflow-x: auto;
+        }
+
+        .preview-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .preview-table th,
+        .preview-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .preview-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .processing-state {
+            text-align: center;
+            padding: 60px 30px;
+        }
+
+        .processing-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        .processing-text {
+            font-size: 1.2rem;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .processing-subtext {
+            color: #6c757d;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
         /* Existing Table Validation Styles */
         .controls {
             padding: 30px;
@@ -415,66 +617,6 @@
             color: #721c24;
         }
 
-        /* New JSON vs BQ Page Placeholder Styles */
-        .coming-soon {
-            text-align: center;
-            padding: 60px 30px;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        }
-
-        .coming-soon-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            color: #6c757d;
-        }
-
-        .coming-soon h3 {
-            font-size: 2rem;
-            color: #2c3e50;
-            margin-bottom: 15px;
-        }
-
-        .coming-soon p {
-            font-size: 1.1rem;
-            color: #6c757d;
-            line-height: 1.6;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .feature-preview {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 40px;
-            padding: 0 30px;
-        }
-
-        .feature-card {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-            text-align: center;
-            transition: transform 0.3s ease;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-5px);
-        }
-
-        .feature-card h4 {
-            color: #2c3e50;
-            margin-bottom: 10px;
-            font-size: 1.2rem;
-        }
-
-        .feature-card p {
-            color: #6c757d;
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-
         /* Responsive Design */
         @media (max-width: 768px) {
             .navigation-tabs {
@@ -498,7 +640,7 @@
                 font-size: 2rem;
             }
 
-            .feature-preview {
+            .upload-container {
                 grid-template-columns: 1fr;
             }
         }
@@ -762,44 +904,83 @@
             </div>
         </div>
 
-        <!-- Page 2: JSON vs BigQuery Comparison (New - Placeholder) -->
+        <!-- Page 2: JSON vs BigQuery Comparison (NEW WORKING VERSION) -->
         <div id="json-comparison-page" class="page-content">
             <div class="page-header">
                 <h2><span class="tab-icon">🆚</span> JSON vs BigQuery Comparison</h2>
                 <p>Advanced data pipeline validation with JSON file upload, incremental comparison, and comprehensive data quality analysis</p>
             </div>
 
-            <div class="coming-soon">
-                <div class="coming-soon-icon">🚀</div>
-                <h3>JSON vs BigQuery Validation</h3>
-                <p>This powerful feature is being developed and will enable you to compare JSON files directly with your BigQuery tables, including support for nested JSON structures and incremental data validation.</p>
+            <!-- Upload Section -->
+            <div class="upload-section" id="upload-section">
+                <div class="upload-container">
+                    <!-- File Upload Area -->
+                    <div class="file-upload-area" id="file-upload-area" onclick="document.getElementById('fileInput').click()">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">Drop JSON/JSONL files here</div>
+                        <div class="upload-subtext">or click to browse • Max 100MB • .json, .jsonl</div>
+                        <input type="file" id="fileInput" accept=".json,.jsonl" style="display: none;">
+                    </div>
+
+                    <!-- Comparison Options -->
+                    <div class="comparison-options">
+                        <h3 style="margin-bottom: 20px; color: #2c3e50;">⚙️ Comparison Configuration</h3>
+                        
+                        <div class="option-group">
+                            <label>BigQuery Table</label>
+                            <input type="text" id="bqTable" value="rax-landing-qa.snow_global_ods.customer_account" readonly>
+                        </div>
+
+                        <div class="option-group">
+                            <label>Primary Key Field</label>
+                            <select id="primaryKey">
+                                <option value="sys_id" selected>sys_id (Recommended)</option>
+                                <option value="number">number</option>
+                                <option value="u_tenant_id">u_tenant_id</option>
+                            </select>
+                        </div>
+
+                        <div class="option-group">
+                            <label>Incremental Strategy</label>
+                            <select id="incrementalStrategy">
+                                <option value="full">Full Comparison</option>
+                                <option value="timestamp">Timestamp-based (sys_updated_on)</option>
+                                <option value="id">ID-based (incremental)</option>
+                            </select>
+                        </div>
+
+                        <div class="option-group">
+                            <label>Comparison Fields</label>
+                            <input type="text" id="comparisonFields" placeholder="name, u_tenant_id, u_account_type, u_status (leave empty for all fields)">
+                        </div>
+
+                        <button class="btn-primary" id="startComparison" style="width: 100%; margin-top: 15px;" disabled>
+                            🚀 Start Comparison
+                        </button>
+                    </div>
+                </div>
+
+                <!-- File Preview -->
+                <div class="file-preview" id="file-preview" style="display: none;">
+                    <div class="preview-header">
+                        📋 File Preview: <span id="fileName">-</span>
+                    </div>
+
+                    <div class="file-stats" id="file-stats">
+                        <!-- Stats will be populated here -->
+                    </div>
+
+                    <div class="preview-table" id="preview-table">
+                        <!-- Preview table will be populated here -->
+                    </div>
+                </div>
             </div>
 
-            <div class="feature-preview">
-                <div class="feature-card">
-                    <h4>📁 File Upload</h4>
-                    <p>Upload JSON files (flat & nested structures) with drag-and-drop interface</p>
-                </div>
-                <div class="feature-card">
-                    <h4>⚡ Incremental Validation</h4>
-                    <p>Timestamp & ID-based incremental comparison strategies</p>
-                </div>
-                <div class="feature-card">
-                    <h4>🔍 Schema Comparison</h4>
-                    <p>Validate field names, data types, and structure differences</p>
-                </div>
-                <div class="feature-card">
-                    <h4>📊 Field-by-Field Analysis</h4>
-                    <p>Complete data comparison with missing record detection</p>
-                </div>
-                <div class="feature-card">
-                    <h4>📈 Visual Results</h4>
-                    <p>Interactive charts and detailed comparison reports</p>
-                </div>
-                <div class="feature-card">
-                    <h4>🎯 Data Quality</h4>
-                    <p>Apply all existing validation rules to both data sources</p>
-                </div>
+            <!-- Processing State -->
+            <div class="processing-state" id="processing-section" style="display: none;">
+                <div class="processing-spinner"></div>
+                <div class="processing-text">Processing your JSON file...</div>
+                <div class="processing-subtext">Analyzing structure and preparing for comparison</div>
             </div>
         </div>
     </div>
@@ -834,6 +1015,171 @@
             // Clear any existing errors when switching pages
             clearErrorMessages();
         }
+
+        // JSON Upload Functions
+        let currentFileId = null;
+
+        // File Upload Handler
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                uploadFile(e.target.files[0]);
+            }
+        });
+
+        // Drag and Drop Functions
+        const uploadArea = document.getElementById('file-upload-area');
+        
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', function(e) {
+            this.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                uploadFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // Upload File Function
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('jsonFile', file);
+
+            // Show processing state
+            document.getElementById('upload-section').style.display = 'none';
+            document.getElementById('processing-section').style.display = 'block';
+
+            try {
+                const response = await fetch('/api/upload-json', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    currentFileId = result.file.id;
+                    console.log('File uploaded successfully:', result.file.originalName);
+                    
+                    // Get file preview
+                    await loadFilePreview(currentFileId, result.file.originalName);
+                } else {
+                    throw new Error(result.error || 'Upload failed');
+                }
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                document.getElementById('processing-section').style.display = 'none';
+                document.getElementById('upload-section').style.display = 'block';
+                
+                alert('Upload failed: ' + error.message);
+            }
+        }
+
+        // Load File Preview
+        async function loadFilePreview(fileId, fileName) {
+            try {
+                const response = await fetch(`/api/preview-json/${fileId}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    displayFilePreview(result.preview, fileName);
+                    document.getElementById('startComparison').disabled = false;
+                } else {
+                    throw new Error(result.error || 'Preview failed');
+                }
+
+                document.getElementById('processing-section').style.display = 'none';
+                document.getElementById('upload-section').style.display = 'block';
+
+            } catch (error) {
+                console.error('Preview error:', error);
+                document.getElementById('processing-section').style.display = 'none';
+                document.getElementById('upload-section').style.display = 'block';
+                
+                alert('Preview failed: ' + error.message);
+            }
+        }
+
+        // Display File Preview
+        function displayFilePreview(preview, fileName) {
+            document.getElementById('fileName').textContent = fileName;
+            
+            // File statistics
+            const fileStats = document.getElementById('file-stats');
+            fileStats.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${preview.totalRecords.toLocaleString()}</div>
+                    <div class="stat-label">Total Records</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${preview.fieldsDetected}</div>
+                    <div class="stat-label">Fields Detected</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${formatFileSize(preview.fileSize)}</div>
+                    <div class="stat-label">File Size</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${preview.format}</div>
+                    <div class="stat-label">Format</div>
+                </div>
+            `;
+
+            // Preview table
+            if (preview.sampleRecords && preview.sampleRecords.length > 0) {
+                const firstRecord = preview.sampleRecords[0];
+                const keyFields = ['sys_id', 'number', 'name', 'u_tenant_id', 'u_account_type', 'u_status'];
+                
+                let tableHTML = '<table><thead><tr>';
+                keyFields.forEach(field => {
+                    if (firstRecord[field] !== undefined) {
+                        tableHTML += `<th>${field}</th>`;
+                    }
+                });
+                tableHTML += '</tr></thead><tbody>';
+
+                preview.sampleRecords.slice(0, 3).forEach(record => {
+                    tableHTML += '<tr>';
+                    keyFields.forEach(field => {
+                        if (firstRecord[field] !== undefined) {
+                            const value = record[field] || 'null';
+                            const displayValue = String(value).length > 20 ? String(value).substring(0, 20) + '...' : value;
+                            tableHTML += `<td>${displayValue}</td>`;
+                        }
+                    });
+                    tableHTML += '</tr>';
+                });
+
+                tableHTML += '</tbody></table>';
+                document.getElementById('preview-table').innerHTML = tableHTML;
+            }
+
+            document.getElementById('file-preview').style.display = 'block';
+        }
+
+        // Format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Start Comparison Button Handler
+        document.getElementById('startComparison').addEventListener('click', function() {
+            if (currentFileId) {
+                alert('Comparison functionality will be implemented in Day 2!\n\nYour file is uploaded and ready:\n- File ID: ' + currentFileId + '\n- Configuration ready\n- Preview working perfectly');
+            }
+        });
 
         // ALL YOUR EXISTING JAVASCRIPT FUNCTIONS BELOW (unchanged)
         
