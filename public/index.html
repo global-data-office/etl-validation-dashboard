@@ -354,6 +354,73 @@
             box-shadow: none;
         }
 
+        /* Results Dashboard Styles */
+        .comparison-results {
+            display: none;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .results-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-left: 5px solid #3498db;
+        }
+
+        .summary-card.matches {
+            border-left-color: #27ae60;
+        }
+
+        .summary-card.missing {
+            border-left-color: #e74c3c;
+        }
+
+        .summary-card.differences {
+            border-left-color: #f39c12;
+        }
+
+        .summary-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .summary-label {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .results-detail {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .detail-header {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         /* Existing Table Validation Styles */
         .controls {
             padding: 30px;
@@ -657,17 +724,6 @@
             animation: slideIn 0.3s ease-out;
         }
 
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
         .error-header {
             display: flex;
             align-items: flex-start;
@@ -904,7 +960,7 @@
             </div>
         </div>
 
-        <!-- Page 2: JSON vs BigQuery Comparison (NEW WORKING VERSION) -->
+        <!-- Page 2: JSON vs BigQuery Comparison (WORKING VERSION) -->
         <div id="json-comparison-page" class="page-content">
             <div class="page-header">
                 <h2><span class="tab-icon">🆚</span> JSON vs BigQuery Comparison</h2>
@@ -979,8 +1035,22 @@
             <!-- Processing State -->
             <div class="processing-state" id="processing-section" style="display: none;">
                 <div class="processing-spinner"></div>
-                <div class="processing-text">Processing your JSON file...</div>
-                <div class="processing-subtext">Analyzing structure and preparing for comparison</div>
+                <div class="processing-text" id="processing-text">Processing your JSON file...</div>
+                <div class="processing-subtext" id="processing-subtext">Analyzing structure and preparing for comparison</div>
+            </div>
+
+            <!-- Comparison Results -->
+            <div class="comparison-results" id="comparison-results">
+                <div class="results-summary" id="results-summary">
+                    <!-- Summary cards will be populated here -->
+                </div>
+
+                <div class="results-detail" id="results-detail">
+                    <div class="detail-header">📊 Detailed Comparison Results</div>
+                    <div id="detailed-results-content">
+                        <!-- Detailed results will be populated here -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1174,12 +1244,191 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // Start Comparison Button Handler
-        document.getElementById('startComparison').addEventListener('click', function() {
-            if (currentFileId) {
-                alert('Comparison functionality will be implemented in Day 2!\n\nYour file is uploaded and ready:\n- File ID: ' + currentFileId + '\n- Configuration ready\n- Preview working perfectly');
+        // NEW: Working Start Comparison Button Handler
+        document.getElementById('startComparison').addEventListener('click', async function() {
+            if (!currentFileId) {
+                alert('Please upload a JSON file first!');
+                return;
+            }
+
+            const button = this;
+            const originalText = button.innerHTML;
+            
+            try {
+                // Disable button and show processing
+                button.disabled = true;
+                button.innerHTML = '⏳ Running Comparison...';
+                
+                // Show processing state
+                document.getElementById('upload-section').style.display = 'none';
+                document.getElementById('processing-section').style.display = 'block';
+                document.getElementById('processing-text').textContent = 'Creating BigQuery temp table...';
+                document.getElementById('processing-subtext').textContent = 'Uploading your JSON data to BigQuery for comparison';
+
+                // Step 1: Create temp table
+                console.log('🔧 Creating temp table for file:', currentFileId);
+                const tempResponse = await fetch('/api/create-temp-table', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fileId: currentFileId })
+                });
+
+                const tempResult = await tempResponse.json();
+                
+                if (!tempResult.success) {
+                    throw new Error(tempResult.error || 'Failed to create temp table');
+                }
+
+                console.log('✅ Temp table created successfully');
+
+                // Step 2: Run comparison
+                document.getElementById('processing-text').textContent = 'Running comparison analysis...';
+                document.getElementById('processing-subtext').textContent = 'Comparing JSON data with BigQuery source table';
+
+                const primaryKey = document.getElementById('primaryKey').value;
+                const sourceTable = document.getElementById('bqTable').value;
+                const comparisonFieldsText = document.getElementById('comparisonFields').value.trim();
+                const comparisonFields = comparisonFieldsText ? 
+                    comparisonFieldsText.split(',').map(f => f.trim()).filter(f => f.length > 0) : 
+                    [];
+
+                console.log('🚀 Starting comparison analysis...');
+                const compResponse = await fetch('/api/compare-json-vs-bq', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fileId: currentFileId,
+                        sourceTable: sourceTable,
+                        primaryKey: primaryKey,
+                        comparisonFields: comparisonFields
+                    })
+                });
+
+                const compResult = await compResponse.json();
+                
+                if (!compResult.success) {
+                    throw new Error(compResult.error || 'Comparison failed');
+                }
+
+                console.log('✅ Comparison completed successfully');
+
+                // Step 3: Display results
+                displayComparisonResults(compResult);
+
+                // Hide processing, show results
+                document.getElementById('processing-section').style.display = 'none';
+                document.getElementById('comparison-results').style.display = 'block';
+
+            } catch (error) {
+                console.error('❌ Comparison failed:', error);
+                
+                // Hide processing, show upload section
+                document.getElementById('processing-section').style.display = 'none';
+                document.getElementById('upload-section').style.display = 'block';
+                
+                alert('Comparison failed: ' + error.message);
+            } finally {
+                // Re-enable button
+                button.disabled = false;
+                button.innerHTML = originalText;
             }
         });
+
+        // Display Comparison Results
+        function displayComparisonResults(results) {
+            const summary = results.summary;
+            
+            // Summary cards
+            const summaryContainer = document.getElementById('results-summary');
+            summaryContainer.innerHTML = `
+                <div class="summary-card">
+                    <div class="summary-number">${summary.totalJSONRecords.toLocaleString()}</div>
+                    <div class="summary-label">JSON Records</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-number">${summary.totalBQRecords.toLocaleString()}</div>
+                    <div class="summary-label">BigQuery Records</div>
+                </div>
+                <div class="summary-card matches">
+                    <div class="summary-number">${summary.matchingRecords.toLocaleString()}</div>
+                    <div class="summary-label">Matching Records</div>
+                </div>
+                <div class="summary-card missing">
+                    <div class="summary-number">${summary.missingFromBQ.toLocaleString()}</div>
+                    <div class="summary-label">Missing from BigQuery</div>
+                </div>
+                <div class="summary-card missing">
+                    <div class="summary-number">${summary.missingFromJSON.toLocaleString()}</div>
+                    <div class="summary-label">Missing from JSON</div>
+                </div>
+                <div class="summary-card differences">
+                    <div class="summary-number">${summary.matchRate}%</div>
+                    <div class="summary-label">Match Rate</div>
+                </div>
+            `;
+
+            // Detailed results
+            const detailContainer = document.getElementById('detailed-results-content');
+            let detailHTML = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
+            
+            // Missing records
+            detailHTML += '<div>';
+            detailHTML += '<h4 style="color: #e74c3c; margin-bottom: 15px;">❌ Missing from BigQuery</h4>';
+            if (results.missing.missingFromBQ.length > 0) {
+                detailHTML += '<table style="width: 100%; font-size: 0.9rem;"><thead><tr><th>sys_id</th><th>name</th><th>tenant_id</th></tr></thead><tbody>';
+                results.missing.missingFromBQ.slice(0, 5).forEach(record => {
+                    detailHTML += `<tr><td>${record.sys_id}</td><td>${record.name || 'N/A'}</td><td>${record.u_tenant_id || 'N/A'}</td></tr>`;
+                });
+                detailHTML += '</tbody></table>';
+                if (results.missing.missingFromBQ.length > 5) {
+                    detailHTML += `<p style="color: #6c757d; margin-top: 10px; font-style: italic;">... and ${results.missing.missingFromBQ.length - 5} more records</p>`;
+                }
+            } else {
+                detailHTML += '<p style="color: #27ae60;">✅ All JSON records exist in BigQuery</p>';
+            }
+            detailHTML += '</div>';
+
+            detailHTML += '<div>';
+            detailHTML += '<h4 style="color: #e74c3c; margin-bottom: 15px;">❌ Missing from JSON</h4>';
+            if (results.missing.missingFromJSON.length > 0) {
+                detailHTML += '<table style="width: 100%; font-size: 0.9rem;"><thead><tr><th>sys_id</th><th>name</th><th>tenant_id</th></tr></thead><tbody>';
+                results.missing.missingFromJSON.slice(0, 5).forEach(record => {
+                    detailHTML += `<tr><td>${record.sys_id}</td><td>${record.name || 'N/A'}</td><td>${record.u_tenant_id || 'N/A'}</td></tr>`;
+                });
+                detailHTML += '</tbody></table>';
+                if (results.missing.missingFromJSON.length > 5) {
+                    detailHTML += `<p style="color: #6c757d; margin-top: 10px; font-style: italic;">... and ${results.missing.missingFromJSON.length - 5} more records</p>`;
+                }
+            } else {
+                detailHTML += '<p style="color: #27ae60;">✅ All BigQuery records exist in JSON</p>';
+            }
+            detailHTML += '</div>';
+
+            detailHTML += '</div>';
+
+            // Field differences
+            if (results.fieldDifferences.totalDifferences > 0) {
+                detailHTML += '<div style="margin-top: 30px;">';
+                detailHTML += '<h4 style="color: #f39c12; margin-bottom: 15px;">🔍 Field Differences</h4>';
+                results.fieldDifferences.fieldDifferences.forEach(diff => {
+                    detailHTML += `<div style="margin-bottom: 15px;">`;
+                    detailHTML += `<strong>${diff.field}:</strong> ${diff.differenceCount} differences`;
+                    if (diff.sampleDifferences && diff.sampleDifferences.length > 0) {
+                        detailHTML += '<table style="width: 100%; font-size: 0.85rem; margin-top: 8px;"><thead><tr><th>sys_id</th><th>JSON Value</th><th>BigQuery Value</th></tr></thead><tbody>';
+                        diff.sampleDifferences.slice(0, 3).forEach(sample => {
+                            detailHTML += `<tr><td>${sample.sys_id}</td><td>${sample.json_value || 'null'}</td><td>${sample.bq_value || 'null'}</td></tr>`;
+                        });
+                        detailHTML += '</tbody></table>';
+                    }
+                    detailHTML += '</div>';
+                });
+                detailHTML += '</div>';
+            } else {
+                detailHTML += '<div style="margin-top: 30px;"><h4 style="color: #27ae60;">✅ No Field Differences Found</h4><p>All compared fields match perfectly between JSON and BigQuery data.</p></div>';
+            }
+
+            detailContainer.innerHTML = detailHTML;
+        }
 
         // ALL YOUR EXISTING JAVASCRIPT FUNCTIONS BELOW (unchanged)
         
