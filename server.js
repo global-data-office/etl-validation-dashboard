@@ -1,11 +1,10 @@
-// server.js - Backend server for BigQuery ETL Validation Dashboard
-
+// server.js - FINAL UPDATED VERSION: Schema-Safe Any Column Comparison
 const express = require('express');
 const { BigQuery } = require('@google-cloud/bigquery');
 const cors = require('cors');
 const path = require('path');
 const jsonUploadRouter = require('./routes/json-upload');
-const BigQueryIntegrationService = require('./services/bq-integration'); // NEW: Add BQ Integration Service
+const BigQueryIntegrationService = require('./services/bq-integration');
 require('dotenv').config();
 
 const app = express();
@@ -24,7 +23,43 @@ const bigquery = new BigQuery({
     projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
 });
 
-// NEW: BigQuery Connection Test Endpoint
+// NEW: Schema Analysis Endpoint for Frontend
+app.post('/api/analyze-schemas', async (req, res) => {
+    try {
+        const { tempTableId, sourceTable } = req.body;
+        
+        if (!tempTableId || !sourceTable) {
+            return res.status(400).json({
+                success: false,
+                error: 'tempTableId and sourceTable are required'
+            });
+        }
+        
+        console.log('📋 Analyzing schemas for comprehensive comparison...');
+        
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+        
+        const schemaAnalysis = await comparisonEngine.getCommonFields(tempTableId, sourceTable);
+        
+        console.log(`✅ Schema analysis complete: ${schemaAnalysis.commonFields.length} common fields found`);
+        
+        res.json({
+            success: true,
+            ...schemaAnalysis
+        });
+        
+    } catch (error) {
+        console.error('❌ Schema analysis failed:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            details: 'Schema analysis failed'
+        });
+    }
+});
+
+// BigQuery Connection Test Endpoint
 app.get('/api/test-bq-connection', async (req, res) => {
     try {
         console.log('🧪 Testing BigQuery connection via API...');
@@ -41,7 +76,7 @@ app.get('/api/test-bq-connection', async (req, res) => {
     }
 });
 
-// NEW: Test Source Table Access
+// Test Source Table Access
 app.get('/api/test-source-table', async (req, res) => {
     try {
         console.log('🔍 Testing source table access via API...');
@@ -58,7 +93,7 @@ app.get('/api/test-source-table', async (req, res) => {
     }
 });
 
-// NEW: Get Source Table Schema
+// Get Source Table Schema
 app.get('/api/get-source-schema', async (req, res) => {
     try {
         console.log('📋 Getting source table schema via API...');
@@ -75,7 +110,7 @@ app.get('/api/get-source-schema', async (req, res) => {
     }
 });
 
-// NEW: Get Sample Data
+// Get Sample Data
 app.get('/api/get-sample-data', async (req, res) => {
     try {
         console.log('📊 Getting sample data via API...');
@@ -92,7 +127,7 @@ app.get('/api/get-sample-data', async (req, res) => {
     }
 });
 
-// NEW: Create Temp Table from JSON (FIXED VERSION)
+// Create Temp Table from JSON (Returns Actual Table ID)
 app.post('/api/create-temp-table', async (req, res) => {
     try {
         const { fileId } = req.body;
@@ -106,11 +141,9 @@ app.post('/api/create-temp-table', async (req, res) => {
         
         console.log(`🔧 Creating temp table for file: ${fileId}`);
         
-        // Direct file reading approach
         const fs = require('fs');
         const path = require('path');
         
-        // Try different possible file paths
         const possiblePaths = [
             path.join(__dirname, 'uploads', `${fileId}.json`),
             path.join(__dirname, 'uploads', `${fileId}.jsonl`),
@@ -130,20 +163,10 @@ app.post('/api/create-temp-table', async (req, res) => {
         
         if (!filePath) {
             console.log('❌ File not found in any expected location');
-            console.log('🔍 Checked paths:', possiblePaths);
-            
-            // List actual files in uploads directory
-            const uploadsDir = path.join(__dirname, 'uploads');
-            if (fs.existsSync(uploadsDir)) {
-                const files = fs.readdirSync(uploadsDir);
-                console.log('📂 Files in uploads directory:', files);
-            }
-            
             return res.status(404).json({
                 success: false,
                 error: 'File not found',
-                details: `File ${fileId} not found in any expected location`,
-                checkedPaths: possiblePaths
+                details: `File ${fileId} not found in any expected location`
             });
         }
         
@@ -168,7 +191,6 @@ app.post('/api/create-temp-table', async (req, res) => {
                 }
             }
         } else {
-            // Handle regular JSON array format
             console.log('📋 Processing JSON array format...');
             try {
                 const parsed = JSON.parse(fileContent);
@@ -192,8 +214,14 @@ app.post('/api/create-temp-table', async (req, res) => {
             });
         }
         
+        // Check for primary key fields
+        console.log('🔍 Checking for key fields in first record...');
+        const firstRecord = jsonData[0];
+        console.log('🔧 First record keys (first 10):', Object.keys(firstRecord).slice(0, 10));
+        console.log('🔑 task_sys_id value:', firstRecord.task_sys_id);
+        
         // Flatten nested objects for BigQuery compatibility
-        const flattenedData = jsonData.map(record => {
+        const flattenedData = jsonData.map((record, index) => {
             const flattened = {};
             
             function flattenObject(obj, prefix = '') {
@@ -202,39 +230,74 @@ app.post('/api/create-temp-table', async (req, res) => {
                     
                     if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
                         // Handle nested objects (like ServiceNow references)
-                        if (value.link && value.value) {
-                            // ServiceNow reference object
-                            flattened[`${newKey}_link`] = value.link;
-                            flattened[`${newKey}_value`] = value.value;
+                        if (value.display_value || value.link) {
+                            if (value.display_value) {
+                                flattened[`${newKey}_display_value`] = String(value.display_value);
+                            }
+                            if (value.link) {
+                                flattened[`${newKey}_link`] = String(value.link);
+                            }
+                            if (value.value) {
+                                flattened[`${newKey}_value`] = String(value.value);
+                            }
                         } else {
-                            // Regular nested object - flatten recursively
                             flattenObject(value, newKey);
                         }
                     } else if (Array.isArray(value)) {
-                        // Convert arrays to JSON strings
                         flattened[newKey] = JSON.stringify(value);
                     } else {
-                        // Regular field
-                        flattened[newKey] = value;
+                        if (value === null || value === undefined) {
+                            flattened[newKey] = null;
+                        } else {
+                            flattened[newKey] = String(value);
+                        }
                     }
                 }
             }
             
             flattenObject(record);
+            
+            if (index === 0) {
+                console.log('🔧 After flattening, task_sys_id value:', flattened.task_sys_id);
+                console.log('🔧 Flattened keys sample:', Object.keys(flattened).slice(0, 20));
+            }
+            
             return flattened;
         });
         
         console.log(`🔧 Flattened data with ${Object.keys(flattenedData[0]).length} fields`);
         
+        // Final verification before sending to BigQuery
+        console.log('🔍 Final verification - sample task_sys_id values:');
+        flattenedData.slice(0, Math.min(3, flattenedData.length)).forEach((record, i) => {
+            console.log(`Record ${i}: task_sys_id = ${record.task_sys_id}`);
+        });
+        
         // Create temp table
         const bqService = new BigQueryIntegrationService();
         const result = await bqService.createTempTableFromJSON(flattenedData, fileId);
         
-        res.json(result);
+        console.log('🔍 Final verification after temp table creation...');
+        console.log(`📊 Records in table: ${result.recordsInTable}`);
+        console.log(`📋 Records input: ${result.inputRecords}`);
+        console.log(`🎯 Actual temp table ID: ${result.tempTableId}`);
+        
+        res.json({
+            success: true,
+            message: result.message,
+            tempTableId: result.tempTableId, // Return actual table ID
+            tempTableName: result.tempTableName,
+            recordsUploaded: result.recordsInTable,
+            recordsAttempted: result.inputRecords,
+            recordCountMatch: result.recordCountMatch,
+            fieldsProcessed: result.fieldsProcessed,
+            approach: result.approach,
+            verification: result.verification,
+            expiresAt: result.expiresAt
+        });
         
     } catch (error) {
         console.error('❌ Temp table creation failed:', error.message);
-        console.error('❌ Full error:', error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -243,18 +306,20 @@ app.post('/api/create-temp-table', async (req, res) => {
     }
 });
 
-// NEW: JSON vs BigQuery Comparison
+// FINAL: Schema-Safe JSON vs BigQuery Comparison
 app.post('/api/compare-json-vs-bq', async (req, res) => {
     try {
         const { 
             fileId, 
             sourceTable, 
-            primaryKey = 'sys_id', 
+            primaryKey = 'task_sys_id', 
             comparisonFields = [],
             strategy = 'full' 
         } = req.body;
         
-        console.log(`🚀 Starting comparison for file: ${fileId}`);
+        console.log(`🚀 FINAL: Starting schema-safe comparison for file: ${fileId}`);
+        console.log(`🔑 Primary key: ${primaryKey}`);
+        console.log(`🔧 Comparison fields: ${comparisonFields.length > 0 ? comparisonFields.join(', ') : 'Auto-selected common fields'}`);
         
         if (!fileId || !sourceTable) {
             return res.status(400).json({
@@ -263,38 +328,242 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
             });
         }
         
-        // Build temp table ID from file ID
-        const tempTableName = `json_temp_${fileId}`;
-        const tempTableId = `${process.env.GOOGLE_CLOUD_PROJECT_ID}.temp_validation_tables.${tempTableName}`;
+        // Step 1: Create temp table and get actual table ID
+        console.log(`🔍 STEP 1: Creating temp table and getting actual table ID...`);
         
-        console.log(`📊 Comparing: ${tempTableId} vs ${sourceTable}`);
+        const fs = require('fs');
+        const path = require('path');
         
-        // Create comparison engine and run comparison
+        const possiblePaths = [
+            path.join(__dirname, 'uploads', `${fileId}.json`),
+            path.join(__dirname, 'uploads', `${fileId}.jsonl`),
+            path.join(__dirname, 'temp-files', `${fileId}.json`),
+            path.join(__dirname, 'temp-files', `${fileId}.jsonl`)
+        ];
+        
+        let filePath = null;
+        for (const possiblePath of possiblePaths) {
+            if (fs.existsSync(possiblePath)) {
+                filePath = possiblePath;
+                break;
+            }
+        }
+        
+        if (!filePath) {
+            return res.status(404).json({
+                success: false,
+                error: 'File not found for comparison'
+            });
+        }
+        
+        // Parse the JSON data (same as create-temp-table)
+        const fileContent = fs.readFileSync(filePath, 'utf8');
+        let jsonData = [];
+        
+        if (filePath.endsWith('.jsonl') || fileContent.includes('\n{')) {
+            const lines = fileContent.trim().split('\n');
+            for (const line of lines) {
+                if (line.trim()) {
+                    try {
+                        jsonData.push(JSON.parse(line.trim()));
+                    } catch (parseError) {
+                        console.warn('⚠️ Skipping invalid JSON line');
+                    }
+                }
+            }
+        } else {
+            const parsed = JSON.parse(fileContent);
+            jsonData = Array.isArray(parsed) ? parsed : [parsed];
+        }
+        
+        console.log(`✅ Re-parsed ${jsonData.length} records for comparison`);
+        
+        // Flatten the data (same as create-temp-table)
+        const flattenedData = jsonData.map((record) => {
+            const flattened = {};
+            
+            function flattenObject(obj, prefix = '') {
+                for (const [key, value] of Object.entries(obj)) {
+                    const newKey = prefix ? `${prefix}_${key}` : key;
+                    
+                    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+                        if (value.display_value || value.link) {
+                            if (value.display_value) {
+                                flattened[`${newKey}_display_value`] = String(value.display_value);
+                            }
+                            if (value.link) {
+                                flattened[`${newKey}_link`] = String(value.link);
+                            }
+                            if (value.value) {
+                                flattened[`${newKey}_value`] = String(value.value);
+                            }
+                        } else {
+                            flattenObject(value, newKey);
+                        }
+                    } else if (Array.isArray(value)) {
+                        flattened[newKey] = JSON.stringify(value);
+                    } else {
+                        if (value === null || value === undefined) {
+                            flattened[newKey] = null;
+                        } else {
+                            flattened[newKey] = String(value);
+                        }
+                    }
+                }
+            }
+            
+            flattenObject(record);
+            return flattened;
+        });
+        
+        // Create temp table and get actual table ID
+        const bqService = new BigQueryIntegrationService();
+        const tempTableResult = await bqService.createTempTableFromJSON(flattenedData, fileId);
+        
+        console.log(`✅ Temp table created successfully`);
+        console.log(`🎯 ACTUAL temp table ID: ${tempTableResult.tempTableId}`);
+        
+        // Use the actual temp table ID returned from creation
+        const actualTempTableId = tempTableResult.tempTableId;
+        
+        console.log(`📊 FINAL: Comparing using actual table: ${actualTempTableId} vs ${sourceTable}`);
+        
+        // Pre-comparison verification
+        try {
+            const [preCheckResult] = await bigquery.query(`SELECT COUNT(*) as count FROM \`${actualTempTableId}\``);
+            const tempTableCount = preCheckResult[0].count;
+            console.log(`🔍 Pre-comparison check: ${tempTableCount} records in temp table`);
+            
+            if (tempTableCount === 0) {
+                console.error(`❌ CRITICAL: Temp table is empty!`);
+                return res.status(400).json({
+                    success: false,
+                    error: 'Temp table is empty',
+                    details: `No records found in temp table: ${actualTempTableId}`
+                });
+            }
+        } catch (preCheckError) {
+            console.error(`❌ Pre-comparison check failed:`, preCheckError.message);
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot access temp table',
+                details: preCheckError.message
+            });
+        }
+        
+        // Run schema-safe comparison
         const ComparisonEngineService = require('./services/comparison-engine');
         const comparisonEngine = new ComparisonEngineService();
         
+        console.log(`🔍 FINAL: Running schema-safe comparison...`);
+        
         const results = await comparisonEngine.compareJSONvsBigQuery(
-            tempTableId,
+            actualTempTableId, // Use actual table ID
             sourceTable,
             primaryKey,
-            comparisonFields
+            comparisonFields,
+            strategy
         );
         
-        console.log(`✅ Comparison completed: ${results.summary.matchingRecords} matches found`);
+        console.log(`✅ Schema-safe comparison completed successfully`);
+        console.log(`📊 Results summary: ${results.summary?.recordsReachedTarget || 0} matches found using '${primaryKey}'`);
+        
+        // Include temp table info in response
+        results.tempTableInfo = {
+            actualTableId: actualTempTableId,
+            recordsInTable: tempTableResult.recordsInTable,
+            recordCountMatch: tempTableResult.recordCountMatch
+        };
         
         res.json(results);
         
     } catch (error) {
-        console.error('❌ Comparison API failed:', error.message);
+        console.error('❌ Schema-safe comparison API failed:', error.message);
+        
+        // Enhanced error handling for schema issues
+        let errorMessage = error.message;
+        let suggestions = [
+            'Check that the primary key field exists in both JSON and BigQuery tables',
+            'Try using a different field that exists in both tables',
+            'Verify BigQuery table is accessible'
+        ];
+        
+        if (error.message.includes('not available in both tables')) {
+            suggestions = [
+                'Choose a field that exists in both your JSON file and BigQuery table',
+                'Common options: task_sys_id, task_number, task_priority',
+                'Check the Column Names tab after upload to see available common fields'
+            ];
+        } else if (error.message.includes('Unrecognized name')) {
+            suggestions = [
+                'The selected field does not exist in one of the tables',
+                'Use the Column Names tab to see which fields are available in both tables',
+                'Try a different primary key field'
+            ];
+        }
+        
         res.status(500).json({
             success: false,
-            error: error.message,
-            details: 'JSON vs BigQuery comparison failed'
+            error: errorMessage,
+            details: 'Schema-safe comparison failed',
+            suggestions: suggestions,
+            timestamp: new Date().toISOString()
         });
     }
 });
 
-// API endpoint to run validation
+// Manual Cleanup Endpoint
+app.delete('/api/cleanup-temp-table/:fileId', async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        console.log(`🧹 Manual cleanup for file: ${fileId}`);
+        
+        const dataset = bigquery.dataset('temp_validation_tables');
+        
+        let deletedTables = [];
+        let errors = [];
+        
+        try {
+            const [tables] = await dataset.getTables();
+            const relevantTables = tables.filter(table => 
+                table.id.startsWith(`json_temp_${fileId}`)
+            );
+            
+            console.log(`🔍 Found ${relevantTables.length} relevant tables to clean up`);
+            
+            for (const table of relevantTables) {
+                try {
+                    await table.delete();
+                    deletedTables.push(table.id);
+                    console.log(`✅ Deleted table: ${table.id}`);
+                } catch (deleteError) {
+                    errors.push(`Failed to delete ${table.id}: ${deleteError.message}`);
+                    console.error(`❌ Failed to delete ${table.id}:`, deleteError.message);
+                }
+            }
+            
+        } catch (listError) {
+            console.error(`❌ Failed to list tables:`, listError.message);
+            errors.push(`Failed to list tables: ${listError.message}`);
+        }
+        
+        res.json({
+            success: deletedTables.length > 0 || errors.length === 0,
+            deletedTables: deletedTables,
+            errors: errors,
+            message: `Cleanup completed: ${deletedTables.length} tables deleted, ${errors.length} errors`
+        });
+        
+    } catch (error) {
+        console.error('❌ Manual cleanup failed:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Original Table Validation (v1.0 functionality - unchanged)
 app.post('/api/validate', async (req, res) => {
     try {
         const {
@@ -305,7 +574,6 @@ app.post('/api/validate', async (req, res) => {
             compositeKeyColumns
         } = req.body;
 
-        // Enhanced input validation
         if (!tableName) {
             return res.status(400).json({
                 success: false,
@@ -313,7 +581,6 @@ app.post('/api/validate', async (req, res) => {
                     type: 'MISSING_TABLE_NAME',
                     title: 'Missing Table Name',
                     message: 'Table name is required to run validation.',
-                    details: 'No table name provided in request',
                     suggestions: [
                         'Enter a valid BigQuery table name',
                         'Use format: project.dataset.table'
@@ -322,7 +589,6 @@ app.post('/api/validate', async (req, res) => {
             });
         }
 
-        // Validate table name format
         if (!tableName.includes('.') || tableName.split('.').length !== 3) {
             return res.status(400).json({
                 success: false,
@@ -342,7 +608,6 @@ app.post('/api/validate', async (req, res) => {
 
         console.log('Running validation for table:', tableName);
 
-        // Construct the SQL query to call your stored procedure
         const query = `
             CALL \`${process.env.GOOGLE_CLOUD_PROJECT_ID}.${process.env.BIGQUERY_DATASET}.data_validation_checks\`(
                 @table_name,
@@ -371,11 +636,9 @@ app.post('/api/validate', async (req, res) => {
             }
         };
 
-        // Execute the query
         const [rows] = await bigquery.query(options);
         console.log('Validation results:', rows);
 
-        // Return results
         res.json({
             success: true,
             data: rows,
@@ -386,7 +649,6 @@ app.post('/api/validate', async (req, res) => {
     } catch (error) {
         console.error('Error running validation:', error);
 
-        // Enhanced error handling with specific messages
         let errorResponse = {
             success: false,
             error: {
@@ -397,8 +659,7 @@ app.post('/api/validate', async (req, res) => {
                 suggestions: [
                     'Check your table and column names',
                     'Verify you have proper permissions',
-                    'Ensure table format is correct',
-                    'Contact support if the issue persists'
+                    'Ensure table format is correct'
                 ]
             }
         };
@@ -412,8 +673,7 @@ app.post('/api/validate', async (req, res) => {
                 suggestions: [
                     'Check the table name format: project.dataset.table',
                     'Verify the table exists in BigQuery console',
-                    'Ensure you have proper permissions to access the table',
-                    'Check if the project and dataset names are correct'
+                    'Ensure you have proper permissions to access the table'
                 ]
             };
         } else if (error.message.includes('Column') && error.message.includes('not found')) {
@@ -425,8 +685,7 @@ app.post('/api/validate', async (req, res) => {
                 suggestions: [
                     'Check column names for typos',
                     'Verify column names match exactly (case-sensitive)',
-                    'Use BigQuery console to view table schema',
-                    'Remove any extra spaces or special characters'
+                    'Use BigQuery console to view table schema'
                 ]
             };
         } else if (error.message.includes('permission') || 
@@ -439,21 +698,7 @@ app.post('/api/validate', async (req, res) => {
                 details: error.message,
                 suggestions: [
                     'Contact your administrator for BigQuery access',
-                    'Verify your service account has proper roles',
-                    'Check if you have access to the specified project/dataset'
-                ]
-            };
-        } else if (error.message.includes('Syntax error') || error.message.includes('Invalid')) {
-            errorResponse.error = {
-                type: 'SYNTAX_ERROR',
-                title: 'Invalid Input Format',
-                message: 'There is a syntax error in your input parameters.',
-                details: error.message,
-                suggestions: [
-                    'Check table name format: project.dataset.table',
-                    'Ensure column names are comma-separated',
-                    'Remove any special characters except underscores and hyphens',
-                    'Check for extra commas or spaces'
+                    'Verify your service account has proper roles'
                 ]
             };
         }
@@ -481,4 +726,5 @@ app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 ETL Validation Dashboard server running on port ${port}`);
     console.log(`📊 Dashboard available at: http://localhost:${port}`);
     console.log(`☁️ BigQuery Project: ${process.env.GOOGLE_CLOUD_PROJECT_ID}`);
+    console.log(`🔧 FEATURES: Schema-safe any-column comparison, no record duplication, 5-tab analysis`);
 });

@@ -35,4 +35,5 @@ Thumbs.db
 *.swo
 
 # Add to .gitignore to keep keys secure
-config/*.json
+config/*.jsonuploads/ 
+temp-files/ 
