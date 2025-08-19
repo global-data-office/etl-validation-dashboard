@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ETL Data Validation Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -44,19 +45,6 @@
         .header p {
             font-size: 1.1rem;
             opacity: 0.9;
-        }
-
-        .version-badge {
-            display: inline-block;
-            background: rgba(255,255,255,0.2);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-left: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
         /* Navigation Tabs */
@@ -481,6 +469,60 @@
             box-shadow: 0 5px 15px rgba(149, 165, 166, 0.4);
         }
 
+        /* Excel Export Button */
+        .btn-export {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 12px rgba(40, 167, 69, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-export:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+            background: linear-gradient(135deg, #218838 0%, #1abc9c 100%);
+        }
+
+        .btn-export:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .export-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 9999;
+            display: none;
+            animation: slideInRight 0.3s ease;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
         /* Results Dashboard */
         .comparison-results {
             display: none;
@@ -503,6 +545,11 @@
             display: flex;
             align-items: center;
             gap: 12px;
+        }
+
+        .results-actions {
+            display: flex;
+            gap: 10px;
         }
 
         /* Results Navigation Tabs */
@@ -1159,6 +1206,15 @@
                 gap: 15px;
             }
 
+            .results-actions {
+                width: 100%;
+                justify-content: stretch;
+            }
+
+            .results-actions button {
+                flex: 1;
+            }
+
             .field-metrics {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -1343,9 +1399,14 @@
                     <div class="results-title">
                         <span>📊</span> Analysis Results
                     </div>
-                    <button class="btn-secondary" onclick="startNewComparison()">
-                        🔄 New Comparison
-                    </button>
+                    <div class="results-actions">
+                        <button class="btn-export" onclick="exportToExcel()" title="Export comprehensive analysis to Excel">
+                            📊 Export to Excel
+                        </button>
+                        <button class="btn-secondary" onclick="startNewComparison()">
+                            🔄 New Comparison
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Results Navigation Tabs -->
@@ -1449,6 +1510,7 @@
         let currentFileId = null;
         let availableFields = [];
         let currentSuggestions = [];
+        let globalComparisonResults = null; // Store results for export
 
         // Page Navigation
         function showPage(pageId) {
@@ -1478,7 +1540,295 @@
             currentFileId = null;
             availableFields = [];
             currentSuggestions = [];
+            globalComparisonResults = null; // Clear stored results
             hideEnhancedSuggestions();
+        }
+
+        // Excel Export Function
+        async function exportToExcel() {
+            if (!globalComparisonResults) {
+                alert('No comparison results available to export. Please run a comparison first.');
+                return;
+            }
+
+            try {
+                showExportStatus('Generating Excel report...');
+                
+                const results = globalComparisonResults;
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                const filename = `ETL_Validation_Report_${timestamp}.xlsx`;
+
+                // Create workbook
+                const wb = XLSX.utils.book_new();
+
+                // Sheet 1: Executive Summary
+                const summaryData = [
+                    ['ETL Data Validation Report', '', '', ''],
+                    ['Generated:', new Date().toLocaleString(), '', ''],
+                    ['Primary Key Used:', results.summary?.primaryKeyUsed || 'N/A', '', ''],
+                    ['Source Table:', results.metadata?.sourceTableName || 'N/A', '', ''],
+                    ['', '', '', ''],
+                    ['EXECUTIVE SUMMARY', '', '', ''],
+                    ['Total JSON Records:', results.summary?.totalRecordsInFile || 0, '', ''],
+                    ['Unique Source Records:', results.summary?.uniqueSourceRecords || 0, '', ''],
+                    ['Records Found in Target:', results.summary?.recordsReachedTarget || 0, '', ''],
+                    ['Pipeline Success Rate:', (results.summary?.pipelineSuccessRate || '0') + '%', '', ''],
+                    ['Fields Analyzed:', results.summary?.fieldsAnalyzed || 0, '', ''],
+                    ['Total Field Issues:', results.summary?.totalFieldIssues || 0, '', ''],
+                    ['', '', '', ''],
+                    ['KEY INSIGHTS', '', '', ''],
+                    ['✅ Data Quality Score:', calculateQualityScore(results), '', ''],
+                    ['🔍 Schema Compatibility:', (results.schemaAnalysis?.schemaCompatibility * 100).toFixed(1) + '%', '', ''],
+                    ['📊 Common Fields Available:', results.schemaAnalysis?.commonFields?.length || 0, '', '']
+                ];
+
+                const summaryWS = XLSX.utils.aoa_to_sheet(summaryData);
+                XLSX.utils.book_append_sheet(wb, summaryWS, 'Executive Summary');
+
+                // Sheet 2: Record Analysis
+                const recordData = [
+                    ['RECORD COUNT ANALYSIS', '', '', ''],
+                    ['', '', '', ''],
+                    ['Metric', 'JSON Source', 'BigQuery Target', 'Notes'],
+                    ['Total Records', results.recordCounts?.jsonDetails?.totalRecords || 0, results.recordCounts?.bqDetails?.totalRecords || 0, ''],
+                    ['Unique Primary Keys', results.recordCounts?.jsonDetails?.uniquePrimaryKeys || 0, results.recordCounts?.bqDetails?.uniquePrimaryKeys || 0, ''],
+                    ['Duplicate Records', results.recordCounts?.jsonDetails?.duplicateRecords || 0, results.recordCounts?.bqDetails?.duplicateRecords || 0, ''],
+                    ['Null Primary Keys', results.recordCounts?.jsonDetails?.nullPrimaryKeys || 0, results.recordCounts?.bqDetails?.nullPrimaryKeys || 0, ''],
+                    ['', '', '', ''],
+                    ['COMPARISON RESULTS', '', '', ''],
+                    ['Records Successfully Matched:', results.summary?.recordsReachedTarget || 0, '', '✅ Found in both systems'],
+                    ['Records Failed to Match:', results.summary?.recordsFailedToReachTarget || 0, '', results.summary?.recordsFailedToReachTarget > 0 ? '⚠️ Investigation needed' : '✅ Perfect transfer'],
+                    ['Pipeline Success Rate:', (results.summary?.pipelineSuccessRate || '0') + '%', '', results.summary?.pipelineSuccessRate >= 95 ? '✅ Excellent' : results.summary?.pipelineSuccessRate >= 80 ? '⚠️ Good' : '❌ Needs improvement']
+                ];
+
+                const recordWS = XLSX.utils.aoa_to_sheet(recordData);
+                XLSX.utils.book_append_sheet(wb, recordWS, 'Record Analysis');
+
+                // Sheet 3: Schema Compatibility
+                const schemaData = [
+                    ['SCHEMA COMPATIBILITY ANALYSIS', '', '', ''],
+                    ['', '', '', ''],
+                    ['Field Category', 'Count', 'Percentage', 'Examples']
+                ];
+
+                const schema = results.schemaAnalysis;
+                if (schema) {
+                    schemaData.push(
+                        ['JSON Fields', schema.totalJsonFields || 0, '100%', 'All fields in JSON file'],
+                        ['BigQuery Fields', schema.totalBqFields || 0, '100%', 'All fields in BigQuery table'],
+                        ['Common Fields', schema.commonFields?.length || 0, ((schema.commonFields?.length / Math.max(schema.totalJsonFields, 1)) * 100).toFixed(1) + '%', (schema.commonFields || []).slice(0, 5).join(', ')],
+                        ['JSON-Only Fields', schema.jsonOnlyFields?.length || 0, '', (schema.jsonOnlyFields || []).slice(0, 5).join(', ')],
+                        ['BigQuery-Only Fields', schema.bqOnlyFields?.length || 0, '', (schema.bqOnlyFields || []).slice(0, 5).join(', ')],
+                        ['Primary Key Candidates', schema.primaryKeyCandidates?.length || 0, '', (schema.primaryKeyCandidates || []).join(', ')]
+                    );
+
+                    // Add detailed common fields list
+                    if (schema.commonFields && schema.commonFields.length > 0) {
+                        schemaData.push(['', '', '', '']);
+                        schemaData.push(['DETAILED COMMON FIELDS LIST', '', '', '']);
+                        schemaData.push(['Field Name', 'Available for Analysis', 'Type', 'Notes']);
+                        schema.commonFields.forEach(field => {
+                            schemaData.push([
+                                field,
+                                'Yes',
+                                'Field',
+                                schema.primaryKeyCandidates?.includes(field) ? 'Primary Key Candidate' : 'Regular Field'
+                            ]);
+                        });
+                    }
+                }
+
+                const schemaWS = XLSX.utils.aoa_to_sheet(schemaData);
+                XLSX.utils.book_append_sheet(wb, schemaWS, 'Schema Compatibility');
+
+                // Sheet 4: Field Quality Analysis
+                const fieldData = [
+                    ['FIELD-BY-FIELD QUALITY ANALYSIS', '', '', '', '', ''],
+                    ['', '', '', '', '', ''],
+                    ['Field Name', 'Total Records', 'Perfect Matches', 'Differences', 'Quality Rate', 'Status']
+                ];
+
+                if (results.fieldWiseAnalysis?.fieldComparison) {
+                    results.fieldWiseAnalysis.fieldComparison.forEach(field => {
+                        fieldData.push([
+                            field.fieldName || 'Unknown',
+                            field.totalRecords || 0,
+                            field.perfectMatches || 0,
+                            field.differences || 0,
+                            (field.matchRate || '0') + '%',
+                            field.error ? 'Error' : field.differences === 0 ? 'Perfect' : 'Issues Found'
+                        ]);
+                    });
+
+                    // Add summary statistics
+                    fieldData.push(['', '', '', '', '', '']);
+                    fieldData.push(['SUMMARY STATISTICS', '', '', '', '', '']);
+                    fieldData.push(['Total Fields Analyzed:', results.fieldWiseAnalysis.fieldsAnalyzed || 0, '', '', '', '']);
+                    fieldData.push(['Perfect Fields:', results.fieldWiseAnalysis.perfectFields || 0, '', '', '', '']);
+                    fieldData.push(['Fields with Issues:', results.fieldWiseAnalysis.problematicFields || 0, '', '', '', '']);
+                    fieldData.push(['Total Field Issues:', results.fieldWiseAnalysis.totalFieldIssues || 0, '', '', '', '']);
+                }
+
+                const fieldWS = XLSX.utils.aoa_to_sheet(fieldData);
+                XLSX.utils.book_append_sheet(wb, fieldWS, 'Field Quality');
+
+                // Sheet 5: Duplicates Analysis
+                const duplicatesData = [
+                    ['DUPLICATES ANALYSIS', '', '', ''],
+                    ['', '', '', ''],
+                    ['Source', 'Duplicate Keys Found', 'Total Duplicate Records', 'Status'],
+                    ['JSON Source', results.duplicatesAnalysis?.duplicateCount || 0, results.duplicatesAnalysis?.totalDuplicateRecords || 0, (results.duplicatesAnalysis?.duplicateCount || 0) > 0 ? 'Duplicates Found' : 'Clean'],
+                    ['BigQuery Target', results.duplicatesAnalysis?.bqDuplicates?.duplicateCount || 0, results.duplicatesAnalysis?.bqDuplicates?.totalDuplicateRecords || 0, (results.duplicatesAnalysis?.bqDuplicates?.duplicateCount || 0) > 0 ? 'Duplicates Found' : 'Clean']
+                ];
+
+                if (results.duplicatesAnalysis?.duplicateKeys?.length > 0) {
+                    duplicatesData.push(['', '', '', '']);
+                    duplicatesData.push(['DETAILED DUPLICATE KEYS', '', '', '']);
+                    duplicatesData.push(['Duplicate Key Value', 'Occurrences', 'Source', 'Impact']);
+                    
+                    results.duplicatesAnalysis.duplicateKeys.forEach(dup => {
+                        duplicatesData.push([
+                            dup.key || 'Unknown',
+                            dup.count || 0,
+                            'JSON Source',
+                            'Data Quality Issue'
+                        ]);
+                    });
+                }
+
+                const duplicatesWS = XLSX.utils.aoa_to_sheet(duplicatesData);
+                XLSX.utils.book_append_sheet(wb, duplicatesWS, 'Duplicates Analysis');
+
+                // Sheet 6: Recommendations
+                const recommendationsData = [
+                    ['RECOMMENDATIONS & ACTION ITEMS', '', ''],
+                    ['', '', ''],
+                    ['Category', 'Recommendation', 'Priority']
+                ];
+
+                // Generate smart recommendations based on results
+                const recommendations = generateRecommendations(results);
+                recommendations.forEach(rec => {
+                    recommendationsData.push([rec.category, rec.recommendation, rec.priority]);
+                });
+
+                const recommendationsWS = XLSX.utils.aoa_to_sheet(recommendationsData);
+                XLSX.utils.book_append_sheet(wb, recommendationsWS, 'Recommendations');
+
+                // Generate and download the file
+                showExportStatus('Downloading Excel file...');
+                XLSX.writeFile(wb, filename);
+                
+                showExportStatus('✅ Excel report downloaded successfully!', 'success');
+                
+            } catch (error) {
+                console.error('Export error:', error);
+                showExportStatus('❌ Export failed: ' + error.message, 'error');
+            }
+        }
+
+        // Helper function to calculate overall quality score
+        function calculateQualityScore(results) {
+            try {
+                const pipelineSuccess = parseFloat(results.summary?.pipelineSuccessRate || 0);
+                const fieldIssues = results.summary?.totalFieldIssues || 0;
+                const totalFields = results.summary?.fieldsAnalyzed || 1;
+                const fieldQuality = ((totalFields - fieldIssues) / totalFields) * 100;
+                const duplicateIssues = (results.duplicatesAnalysis?.duplicateCount || 0) > 0 ? 10 : 0;
+                
+                const overallScore = Math.max(0, (pipelineSuccess + fieldQuality) / 2 - duplicateIssues);
+                
+                if (overallScore >= 90) return `${overallScore.toFixed(1)}% - Excellent`;
+                if (overallScore >= 75) return `${overallScore.toFixed(1)}% - Good`;
+                if (overallScore >= 60) return `${overallScore.toFixed(1)}% - Fair`;
+                return `${overallScore.toFixed(1)}% - Needs Improvement`;
+            } catch (error) {
+                return 'Unable to calculate';
+            }
+        }
+
+        // Helper function to generate smart recommendations
+        function generateRecommendations(results) {
+            const recommendations = [];
+            
+            const successRate = parseFloat(results.summary?.pipelineSuccessRate || 0);
+            const fieldIssues = results.summary?.totalFieldIssues || 0;
+            const duplicates = results.duplicatesAnalysis?.duplicateCount || 0;
+            
+            if (successRate < 100) {
+                recommendations.push({
+                    category: 'Data Pipeline',
+                    recommendation: `${results.summary?.recordsFailedToReachTarget || 0} records failed to transfer. Investigate data pipeline for missing records.`,
+                    priority: 'High'
+                });
+            }
+            
+            if (fieldIssues > 0) {
+                recommendations.push({
+                    category: 'Data Quality',
+                    recommendation: `${fieldIssues} field-level issues detected. Review field mapping and data transformation logic.`,
+                    priority: 'Medium'
+                });
+            }
+            
+            if (duplicates > 0) {
+                recommendations.push({
+                    category: 'Data Integrity',
+                    recommendation: `${duplicates} duplicate primary keys found in source data. Implement deduplication logic.`,
+                    priority: 'High'
+                });
+            }
+            
+            const schemaCompatibility = (results.schemaAnalysis?.schemaCompatibility || 0) * 100;
+            if (schemaCompatibility < 80) {
+                recommendations.push({
+                    category: 'Schema Design',
+                    recommendation: `Schema compatibility is ${schemaCompatibility.toFixed(1)}%. Consider aligning field structures between systems.`,
+                    priority: 'Medium'
+                });
+            }
+            
+            if (recommendations.length === 0) {
+                recommendations.push({
+                    category: 'Data Quality',
+                    recommendation: 'Excellent data quality detected. Continue monitoring with regular validation checks.',
+                    priority: 'Low'
+                });
+            }
+            
+            return recommendations;
+        }
+
+        // Helper function to show export status
+        function showExportStatus(message, type = 'info') {
+            // Remove any existing status
+            const existing = document.querySelector('.export-status');
+            if (existing) existing.remove();
+            
+            // Create new status element
+            const status = document.createElement('div');
+            status.className = 'export-status';
+            status.textContent = message;
+            
+            // Style based on type
+            if (type === 'success') {
+                status.style.background = '#28a745';
+            } else if (type === 'error') {
+                status.style.background = '#dc3545';
+            } else {
+                status.style.background = '#007bff';
+            }
+            
+            document.body.appendChild(status);
+            status.style.display = 'block';
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                if (status.parentNode) {
+                    status.style.animation = 'slideOutRight 0.3s ease forwards';
+                    setTimeout(() => status.remove(), 300);
+                }
+            }, 3000);
         }
 
         // Custom Primary Key Input System
@@ -1984,6 +2334,10 @@
 
         // Display Results with All Fixes Applied
         function displayEnhancedResults(results) {
+            // Store results globally for export
+            globalComparisonResults = results;
+            
+            // Original display functions
             populateRecordCountTab(results.recordCounts, results.summary);
             populateColumnNamesTab(results.schemaAnalysis);
             populateComparisonTab(results.comparisonResults, results.summary, results.metadata);
