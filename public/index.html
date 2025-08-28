@@ -47,7 +47,7 @@
             opacity: 0.9;
         }
 
-        /* Navigation Tabs */
+        /* Navigation Tabs - Updated for 4 tabs */
         .navigation-tabs {
             background: #f8f9fa;
             border-bottom: 3px solid #e9ecef;
@@ -55,13 +55,14 @@
             display: flex;
             justify-content: center;
             position: relative;
+            overflow-x: auto;
         }
 
         .tab-button {
             background: none;
             border: none;
-            padding: 20px 40px;
-            font-size: 1.1rem;
+            padding: 16px 25px;
+            font-size: 1rem;
             font-weight: 600;
             color: #6c757d;
             cursor: pointer;
@@ -70,9 +71,10 @@
             position: relative;
             display: flex;
             align-items: center;
-            gap: 12px;
-            min-width: 200px;
+            gap: 8px;
+            min-width: 160px;
             justify-content: center;
+            flex-shrink: 0;
         }
 
         .tab-button:hover {
@@ -90,7 +92,7 @@
         }
 
         .tab-icon {
-            font-size: 1.4rem;
+            font-size: 1.2rem;
         }
 
         .tab-label {
@@ -138,6 +140,82 @@
             opacity: 0.9;
             font-size: 1rem;
             line-height: 1.5;
+        }
+
+        /* Coming Soon Styles for New Tabs */
+        .coming-soon-section {
+            padding: 60px 30px;
+            text-align: center;
+            background: #f8f9fa;
+        }
+
+        .coming-soon-icon {
+            font-size: 4rem;
+            color: #3498db;
+            margin-bottom: 20px;
+        }
+
+        .coming-soon-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+
+        .coming-soon-description {
+            font-size: 1.1rem;
+            color: #6c757d;
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto 30px;
+        }
+
+        .feature-list {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px auto;
+            max-width: 800px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .feature-list h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .feature-icon {
+            font-size: 1.2rem;
+            margin-right: 12px;
+            margin-top: 2px;
+            color: #3498db;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .feature-description {
+            color: #6c757d;
+            font-size: 0.9rem;
+            line-height: 1.4;
         }
 
         /* Upload Interface */
@@ -211,7 +289,7 @@
             margin-bottom: 8px;
         }
 
-        .option-group select, .option-group input {
+        .option-group input, .option-group textarea, .option-group select {
             width: 100%;
             padding: 10px;
             border: 2px solid #e9ecef;
@@ -219,94 +297,25 @@
             font-size: 14px;
         }
 
-        .option-group select:focus, .option-group input:focus {
+        .option-group input:focus, .option-group textarea:focus, .option-group select:focus {
             border-color: #3498db;
             outline: none;
         }
 
-        /* Custom Primary Key Input */
-        .custom-input-container {
-            position: relative;
-        }
-
-        .custom-primary-key {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            font-size: 14px;
-            background: white;
-            transition: all 0.3s ease;
-        }
-
-        .custom-primary-key:focus {
-            border-color: #3498db;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-        }
-
-        .suggestions-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 2px solid #3498db;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            max-height: 250px;
-            overflow-y: auto;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-
-        .suggestion-item {
-            padding: 12px 15px;
-            cursor: pointer;
-            border-bottom: 1px solid #f1f1f1;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .suggestion-item:hover {
-            background: #f8f9fa;
-            transform: translateX(5px);
-        }
-
-        .suggestion-item.active {
-            background: #3498db;
-            color: white;
-        }
-
-        .suggestion-item.id-field {
-            background: #e8f5e8;
-            border-left: 4px solid #27ae60;
-        }
-
-        .suggestion-item.id-field:hover {
-            background: #d4edda;
-        }
-
-        .suggestion-item.important-field {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-        }
-
-        .suggestion-item.important-field:hover {
-            background: #ffeaa7;
+        .option-group textarea {
+            height: 80px;
+            resize: vertical;
+            font-family: monospace;
         }
 
         .field-notice {
             display: block;
-            margin-top: 8px;
+            margin-top: 5px;
             font-size: 0.85rem;
             color: #666;
             font-style: italic;
-            padding: 8px 12px;
-            border-radius: 6px;
+            padding: 5px 10px;
+            border-radius: 4px;
             background: #f8f9fa;
         }
 
@@ -373,27 +382,36 @@
             margin-top: 5px;
         }
 
-        .preview-table {
-            overflow-x: auto;
+        /* Clickable Field Suggestions Styles */
+        .clickable-field {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-block;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            border: 1px solid #bbdefb;
         }
 
-        .preview-table table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
+        .clickable-field:hover {
+            background: #1565c0;
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
-        .preview-table th,
-        .preview-table td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #e9ecef;
-        }
-
-        .preview-table th {
-            background: #f8f9fa;
+        .field-category-header {
             font-weight: 600;
             color: #2c3e50;
+            margin-bottom: 8px;
+            margin-top: 15px;
+        }
+
+        .field-category-header.first {
+            margin-top: 0;
         }
 
         .processing-state {
@@ -469,61 +487,7 @@
             box-shadow: 0 5px 15px rgba(149, 165, 166, 0.4);
         }
 
-        /* Excel Export Button */
-        .btn-export {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 3px 12px rgba(40, 167, 69, 0.3);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-export:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
-            background: linear-gradient(135deg, #218838 0%, #1abc9c 100%);
-        }
-
-        .btn-export:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .export-status {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #28a745;
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 9999;
-            display: none;
-            animation: slideInRight 0.3s ease;
-        }
-
-        @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        @keyframes slideOutRight {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
-        }
-
-        /* Results Dashboard */
+        /* Results Dashboard with Tabs */
         .comparison-results {
             display: none;
             background: #f8f9fa;
@@ -545,11 +509,6 @@
             display: flex;
             align-items: center;
             gap: 12px;
-        }
-
-        .results-actions {
-            display: flex;
-            gap: 10px;
         }
 
         /* Results Navigation Tabs */
@@ -637,7 +596,7 @@
             gap: 10px;
         }
 
-        /* Field Comparison Styles */
+        /* Field-wise Comparison Styles */
         .field-comparison-grid {
             display: grid;
             gap: 15px;
@@ -762,23 +721,6 @@
         }
 
         /* Duplicates Analysis Styles */
-        .duplicate-section {
-            margin-bottom: 30px;
-        }
-
-        .duplicate-section-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border-left: 4px solid #3498db;
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-
         .duplicate-card {
             background: white;
             border-radius: 8px;
@@ -1181,23 +1123,129 @@
             color: #721c24;
         }
 
+        /* Error handling styles */
+        .error-container {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            border-left: 5px solid #e53e3e;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(229, 62, 62, 0.1);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .error-header {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .error-icon {
+            font-size: 2rem;
+            margin-right: 15px;
+            color: #e53e3e;
+            flex-shrink: 0;
+        }
+
+        .error-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #742a2a;
+            margin: 0 0 8px 0;
+        }
+
+        .error-message {
+            color: #744210;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .error-suggestions {
+            background: #f0fff4;
+            border: 1px solid #c6f6d5;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .error-suggestions h4 {
+            color: #2d3748;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .error-suggestions ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .error-suggestions li {
+            padding: 6px 0;
+            color: #2d3748;
+            position: relative;
+            padding-left: 25px;
+            line-height: 1.5;
+        }
+
+        .error-suggestions li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            top: 6px;
+            color: #38a169;
+            font-weight: bold;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
-            .navigation-tabs, .results-navigation-tabs {
+            .navigation-tabs {
                 flex-direction: column;
             }
             
-            .tab-button, .results-tab-button {
+            .tab-button {
                 min-width: auto;
                 padding: 15px 20px;
             }
 
-            .form-row, .charts-section, .upload-container, .column-comparison-grid {
+            .results-navigation-tabs {
+                flex-direction: column;
+            }
+
+            .results-tab-button {
+                min-width: auto;
+                padding: 10px 15px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-section {
                 grid-template-columns: 1fr;
             }
 
             .header h1 {
                 font-size: 2rem;
+            }
+
+            .upload-container {
+                grid-template-columns: 1fr;
             }
 
             .results-header {
@@ -1206,17 +1254,12 @@
                 gap: 15px;
             }
 
-            .results-actions {
-                width: 100%;
-                justify-content: stretch;
-            }
-
-            .results-actions button {
-                flex: 1;
-            }
-
             .field-metrics {
                 grid-template-columns: repeat(2, 1fr);
+            }
+
+            .column-comparison-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -1225,11 +1268,11 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>🔍 ETL Data Validation Dashboard</h1>
-            <p>Advanced data quality monitoring with automated data validations</p>
+            <h1>ETL Data Validation Dashboard</h1>
+            <p>Advanced data quality monitoring with flexible JSON vs BigQuery comparison</p>
         </div>
 
-        <!-- Navigation Tabs -->
+        <!-- Navigation Tabs - Updated for 4 tabs -->
         <div class="navigation-tabs">
             <button class="tab-button active" onclick="showPage('table-validation')">
                 <span class="tab-icon">📊</span>
@@ -1239,9 +1282,17 @@
                 <span class="tab-icon">🆚</span>
                 <span class="tab-label">JSON vs BigQuery</span>
             </button>
+            <button class="tab-button" onclick="showPage('api-comparison')">
+                <span class="tab-icon">🔗</span>
+                <span class="tab-label">API vs BQ</span>
+            </button>
+            <button class="tab-button" onclick="showPage('rdbms-comparison')">
+                <span class="tab-icon">🗄️</span>
+                <span class="tab-label">RDBMS vs BQ</span>
+            </button>
         </div>
 
-        <!-- Page 1: Table Validation -->
+        <!-- Page 1: Table Validation (Unchanged) -->
         <div id="table-validation-page" class="page-content active">
             <div class="page-header">
                 <h2><span class="tab-icon">📊</span> BigQuery Table Validation</h2>
@@ -1274,13 +1325,13 @@
                     <div class="form-group">
                         <label for="compositeKeyColumns">Composite Key Duplicate Check (comma-separated)</label>
                         <textarea id="compositeKeyColumns" placeholder="e.g., first_name, last_name, email"></textarea>
-                        <small class="field-notice info">💡 Check for duplicates across multiple columns combined</small>
+                        <small class="field-notice info">Check for duplicates across multiple columns combined</small>
                     </div>
 
                     <div class="form-group">
                         <label for="specialCharColumns">Special Character Check Columns (comma-separated)</label>
                         <textarea id="specialCharColumns" placeholder="e.g., first_name, last_name, address"></textarea>
-                        <small class="field-notice warning">⚠️ Provide only STRING columns for special characters check</small>
+                        <small class="field-notice warning">Provide only STRING columns for special characters check</small>
                     </div>
 
                     <button type="submit" class="btn" id="runValidation">🚀 Run Data Validation</button>
@@ -1324,11 +1375,11 @@
             </div>
         </div>
 
-        <!-- Page 2: JSON vs BigQuery Comparison -->
+        <!-- Page 2: JSON vs BigQuery Comparison (Existing functionality) -->
         <div id="json-comparison-page" class="page-content">
             <div class="page-header">
                 <h2><span class="tab-icon">🆚</span> JSON vs BigQuery Comparison</h2>
-                <p>Record count, Schema validation, Duplicates check and Data Comparison</p>
+                <p>Flexible data pipeline validation using any common field - compare JSON files against BigQuery tables with comprehensive analysis</p>
             </div>
 
             <!-- Upload Section -->
@@ -1336,7 +1387,7 @@
                 <div class="upload-container">
                     <!-- File Upload Area -->
                     <div class="file-upload-area" id="file-upload-area" onclick="document.getElementById('fileInput').click()">
-                        <div class="upload-icon">📁</div>
+                        <div class="upload-icon">📄</div>
                         <div class="upload-text">Drop JSON/JSONL files here</div>
                         <div class="upload-subtext">or click to browse • Max 100MB • .json, .jsonl</div>
                         <input type="file" id="fileInput" accept=".json,.jsonl" style="display: none;">
@@ -1344,29 +1395,18 @@
 
                     <!-- Configuration -->
                     <div class="comparison-options">
-                        <h3 style="margin-bottom: 20px; color: #2c3e50;">⚙️ Configuration</h3>
+                        <h3 style="margin-bottom: 20px; color: #2c3e50;">Configuration</h3>
                         
                         <div class="option-group">
                             <label>BigQuery Table</label>
-                            <input type="text" id="bqTable" value="" placeholder="e.g., project.dataset.table_name">
-                            <small class="field-notice info">💡 Enter the BigQuery table you want to compare your JSON data against</small>
+                            <input type="text" id="bqTable" value="" placeholder="Enter your BigQuery table">
+                            <small class="field-notice info">Enter the BigQuery table you want to compare your JSON data against</small>
                         </div>
 
-                        <!-- Custom Primary Key Input with Smart Suggestions -->
                         <div class="option-group">
-                            <label>Primary Key Field (Type any field name)</label>
-                            <div class="custom-input-container">
-                                <input 
-                                    type="text" 
-                                    id="primaryKey" 
-                                    class="custom-primary-key"
-                                    value="" 
-                                    placeholder="Type any field name (e.g. task_sys_id, custom_id, account_number)"
-                                    autocomplete="off"
-                                />
-                                <div id="suggestions-dropdown" class="suggestions-dropdown"></div>
-                            </div>
-                            <small class="field-notice success">✅ Type ANY field name or select from smart suggestions</small>
+                            <label>Primary Key Field (Any Common Field)</label>
+                            <input type="text" id="primaryKey" value="" placeholder="Type any field name OR click suggestions below">
+                            <small class="field-notice success">Type ANY field name that exists in both your JSON file and BigQuery table</small>
                         </div>
 
                         <button class="btn-primary" id="startComparison" style="width: 100%; margin-top: 20px;" disabled>
@@ -1375,14 +1415,18 @@
                     </div>
                 </div>
 
-                <!-- File Preview -->
+                <!-- File Preview WITH CLICKABLE FIELD SUGGESTIONS -->
                 <div class="file-preview" id="file-preview" style="display: none;">
                     <div class="preview-header">
-                        📋 File Preview: <span id="fileName">-</span>
+                        📄 File Preview: <span id="fileName">-</span>
                     </div>
 
                     <div class="file-stats" id="file-stats"></div>
-                    <div class="preview-table" id="preview-table"></div>
+
+                    <div id="available-fields" style="margin-top: 15px; padding: 15px; background: #e8f5e8; border-radius: 8px;">
+                        <h4 style="color: #2c3e50; margin-bottom: 10px;">Available Fields for Primary Key (Click to Use):</h4>
+                        <div id="field-suggestions" style="font-size: 0.9rem; line-height: 1.6;"></div>
+                    </div>
                 </div>
             </div>
 
@@ -1390,26 +1434,21 @@
             <div class="processing-state" id="processing-section" style="display: none;">
                 <div class="processing-spinner"></div>
                 <div class="processing-text" id="processing-text">Processing your JSON file...</div>
-                <div class="processing-subtext" id="processing-subtext">Record count, Schema validation, Duplicates check and Data Comparison</div>
+                <div class="processing-subtext" id="processing-subtext">Analyzing structure and preparing for comprehensive comparison</div>
             </div>
 
-            <!-- Comparison Results -->
+            <!-- Comparison Results with Full 5-Tab Interface -->
             <div class="comparison-results" id="comparison-results">
                 <div class="results-header">
                     <div class="results-title">
-                        <span>📊</span> Analysis Results
+                        <span>📊</span> Comprehensive Analysis Results
                     </div>
-                    <div class="results-actions">
-                        <button class="btn-export" onclick="exportToExcel()" title="Export comprehensive analysis to Excel">
-                            📊 Export to Excel
-                        </button>
-                        <button class="btn-secondary" onclick="startNewComparison()">
-                            🔄 New Comparison
-                        </button>
-                    </div>
+                    <button class="btn-secondary" onclick="startNewComparison()">
+                        New Comparison
+                    </button>
                 </div>
 
-                <!-- Results Navigation Tabs -->
+                <!-- 5-Tab Results Navigation -->
                 <div class="results-navigation-tabs">
                     <button class="results-tab-button active" onclick="showResultsTab('record-count')">
                         <span class="results-tab-icon">📊</span>
@@ -1425,11 +1464,11 @@
                     </button>
                     <button class="results-tab-button" onclick="showResultsTab('field-wise')">
                         <span class="results-tab-icon">🔬</span>
-                        <span class="results-tab-label">ALL Fields</span>
+                        <span class="results-tab-label">Field Analysis</span>
                     </button>
                     <button class="results-tab-button" onclick="showResultsTab('duplicates')">
-                        <span class="results-tab-icon">🔄</span>
-                        <span class="results-tab-label">JSON + BigQuery Duplicates</span>
+                        <span class="results-tab-icon">📄</span>
+                        <span class="results-tab-label">Duplicates</span>
                     </button>
                 </div>
 
@@ -1461,58 +1500,254 @@
                     </div>
                 </div>
 
-                <!-- Tab 4: ALL Fields Analysis -->
+                <!-- Tab 4: Field-wise Analysis -->
                 <div id="field-wise-tab" class="results-tab-content">
                     <div class="tab-summary-cards" id="field-wise-summary"></div>
                     <div class="tab-detail-section">
-                        <div class="tab-detail-header">🔬 ALL Common Fields Analysis</div>
+                        <div class="tab-detail-header">🔬 Comprehensive Field-by-Field Quality Analysis</div>
                         <div id="field-wise-details"></div>
                     </div>
                 </div>
 
-                <!-- Tab 5: JSON + BigQuery Duplicates -->
+                <!-- Tab 5: Duplicates Analysis -->
                 <div id="duplicates-tab" class="results-tab-content">
                     <div class="tab-summary-cards" id="duplicates-summary"></div>
+                    <div class="tab-detail-section">
+                        <div class="tab-detail-header">📄 Comprehensive Duplicate Records Analysis</div>
+                        <div id="duplicates-details"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 3: NEW - API vs BigQuery Comparison -->
+        <div id="api-comparison-page" class="page-content">
+            <div class="page-header">
+                <h2><span class="tab-icon">🔗</span> API vs BigQuery Comparison</h2>
+                <p>Real-time API data validation and synchronization with BigQuery tables - perfect for monitoring data pipelines</p>
+            </div>
+
+            <div class="coming-soon-section">
+                <div class="coming-soon-icon">🔗</div>
+                <div class="coming-soon-title">API vs BigQuery Comparison</div>
+                <div class="coming-soon-description">
+                    Compare live API responses with your BigQuery tables to ensure data pipeline integrity and real-time synchronization accuracy.
+                </div>
+
+                <div class="feature-list">
+                    <h3>🚀 Planned Features</h3>
                     
-                    <!-- JSON Duplicates Section -->
-                    <div class="duplicate-section">
-                        <div class="duplicate-section-header">
-                            <span>📄</span>
-                            <h3>JSON Source Duplicates</h3>
+                    <div class="feature-item">
+                        <div class="feature-icon">🌐</div>
+                        <div class="feature-content">
+                            <div class="feature-title">REST API Integration</div>
+                            <div class="feature-description">Connect to any REST API endpoint with custom headers, authentication, and parameter support</div>
                         </div>
-                        <div id="json-duplicates-details"></div>
                     </div>
 
-                    <!-- BigQuery Duplicates Section -->
-                    <div class="duplicate-section">
-                        <div class="duplicate-section-header">
-                            <span>🗄️</span>
-                            <h3>BigQuery Target Duplicates</h3>
+                    <div class="feature-item">
+                        <div class="feature-icon">⚡</div>
+                        <div class="feature-content">
+                            <div class="feature-title">Real-time Data Validation</div>
+                            <div class="feature-description">Compare live API responses with BigQuery tables to detect data drift and pipeline issues</div>
                         </div>
-                        <div id="bq-duplicates-details"></div>
                     </div>
 
-                    <!-- Comparative Analysis -->
-                    <div class="duplicate-section">
-                        <div class="duplicate-section-header">
-                            <span>📊</span>
-                            <h3>Comparative Analysis</h3>
+                    <div class="feature-item">
+                        <div class="feature-icon">🔄</div>
+                        <div class="feature-content">
+                            <div class="feature-title">Scheduled Monitoring</div>
+                            <div class="feature-description">Set up automated API vs BigQuery comparisons with configurable schedules and alerts</div>
                         </div>
-                        <div id="comparative-duplicates-details"></div>
                     </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon">📊</div>
+                        <div class="feature-content">
+                            <div class="feature-title">API Response Analysis</div>
+                            <div class="feature-description">Deep analysis of API response schemas, data types, and content validation against BigQuery</div>
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon">🔐</div>
+                        <div class="feature-content">
+                            <div class="feature-title">Authentication Support</div>
+                            <div class="feature-description">Support for OAuth, API keys, basic auth, and custom authentication methods</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn-primary" style="margin-top: 30px;" onclick="alert('API vs BQ comparison feature is currently under development. Please check back soon!')">
+                    🔔 Notify Me When Available
+                </button>
+            </div>
+        </div>
+
+        <!-- Page 4: NEW - RDBMS vs BigQuery Comparison -->
+        <div id="rdbms-comparison-page" class="page-content">
+            <div class="page-header">
+                <h2><span class="tab-icon">🗄️</span> RDBMS vs BigQuery Comparison</h2>
+                <p>Cross-platform database validation - compare MySQL, PostgreSQL, SQL Server, Oracle data with BigQuery tables</p>
+            </div>
+
+            <div class="coming-soon-section">
+                <div class="coming-soon-icon">🗄️</div>
+                <div class="coming-soon-title">RDBMS vs BigQuery Comparison</div>
+                <div class="coming-soon-description">
+                    Validate data migration and synchronization between traditional relational databases and BigQuery data warehouse environments.
+                </div>
+
+                <div class="feature-list">
+                    <h3>🗄️ Planned Features</h3>
+                    
+                    <div class="feature-item">
+                        <div class="feature-icon">🔌</div>
+                        <div class="feature-content">
+                            <div class="feature-title">Multi-Database Support</div>
+                            <div class="feature-description">Connect to MySQL, PostgreSQL, SQL Server, Oracle, and other RDBMS platforms</div>
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon">🔍</div>
+                        <div class="feature-content">
+                            <div class="feature-title">Schema Comparison</div>
+                            <div class="feature-description">Compare table schemas, data types, constraints, and indexes between RDBMS and BigQuery</div>
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon">📈</div>
+                        <div class="feature-content">
+                            <div class="feature-title">Data Migration Validation</div>
+                            <div class="feature-description">Validate complete data migration accuracy with row-by-row comparison and data integrity checks</div>
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon">⚙️</div>
+                        <div class="feature-content">
+                            <div class="feature-title">Custom Query Validation</div>
+                            <div class="feature-description">Execute custom SQL queries on both systems and compare results for complex validation scenarios</div>
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon">🎯</div>
+                        <div class="feature-content">
+                            <div class="feature-title">Performance Benchmarking</div>
+                            <div class="feature-description">Compare query performance, data retrieval speed, and processing efficiency between platforms</div>
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon">🔒</div>
+                        <div class="feature-content">
+                            <div class="feature-title">Secure Connections</div>
+                            <div class="feature-description">Encrypted connections with support for SSL/TLS, VPN, and database-specific security protocols</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn-primary" style="margin-top: 30px;" onclick="alert('RDBMS vs BQ comparison feature is currently under development. Please check back soon!')">
+                    🔔 Notify Me When Available
+                </button>
+            </div>
+        </div>
+
+        <!-- JSON vs BQ Processing State (reused for all comparison types) -->
+        <div class="processing-state" id="processing-section" style="display: none;">
+            <div class="processing-spinner"></div>
+            <div class="processing-text" id="processing-text">Processing your data...</div>
+            <div class="processing-subtext" id="processing-subtext">Analyzing structure and preparing for comprehensive comparison</div>
+        </div>
+
+        <!-- Comparison Results (shared across comparison types) -->
+        <div class="comparison-results" id="comparison-results">
+            <div class="results-header">
+                <div class="results-title">
+                    <span>📊</span> Comprehensive Analysis Results
+                </div>
+                <button class="btn-secondary" onclick="startNewComparison()">
+                    New Comparison
+                </button>
+            </div>
+
+            <!-- 5-Tab Results Navigation -->
+            <div class="results-navigation-tabs">
+                <button class="results-tab-button active" onclick="showResultsTab('record-count')">
+                    <span class="results-tab-icon">📊</span>
+                    <span class="results-tab-label">Record Count</span>
+                </button>
+                <button class="results-tab-button" onclick="showResultsTab('column-names')">
+                    <span class="results-tab-icon">📋</span>
+                    <span class="results-tab-label">Column Names</span>
+                </button>
+                <button class="results-tab-button" onclick="showResultsTab('comparison')">
+                    <span class="results-tab-icon">🔍</span>
+                    <span class="results-tab-label">Comparison</span>
+                </button>
+                <button class="results-tab-button" onclick="showResultsTab('field-wise')">
+                    <span class="results-tab-icon">🔬</span>
+                    <span class="results-tab-label">Field Analysis</span>
+                </button>
+                <button class="results-tab-button" onclick="showResultsTab('duplicates')">
+                    <span class="results-tab-icon">📄</span>
+                    <span class="results-tab-label">Duplicates</span>
+                </button>
+            </div>
+
+            <!-- Tab 1: Record Count -->
+            <div id="record-count-tab" class="results-tab-content active">
+                <div class="tab-summary-cards" id="record-count-summary"></div>
+                <div class="tab-detail-section">
+                    <div class="tab-detail-header">📊 Detailed Record Analysis</div>
+                    <div id="record-count-details"></div>
+                </div>
+            </div>
+
+            <!-- Tab 2: Column Names -->
+            <div id="column-names-tab" class="results-tab-content">
+                <div class="tab-summary-cards" id="column-names-summary"></div>
+                <div class="tab-detail-section">
+                    <div class="tab-detail-header">📋 Schema Compatibility Analysis</div>
+                    <div class="column-comparison-grid" id="column-comparison-grid"></div>
+                </div>
+            </div>
+
+            <!-- Tab 3: Comparison Summary -->
+            <div id="comparison-tab" class="results-tab-content">
+                <div class="strategy-info" id="strategy-info"></div>
+                <div class="tab-summary-cards" id="comparison-summary"></div>
+                <div class="tab-detail-section">
+                    <div class="tab-detail-header">🔍 Detailed Comparison Analysis</div>
+                    <div id="comparison-details"></div>
+                </div>
+            </div>
+
+            <!-- Tab 4: Field-wise Analysis -->
+            <div id="field-wise-tab" class="results-tab-content">
+                <div class="tab-summary-cards" id="field-wise-summary"></div>
+                <div class="tab-detail-section">
+                    <div class="tab-detail-header">🔬 Comprehensive Field-by-Field Quality Analysis</div>
+                    <div id="field-wise-details"></div>
+                </div>
+            </div>
+
+            <!-- Tab 5: Duplicates Analysis -->
+            <div id="duplicates-tab" class="results-tab-content">
+                <div class="tab-summary-cards" id="duplicates-summary"></div>
+                <div class="tab-detail-section">
+                    <div class="tab-detail-header">📄 Comprehensive Duplicate Records Analysis</div>
+                    <div id="duplicates-details"></div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Global Variables
-        let currentFileId = null;
-        let availableFields = [];
-        let currentSuggestions = [];
-        let globalComparisonResults = null; // Store results for export
-
-        // Page Navigation
+        // Page Navigation - Updated for 4 tabs
         function showPage(pageId) {
             const pages = document.querySelectorAll('.page-content');
             pages.forEach(page => page.classList.remove('active'));
@@ -1525,6 +1760,32 @@
 
             const activeTab = event.target.closest('.tab-button');
             if (activeTab) activeTab.classList.add('active');
+
+            clearErrorMessages();
+            
+            // Log page navigation
+            console.log(`Navigated to page: ${pageId}`);
+        }
+
+        // Global Variables
+        let currentFileId = null;
+
+        // Function to set primary key from clickable suggestions
+        function setAsPrimaryKey(fieldName) {
+            const primaryKeyInput = document.getElementById('primaryKey');
+            if (primaryKeyInput) {
+                primaryKeyInput.value = fieldName;
+                console.log(`Primary key set to: ${fieldName}`);
+                
+                // Add visual feedback with green highlight
+                primaryKeyInput.style.background = '#e8f5e8';
+                primaryKeyInput.style.borderColor = '#27ae60';
+                
+                setTimeout(() => {
+                    primaryKeyInput.style.background = '';
+                    primaryKeyInput.style.borderColor = '#e9ecef';
+                }, 1500);
+            }
         }
 
         // New Comparison Function
@@ -1538,518 +1799,52 @@
             document.getElementById('primaryKey').value = '';
             document.getElementById('bqTable').value = '';
             currentFileId = null;
-            availableFields = [];
-            currentSuggestions = [];
-            globalComparisonResults = null; // Clear stored results
-            hideEnhancedSuggestions();
+            console.log('Interface reset for new comparison');
         }
 
-        // Excel Export Function
-        async function exportToExcel() {
-            if (!globalComparisonResults) {
-                alert('No comparison results available to export. Please run a comparison first.');
-                return;
-            }
-
-            try {
-                showExportStatus('Generating Excel report...');
-                
-                const results = globalComparisonResults;
-                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-                const filename = `ETL_Validation_Report_${timestamp}.xlsx`;
-
-                // Create workbook
-                const wb = XLSX.utils.book_new();
-
-                // Sheet 1: Executive Summary
-                const summaryData = [
-                    ['ETL Data Validation Report', '', '', ''],
-                    ['Generated:', new Date().toLocaleString(), '', ''],
-                    ['Primary Key Used:', results.summary?.primaryKeyUsed || 'N/A', '', ''],
-                    ['Source Table:', results.metadata?.sourceTableName || 'N/A', '', ''],
-                    ['', '', '', ''],
-                    ['EXECUTIVE SUMMARY', '', '', ''],
-                    ['Total JSON Records:', results.summary?.totalRecordsInFile || 0, '', ''],
-                    ['Unique Source Records:', results.summary?.uniqueSourceRecords || 0, '', ''],
-                    ['Records Found in Target:', results.summary?.recordsReachedTarget || 0, '', ''],
-                    ['Pipeline Success Rate:', (results.summary?.pipelineSuccessRate || '0') + '%', '', ''],
-                    ['Fields Analyzed:', results.summary?.fieldsAnalyzed || 0, '', ''],
-                    ['Total Field Issues:', results.summary?.totalFieldIssues || 0, '', ''],
-                    ['', '', '', ''],
-                    ['KEY INSIGHTS', '', '', ''],
-                    ['✅ Data Quality Score:', calculateQualityScore(results), '', ''],
-                    ['🔍 Schema Compatibility:', (results.schemaAnalysis?.schemaCompatibility * 100).toFixed(1) + '%', '', ''],
-                    ['📊 Common Fields Available:', results.schemaAnalysis?.commonFields?.length || 0, '', '']
-                ];
-
-                const summaryWS = XLSX.utils.aoa_to_sheet(summaryData);
-                XLSX.utils.book_append_sheet(wb, summaryWS, 'Executive Summary');
-
-                // Sheet 2: Record Analysis
-                const recordData = [
-                    ['RECORD COUNT ANALYSIS', '', '', ''],
-                    ['', '', '', ''],
-                    ['Metric', 'JSON Source', 'BigQuery Target', 'Notes'],
-                    ['Total Records', results.recordCounts?.jsonDetails?.totalRecords || 0, results.recordCounts?.bqDetails?.totalRecords || 0, ''],
-                    ['Unique Primary Keys', results.recordCounts?.jsonDetails?.uniquePrimaryKeys || 0, results.recordCounts?.bqDetails?.uniquePrimaryKeys || 0, ''],
-                    ['Duplicate Records', results.recordCounts?.jsonDetails?.duplicateRecords || 0, results.recordCounts?.bqDetails?.duplicateRecords || 0, ''],
-                    ['Null Primary Keys', results.recordCounts?.jsonDetails?.nullPrimaryKeys || 0, results.recordCounts?.bqDetails?.nullPrimaryKeys || 0, ''],
-                    ['', '', '', ''],
-                    ['COMPARISON RESULTS', '', '', ''],
-                    ['Records Successfully Matched:', results.summary?.recordsReachedTarget || 0, '', '✅ Found in both systems'],
-                    ['Records Failed to Match:', results.summary?.recordsFailedToReachTarget || 0, '', results.summary?.recordsFailedToReachTarget > 0 ? '⚠️ Investigation needed' : '✅ Perfect transfer'],
-                    ['Pipeline Success Rate:', (results.summary?.pipelineSuccessRate || '0') + '%', '', results.summary?.pipelineSuccessRate >= 95 ? '✅ Excellent' : results.summary?.pipelineSuccessRate >= 80 ? '⚠️ Good' : '❌ Needs improvement']
-                ];
-
-                const recordWS = XLSX.utils.aoa_to_sheet(recordData);
-                XLSX.utils.book_append_sheet(wb, recordWS, 'Record Analysis');
-
-                // Sheet 3: Schema Compatibility
-                const schemaData = [
-                    ['SCHEMA COMPATIBILITY ANALYSIS', '', '', ''],
-                    ['', '', '', ''],
-                    ['Field Category', 'Count', 'Percentage', 'Examples']
-                ];
-
-                const schema = results.schemaAnalysis;
-                if (schema) {
-                    schemaData.push(
-                        ['JSON Fields', schema.totalJsonFields || 0, '100%', 'All fields in JSON file'],
-                        ['BigQuery Fields', schema.totalBqFields || 0, '100%', 'All fields in BigQuery table'],
-                        ['Common Fields', schema.commonFields?.length || 0, ((schema.commonFields?.length / Math.max(schema.totalJsonFields, 1)) * 100).toFixed(1) + '%', (schema.commonFields || []).slice(0, 5).join(', ')],
-                        ['JSON-Only Fields', schema.jsonOnlyFields?.length || 0, '', (schema.jsonOnlyFields || []).slice(0, 5).join(', ')],
-                        ['BigQuery-Only Fields', schema.bqOnlyFields?.length || 0, '', (schema.bqOnlyFields || []).slice(0, 5).join(', ')],
-                        ['Primary Key Candidates', schema.primaryKeyCandidates?.length || 0, '', (schema.primaryKeyCandidates || []).join(', ')]
-                    );
-
-                    // Add detailed common fields list
-                    if (schema.commonFields && schema.commonFields.length > 0) {
-                        schemaData.push(['', '', '', '']);
-                        schemaData.push(['DETAILED COMMON FIELDS LIST', '', '', '']);
-                        schemaData.push(['Field Name', 'Available for Analysis', 'Type', 'Notes']);
-                        schema.commonFields.forEach(field => {
-                            schemaData.push([
-                                field,
-                                'Yes',
-                                'Field',
-                                schema.primaryKeyCandidates?.includes(field) ? 'Primary Key Candidate' : 'Regular Field'
-                            ]);
-                        });
-                    }
-                }
-
-                const schemaWS = XLSX.utils.aoa_to_sheet(schemaData);
-                XLSX.utils.book_append_sheet(wb, schemaWS, 'Schema Compatibility');
-
-                // Sheet 4: Field Quality Analysis
-                const fieldData = [
-                    ['FIELD-BY-FIELD QUALITY ANALYSIS', '', '', '', '', ''],
-                    ['', '', '', '', '', ''],
-                    ['Field Name', 'Total Records', 'Perfect Matches', 'Differences', 'Quality Rate', 'Status']
-                ];
-
-                if (results.fieldWiseAnalysis?.fieldComparison) {
-                    results.fieldWiseAnalysis.fieldComparison.forEach(field => {
-                        fieldData.push([
-                            field.fieldName || 'Unknown',
-                            field.totalRecords || 0,
-                            field.perfectMatches || 0,
-                            field.differences || 0,
-                            (field.matchRate || '0') + '%',
-                            field.error ? 'Error' : field.differences === 0 ? 'Perfect' : 'Issues Found'
-                        ]);
-                    });
-
-                    // Add summary statistics
-                    fieldData.push(['', '', '', '', '', '']);
-                    fieldData.push(['SUMMARY STATISTICS', '', '', '', '', '']);
-                    fieldData.push(['Total Fields Analyzed:', results.fieldWiseAnalysis.fieldsAnalyzed || 0, '', '', '', '']);
-                    fieldData.push(['Perfect Fields:', results.fieldWiseAnalysis.perfectFields || 0, '', '', '', '']);
-                    fieldData.push(['Fields with Issues:', results.fieldWiseAnalysis.problematicFields || 0, '', '', '', '']);
-                    fieldData.push(['Total Field Issues:', results.fieldWiseAnalysis.totalFieldIssues || 0, '', '', '', '']);
-                }
-
-                const fieldWS = XLSX.utils.aoa_to_sheet(fieldData);
-                XLSX.utils.book_append_sheet(wb, fieldWS, 'Field Quality');
-
-                // Sheet 5: Duplicates Analysis
-                const duplicatesData = [
-                    ['DUPLICATES ANALYSIS', '', '', ''],
-                    ['', '', '', ''],
-                    ['Source', 'Duplicate Keys Found', 'Total Duplicate Records', 'Status'],
-                    ['JSON Source', results.duplicatesAnalysis?.duplicateCount || 0, results.duplicatesAnalysis?.totalDuplicateRecords || 0, (results.duplicatesAnalysis?.duplicateCount || 0) > 0 ? 'Duplicates Found' : 'Clean'],
-                    ['BigQuery Target', results.duplicatesAnalysis?.bqDuplicates?.duplicateCount || 0, results.duplicatesAnalysis?.bqDuplicates?.totalDuplicateRecords || 0, (results.duplicatesAnalysis?.bqDuplicates?.duplicateCount || 0) > 0 ? 'Duplicates Found' : 'Clean']
-                ];
-
-                if (results.duplicatesAnalysis?.duplicateKeys?.length > 0) {
-                    duplicatesData.push(['', '', '', '']);
-                    duplicatesData.push(['DETAILED DUPLICATE KEYS', '', '', '']);
-                    duplicatesData.push(['Duplicate Key Value', 'Occurrences', 'Source', 'Impact']);
-                    
-                    results.duplicatesAnalysis.duplicateKeys.forEach(dup => {
-                        duplicatesData.push([
-                            dup.key || 'Unknown',
-                            dup.count || 0,
-                            'JSON Source',
-                            'Data Quality Issue'
-                        ]);
-                    });
-                }
-
-                const duplicatesWS = XLSX.utils.aoa_to_sheet(duplicatesData);
-                XLSX.utils.book_append_sheet(wb, duplicatesWS, 'Duplicates Analysis');
-
-                // Sheet 6: Recommendations
-                const recommendationsData = [
-                    ['RECOMMENDATIONS & ACTION ITEMS', '', ''],
-                    ['', '', ''],
-                    ['Category', 'Recommendation', 'Priority']
-                ];
-
-                // Generate smart recommendations based on results
-                const recommendations = generateRecommendations(results);
-                recommendations.forEach(rec => {
-                    recommendationsData.push([rec.category, rec.recommendation, rec.priority]);
-                });
-
-                const recommendationsWS = XLSX.utils.aoa_to_sheet(recommendationsData);
-                XLSX.utils.book_append_sheet(wb, recommendationsWS, 'Recommendations');
-
-                // Generate and download the file
-                showExportStatus('Downloading Excel file...');
-                XLSX.writeFile(wb, filename);
-                
-                showExportStatus('✅ Excel report downloaded successfully!', 'success');
-                
-            } catch (error) {
-                console.error('Export error:', error);
-                showExportStatus('❌ Export failed: ' + error.message, 'error');
-            }
+        // Error handling functions
+        function clearErrorMessages() {
+            const existingErrors = document.querySelectorAll('.error-container');
+            existingErrors.forEach(error => error.remove());
         }
 
-        // Helper function to calculate overall quality score
-        function calculateQualityScore(results) {
-            try {
-                const pipelineSuccess = parseFloat(results.summary?.pipelineSuccessRate || 0);
-                const fieldIssues = results.summary?.totalFieldIssues || 0;
-                const totalFields = results.summary?.fieldsAnalyzed || 1;
-                const fieldQuality = ((totalFields - fieldIssues) / totalFields) * 100;
-                const duplicateIssues = (results.duplicatesAnalysis?.duplicateCount || 0) > 0 ? 10 : 0;
-                
-                const overallScore = Math.max(0, (pipelineSuccess + fieldQuality) / 2 - duplicateIssues);
-                
-                if (overallScore >= 90) return `${overallScore.toFixed(1)}% - Excellent`;
-                if (overallScore >= 75) return `${overallScore.toFixed(1)}% - Good`;
-                if (overallScore >= 60) return `${overallScore.toFixed(1)}% - Fair`;
-                return `${overallScore.toFixed(1)}% - Needs Improvement`;
-            } catch (error) {
-                return 'Unable to calculate';
-            }
-        }
-
-        // Helper function to generate smart recommendations
-        function generateRecommendations(results) {
-            const recommendations = [];
+        function displayErrorMessage(errorData) {
+            clearErrorMessages();
+            const errorContainer = document.createElement('div');
+            errorContainer.className = 'error-container';
             
-            const successRate = parseFloat(results.summary?.pipelineSuccessRate || 0);
-            const fieldIssues = results.summary?.totalFieldIssues || 0;
-            const duplicates = results.duplicatesAnalysis?.duplicateCount || 0;
-            
-            if (successRate < 100) {
-                recommendations.push({
-                    category: 'Data Pipeline',
-                    recommendation: `${results.summary?.recordsFailedToReachTarget || 0} records failed to transfer. Investigate data pipeline for missing records.`,
-                    priority: 'High'
-                });
-            }
-            
-            if (fieldIssues > 0) {
-                recommendations.push({
-                    category: 'Data Quality',
-                    recommendation: `${fieldIssues} field-level issues detected. Review field mapping and data transformation logic.`,
-                    priority: 'Medium'
-                });
-            }
-            
-            if (duplicates > 0) {
-                recommendations.push({
-                    category: 'Data Integrity',
-                    recommendation: `${duplicates} duplicate primary keys found in source data. Implement deduplication logic.`,
-                    priority: 'High'
-                });
-            }
-            
-            const schemaCompatibility = (results.schemaAnalysis?.schemaCompatibility || 0) * 100;
-            if (schemaCompatibility < 80) {
-                recommendations.push({
-                    category: 'Schema Design',
-                    recommendation: `Schema compatibility is ${schemaCompatibility.toFixed(1)}%. Consider aligning field structures between systems.`,
-                    priority: 'Medium'
-                });
-            }
-            
-            if (recommendations.length === 0) {
-                recommendations.push({
-                    category: 'Data Quality',
-                    recommendation: 'Excellent data quality detected. Continue monitoring with regular validation checks.',
-                    priority: 'Low'
-                });
-            }
-            
-            return recommendations;
-        }
-
-        // Helper function to show export status
-        function showExportStatus(message, type = 'info') {
-            // Remove any existing status
-            const existing = document.querySelector('.export-status');
-            if (existing) existing.remove();
-            
-            // Create new status element
-            const status = document.createElement('div');
-            status.className = 'export-status';
-            status.textContent = message;
-            
-            // Style based on type
-            if (type === 'success') {
-                status.style.background = '#28a745';
-            } else if (type === 'error') {
-                status.style.background = '#dc3545';
-            } else {
-                status.style.background = '#007bff';
-            }
-            
-            document.body.appendChild(status);
-            status.style.display = 'block';
-            
-            // Auto-hide after 3 seconds
-            setTimeout(() => {
-                if (status.parentNode) {
-                    status.style.animation = 'slideOutRight 0.3s ease forwards';
-                    setTimeout(() => status.remove(), 300);
+            const getErrorIcon = (type) => {
+                switch(type) {
+                    case 'TABLE_NOT_FOUND': return '🔍';
+                    case 'COLUMN_NOT_FOUND': return '📋';
+                    case 'PERMISSION_DENIED': return '🔒';
+                    case 'SYNTAX_ERROR': return '⚠️';
+                    case 'INVALID_TABLE_FORMAT': return '📝';
+                    case 'MISSING_TABLE_NAME': return '❌';
+                    default: return '❗';
                 }
-            }, 3000);
-        }
+            };
 
-        // Custom Primary Key Input System
-        function setupEnhancedPrimaryKeyInput() {
-            const primaryKeyInput = document.getElementById('primaryKey');
-            const suggestionsDropdown = document.getElementById('suggestions-dropdown');
-
-            if (!primaryKeyInput || !suggestionsDropdown) return;
-
-            // Show suggestions on focus
-            primaryKeyInput.addEventListener('focus', function() {
-                if (currentSuggestions.length > 0) {
-                    showEnhancedSuggestions();
-                }
-            });
-
-            // Filter suggestions as user types
-            primaryKeyInput.addEventListener('input', function() {
-                const inputValue = this.value.toLowerCase().trim();
-                
-                if (inputValue.length === 0) {
-                    showEnhancedSuggestions();
-                } else {
-                    const filteredSuggestions = currentSuggestions.filter(suggestion => 
-                        suggestion.field.toLowerCase().includes(inputValue)
-                    );
-                    showFilteredSuggestionsEnhanced(filteredSuggestions);
-                }
-            });
-
-            // Hide suggestions when clicking outside
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('.custom-input-container')) {
-                    hideEnhancedSuggestions();
-                }
-            });
-
-            // Handle keyboard navigation
-            primaryKeyInput.addEventListener('keydown', function(e) {
-                const visibleSuggestions = suggestionsDropdown.querySelectorAll('.suggestion-item:not([style*="display: none"])');
-                
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    navigateEnhancedSuggestions(visibleSuggestions, 'down');
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    navigateEnhancedSuggestions(visibleSuggestions, 'up');
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const currentActive = suggestionsDropdown.querySelector('.suggestion-item.active');
-                    if (currentActive) {
-                        selectEnhancedSuggestion(currentActive.dataset.field);
-                    } else {
-                        hideEnhancedSuggestions();
-                    }
-                } else if (e.key === 'Escape') {
-                    hideEnhancedSuggestions();
-                }
-            });
-        }
-
-        // Update Primary Key Suggestions with ALL Fields
-        function updateEnhancedPrimaryKeySuggestions(detectedFields) {
-            availableFields = detectedFields;
-            
-            // Categorize ALL fields
-            const idFields = detectedFields.filter(field => {
-                const lowerField = field.toLowerCase();
-                return lowerField.includes('id') ||
-                       lowerField.includes('key') ||
-                       lowerField.includes('number') ||
-                       lowerField.includes('_id') ||
-                       lowerField.includes('sys_') ||
-                       ['sys_id', 'number', 'id', 'key'].includes(lowerField);
-            });
-            
-            const importantFields = detectedFields.filter(field => {
-                const lowerField = field.toLowerCase();
-                return !idFields.includes(field) && (
-                    lowerField.includes('name') ||
-                    lowerField.includes('code') ||
-                    lowerField.includes('type') ||
-                    lowerField.includes('status') ||
-                    lowerField.includes('priority') ||
-                    lowerField.includes('state')
-                );
-            });
-            
-            const otherFields = detectedFields.filter(field => 
-                !idFields.includes(field) && !importantFields.includes(field)
-            );
-            
-            // Create comprehensive suggestions array
-            currentSuggestions = [
-                ...idFields.map(field => ({ 
-                    field, 
-                    type: 'id-field', 
-                    label: `🔑 ${field} (ID/Key field)`,
-                    category: 'primary'
-                })),
-                ...importantFields.map(field => ({ 
-                    field, 
-                    type: 'important-field', 
-                    label: `📋 ${field} (Important field)`,
-                    category: 'important'
-                })),
-                ...otherFields.slice(0, 20).map(field => ({ 
-                    field, 
-                    type: 'common-field', 
-                    label: `📄 ${field}`,
-                    category: 'other'
-                }))
-            ];
-        }
-
-        function showEnhancedSuggestions() {
-            showFilteredSuggestionsEnhanced(currentSuggestions);
-        }
-
-        function showFilteredSuggestionsEnhanced(suggestions) {
-            const suggestionsDropdown = document.getElementById('suggestions-dropdown');
-            
-            if (!suggestionsDropdown || suggestions.length === 0) {
-                hideEnhancedSuggestions();
-                return;
-            }
-
-            let html = '';
-            
-            // Group suggestions by category
-            const primarySuggestions = suggestions.filter(s => s.category === 'primary');
-            const importantSuggestions = suggestions.filter(s => s.category === 'important');
-            const otherSuggestions = suggestions.filter(s => s.category === 'other');
-            
-            // Show primary key candidates first
-            primarySuggestions.forEach(suggestion => {
-                html += `
-                    <div class="suggestion-item ${suggestion.type}" 
-                         data-field="${suggestion.field}" 
-                         onclick="selectEnhancedSuggestion('${suggestion.field}')">
-                        ${suggestion.label}
+            errorContainer.innerHTML = `
+                <div class="error-header">
+                    <div class="error-icon">${getErrorIcon(errorData.type)}</div>
+                    <div>
+                        <h3 class="error-title">${errorData.title}</h3>
                     </div>
-                `;
-            });
-            
-            // Show important fields next
-            importantSuggestions.forEach(suggestion => {
-                html += `
-                    <div class="suggestion-item ${suggestion.type}" 
-                         data-field="${suggestion.field}" 
-                         onclick="selectEnhancedSuggestion('${suggestion.field}')">
-                        ${suggestion.label}
-                    </div>
-                `;
-            });
-            
-            // Show other fields (limited for performance)
-            otherSuggestions.slice(0, 15).forEach(suggestion => {
-                html += `
-                    <div class="suggestion-item ${suggestion.type}" 
-                         data-field="${suggestion.field}" 
-                         onclick="selectEnhancedSuggestion('${suggestion.field}')">
-                        ${suggestion.label}
-                    </div>
-                `;
-            });
-            
-            if (otherSuggestions.length > 15) {
-                html += `
-                    <div class="suggestion-item" style="font-style: italic; color: #6c757d; cursor: default; background: #f8f9fa;">
-                        🔍 ... and ${otherSuggestions.length - 15} more fields (type to filter)
-                    </div>
-                `;
-            }
-
-            // Add custom input hint
-            html += `
-                <div class="suggestion-item" style="background: #e8f4fd; color: #2c5282; font-style: italic; border-left: 3px solid #3182ce; cursor: default;">
-                    💡 You can type ANY custom field name
+                </div>
+                <div class="error-message">${errorData.message}</div>
+                <div class="error-suggestions">
+                    <h4>💡 Suggestions:</h4>
+                    <ul>
+                        ${errorData.suggestions.map(suggestion => `<li>${suggestion}</li>`).join('')}
+                    </ul>
                 </div>
             `;
 
-            suggestionsDropdown.innerHTML = html;
-            suggestionsDropdown.style.display = 'block';
-        }
-
-        function hideEnhancedSuggestions() {
-            const suggestionsDropdown = document.getElementById('suggestions-dropdown');
-            if (suggestionsDropdown) {
-                suggestionsDropdown.style.display = 'none';
-            }
-        }
-
-        function selectEnhancedSuggestion(fieldName) {
-            const primaryKeyInput = document.getElementById('primaryKey');
-            if (primaryKeyInput) {
-                primaryKeyInput.value = fieldName;
-                hideEnhancedSuggestions();
-            }
-        }
-
-        function navigateEnhancedSuggestions(suggestions, direction) {
-            const currentActive = document.querySelector('.suggestion-item.active');
-            
-            if (currentActive) {
-                currentActive.classList.remove('active');
-            }
-            
-            let newActiveIndex = 0;
-            if (currentActive) {
-                const currentIndex = Array.from(suggestions).indexOf(currentActive);
-                if (direction === 'down') {
-                    newActiveIndex = (currentIndex + 1) % suggestions.length;
-                } else {
-                    newActiveIndex = currentIndex > 0 ? currentIndex - 1 : suggestions.length - 1;
-                }
-            }
-            
-            if (suggestions[newActiveIndex]) {
-                suggestions[newActiveIndex].classList.add('active');
-                suggestions[newActiveIndex].scrollIntoView({ block: 'nearest' });
+            const form = document.getElementById('validationForm');
+            if (form) {
+                form.parentNode.insertBefore(errorContainer, form.nextSibling);
+                errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
 
@@ -2099,6 +1894,8 @@
 
                 if (result.success) {
                     currentFileId = result.file.id;
+                    console.log('File uploaded successfully:', result.file.originalName);
+                    
                     await loadFilePreview(currentFileId, result.file.originalName);
                 } else {
                     throw new Error(result.error || 'Upload failed');
@@ -2112,9 +1909,11 @@
             }
         }
 
-        // Load File Preview with ALL Fields Detection
+        // Load File Preview
         async function loadFilePreview(fileId, fileName) {
             try {
+                console.log('Loading file preview for:', fileName);
+                
                 const response = await fetch(`/api/preview-json/${fileId}`);
                 const result = await response.json();
 
@@ -2124,27 +1923,38 @@
                     throw new Error(result.error || 'Preview failed');
                 }
 
-                document.getElementById('processing-section').style.display = 'none';
-                document.getElementById('upload-section').style.display = 'block';
-                document.getElementById('startComparison').disabled = false;
+                const processingSection = document.getElementById('processing-section');
+                const uploadSection = document.getElementById('upload-section');
+                const startButton = document.getElementById('startComparison');
+                
+                if (processingSection) processingSection.style.display = 'none';
+                if (uploadSection) uploadSection.style.display = 'block';
+                if (startButton) startButton.disabled = false;
 
             } catch (error) {
                 console.error('Preview error:', error);
                 
-                document.getElementById('processing-section').style.display = 'none';
-                document.getElementById('upload-section').style.display = 'block';
-                document.getElementById('startComparison').disabled = false;
+                const processingSection = document.getElementById('processing-section');
+                const uploadSection = document.getElementById('upload-section');
+                const startButton = document.getElementById('startComparison');
+                
+                if (processingSection) processingSection.style.display = 'none';
+                if (uploadSection) uploadSection.style.display = 'block';
+                if (startButton) startButton.disabled = false;
                 
                 alert(`File uploaded successfully (${fileName}) but preview failed. You can still proceed with comparison.`);
             }
         }
 
-        // Display File Preview with ALL Fields for Primary Key Selection
+        // ENHANCED: Display File Preview with CLICKABLE Field Suggestions
         function displayFilePreview(preview, fileName) {
             try {
+                console.log('Starting file preview display with CLICKABLE suggestions...');
+                
                 const fileNameElement = document.getElementById('fileName');
                 if (fileNameElement) {
                     fileNameElement.textContent = fileName;
+                    console.log('Updated file name');
                 }
                 
                 const fileStats = document.getElementById('file-stats');
@@ -2156,7 +1966,7 @@
                         </div>
                         <div class="stat-card">
                             <div class="stat-number">${preview.fieldsDetected}</div>
-                            <div class="stat-label">Fields Available</div>
+                            <div class="stat-label">Fields Detected</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-number">${formatFileSize(preview.fileSize)}</div>
@@ -2167,61 +1977,124 @@
                             <div class="stat-label">Format</div>
                         </div>
                     `;
+                    console.log('Updated file stats');
                 }
 
-                if (preview.sampleRecords && preview.sampleRecords.length > 0) {
-                    const firstRecord = preview.sampleRecords[0];
-                    const detectedFields = Object.keys(firstRecord);
-                    
-                    // Update suggestions with ALL detected fields
-                    updateEnhancedPrimaryKeySuggestions(detectedFields);
-                    
-                    // Show preview table
-                    const displayFields = detectedFields.slice(0, 6);
-                    
-                    let tableHTML = '<table><thead><tr>';
-                    displayFields.forEach(field => {
-                        tableHTML += `<th>${field}</th>`;
-                    });
-                    tableHTML += '</tr></thead><tbody>';
+                // ENHANCED: Create CLICKABLE field suggestions from API response
+                if (preview.idFields || preview.importantFields) {
+                    const idFields = preview.idFields || [];
+                    const importantFields = preview.importantFields || [];
 
-                    preview.sampleRecords.slice(0, 3).forEach(record => {
-                        tableHTML += '<tr>';
-                        displayFields.forEach(field => {
-                            const value = record[field] || 'null';
-                            const displayValue = String(value).length > 20 ? String(value).substring(0, 20) + '...' : value;
-                            tableHTML += `<td>${displayValue}</td>`;
-                        });
-                        tableHTML += '</tr>';
-                    });
+                    const fieldSuggestions = document.getElementById('field-suggestions');
+                    if (fieldSuggestions) {
+                        let suggestionsHTML = '';
+                        
+                        // ID/Key Fields (Clickable)
+                        if (idFields.length > 0) {
+                            suggestionsHTML += '<div class="field-category-header first">🔑 ID/Key Fields (Recommended - Click to Use):</div>';
+                            suggestionsHTML += '<div style="margin-bottom: 15px;">';
+                            idFields.forEach(field => {
+                                suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                            });
+                            suggestionsHTML += '</div>';
+                        }
+                        
+                        // Other Important Fields (Clickable)
+                        if (importantFields.length > 0) {
+                            suggestionsHTML += '<div class="field-category-header">📋 Other Important Fields (Click to Use):</div>';
+                            suggestionsHTML += '<div>';
+                            importantFields.forEach(field => {
+                                suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                            });
+                            suggestionsHTML += '</div>';
+                        }
+                        
+                        // Fallback if no categorized fields
+                        if (idFields.length === 0 && importantFields.length === 0 && preview.availableFields) {
+                            suggestionsHTML += '<div class="field-category-header first">📋 Available Fields (Click to Use):</div>';
+                            suggestionsHTML += '<div>';
+                            preview.availableFields.slice(0, 12).forEach(field => {
+                                suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                            });
+                            suggestionsHTML += '</div>';
+                            
+                            if (preview.availableFields.length > 12) {
+                                suggestionsHTML += `<div style="margin-top: 10px; font-style: italic; color: #666;">... and ${preview.availableFields.length - 12} more fields</div>`;
+                            }
+                        }
+                        
+                        fieldSuggestions.innerHTML = suggestionsHTML;
+                        console.log('Updated field suggestions with CLICKABLE elements');
+                    }
+                } else {
+                    // Fallback: Use original logic if API doesn't provide categorized fields
+                    if (preview.sampleRecords && preview.sampleRecords.length > 0) {
+                        const firstRecord = preview.sampleRecords[0];
+                        const availableFields = Object.keys(firstRecord);
+                        
+                        const idFields = availableFields.filter(field => 
+                            field.toLowerCase().includes('id') ||
+                            field.toLowerCase().includes('number') ||
+                            field.toLowerCase().includes('key')
+                        );
+                        
+                        const otherFields = availableFields.filter(field => !idFields.includes(field));
 
-                    tableHTML += '</tbody></table>';
-                    
-                    const previewTable = document.getElementById('preview-table');
-                    if (previewTable) {
-                        previewTable.innerHTML = tableHTML;
+                        const fieldSuggestions = document.getElementById('field-suggestions');
+                        if (fieldSuggestions) {
+                            let suggestionsHTML = '';
+                            
+                            if (idFields.length > 0) {
+                                suggestionsHTML += '<div class="field-category-header first">🔑 ID/Key Fields (Recommended - Click to Use):</div>';
+                                suggestionsHTML += '<div style="margin-bottom: 15px;">';
+                                idFields.slice(0, 8).forEach(field => {
+                                    suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                                });
+                                suggestionsHTML += '</div>';
+                            }
+                            
+                            if (otherFields.length > 0) {
+                                suggestionsHTML += '<div class="field-category-header">📋 Other Important Fields (Click to Use):</div>';
+                                suggestionsHTML += '<div>';
+                                otherFields.slice(0, 8).forEach(field => {
+                                    suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                                });
+                                suggestionsHTML += '</div>';
+                                
+                                if (otherFields.length > 8) {
+                                    suggestionsHTML += `<div style="margin-top: 10px; font-style: italic; color: #666;">... and ${otherFields.length - 8} more fields</div>`;
+                                }
+                            }
+                            
+                            fieldSuggestions.innerHTML = suggestionsHTML;
+                            console.log('Updated field suggestions with CLICKABLE fallback');
+                        }
                     }
                 }
 
                 const filePreview = document.getElementById('file-preview');
                 if (filePreview) {
                     filePreview.style.display = 'block';
+                    console.log('Showed file preview');
                 }
                 
                 const startButton = document.getElementById('startComparison');
                 if (startButton) {
                     startButton.disabled = false;
+                    console.log('Enabled start comparison button');
                 }
+                
+                console.log('File preview display completed successfully with CLICKABLE suggestions');
                 
             } catch (error) {
-                console.error('File preview error:', error);
+                console.error('Error in displayFilePreview:', error);
                 
                 const startButton = document.getElementById('startComparison');
                 if (startButton) {
                     startButton.disabled = false;
                 }
                 
-                alert(`File uploaded successfully (${fileName}) but preview failed. You can still proceed with comparison.`);
+                alert(`File uploaded successfully (${fileName}) but preview display failed. You can still proceed with comparison.`);
             }
         }
 
@@ -2233,10 +2106,23 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // Start Comparison with All Fixes Applied
+        // Enhanced Start Comparison Handler
         document.getElementById('startComparison').addEventListener('click', async function() {
             if (!currentFileId) {
                 alert('Please upload a JSON file first!');
+                return;
+            }
+
+            const primaryKey = document.getElementById('primaryKey').value.trim();
+            const sourceTable = document.getElementById('bqTable').value.trim();
+
+            if (!sourceTable) {
+                alert('Please enter a BigQuery table name!');
+                return;
+            }
+
+            if (!primaryKey) {
+                alert('Please enter a primary key field name!');
                 return;
             }
 
@@ -2245,17 +2131,21 @@
             
             try {
                 button.disabled = true;
-                button.innerHTML = '⏳ Running Comprehensive Analysis...';
+                button.innerHTML = '🔄 Running Comprehensive Analysis...';
                 
                 document.getElementById('upload-section').style.display = 'none';
                 document.getElementById('processing-section').style.display = 'block';
                 document.getElementById('processing-text').textContent = 'Creating BigQuery temp table...';
-                document.getElementById('processing-subtext').textContent = 'Processing with comprehensive analysis';
+                document.getElementById('processing-subtext').textContent = 'Processing JSON data with zero duplication guarantee';
 
+                // Pass the primary key to backend
                 const tempResponse = await fetch('/api/create-temp-table', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ fileId: currentFileId })
+                    body: JSON.stringify({ 
+                        fileId: currentFileId,
+                        primaryKey: primaryKey
+                    })
                 });
 
                 const tempResult = await tempResponse.json();
@@ -2264,27 +2154,22 @@
                     throw new Error(tempResult.error || 'Failed to create temp table');
                 }
 
+                console.log('Temp table created successfully');
+
                 document.getElementById('processing-text').textContent = 'Running comprehensive comparison...';
-                document.getElementById('processing-subtext').textContent = 'Record count, Schema validation, Duplicates check and Data Comparison';
+                document.getElementById('processing-subtext').textContent = 'Analyzing all common fields, duplicates, and data quality';
 
-                // Get custom primary key from text input
-                const primaryKeyInput = document.getElementById('primaryKey');
-                const primaryKey = primaryKeyInput.value.trim();
-                const sourceTable = document.getElementById('bqTable').value;
-
-                if (!primaryKey) {
-                    throw new Error('Please enter a primary key field name');
-                }
+                console.log('Starting comprehensive comparison analysis...');
                 
+                // Pass user's table and primary key
                 const compResponse = await fetch('/api/compare-json-vs-bq', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         fileId: currentFileId,
-                        sourceTable: sourceTable,
-                        primaryKey: primaryKey,
-                        comparisonFields: [],
-                        strategy: 'enhanced'
+                        sourceTable: sourceTable,  // User's table
+                        primaryKey: primaryKey,     // User's primary key
+                        comparisonFields: []
                     })
                 });
 
@@ -2294,7 +2179,9 @@
                     throw new Error(compResult.error || 'Comparison failed');
                 }
 
-                displayEnhancedResults(compResult);
+                console.log('Comprehensive comparison completed successfully');
+
+                displayComparisonResults(compResult);
 
                 document.getElementById('processing-section').style.display = 'none';
                 document.getElementById('comparison-results').style.display = 'block';
@@ -2307,7 +2194,7 @@
                 
                 let errorMsg = error.message;
                 if (error.message.includes('not available in both tables')) {
-                    errorMsg += '\n\nTry a different field name that exists in both your JSON file and BigQuery table.';
+                    errorMsg += '\n\nTry using a field name that exists in both your JSON file and BigQuery table.';
                 }
                 
                 alert('Comparison failed: ' + errorMsg);
@@ -2330,23 +2217,25 @@
 
             const activeTabButton = event.target.closest('.results-tab-button');
             if (activeTabButton) activeTabButton.classList.add('active');
+
+            console.log(`Switched to results tab: ${tabId}`);
         }
 
-        // Display Results with All Fixes Applied
-        function displayEnhancedResults(results) {
-            // Store results globally for export
-            globalComparisonResults = results;
-            
-            // Original display functions
+        // Display Results with Full Features
+        function displayComparisonResults(results) {
+            console.log('Displaying FULL FEATURED results:', results);
+
             populateRecordCountTab(results.recordCounts, results.summary);
-            populateColumnNamesTab(results.schemaAnalysis);
-            populateComparisonTab(results.comparisonResults, results.summary, results.metadata);
-            populateFieldWiseTabEnhanced(results.fieldWiseAnalysis, results.summary);
-            populateDuplicatesTabEnhanced(results.duplicatesAnalysis, results.summary);
+            populateColumnNamesTabComplete(results.schemaAnalysis);
+            populateComparisonTabComplete(results.comparisonResults, results.summary, results.metadata);
+            populateFieldWiseTabComplete(results.fieldWiseAnalysis, results.summary);
+            populateDuplicatesTabComplete(results.duplicatesAnalysis, results.summary);
         }
 
-        // Record Count Tab
+        // Complete Record Count Tab
         function populateRecordCountTab(recordCounts, summary) {
+            console.log('Populating COMPLETE Record Count tab...');
+
             const jsonTotal = recordCounts?.jsonDetails?.totalRecords || summary?.totalRecordsInFile || 0;
             const bqTotal = recordCounts?.bqDetails?.totalRecords || summary?.targetRecords || 0;
             const jsonUnique = recordCounts?.jsonDetails?.uniquePrimaryKeys || summary?.uniqueSourceRecords || 0;
@@ -2391,7 +2280,7 @@
                 
                 recordCountDetails.innerHTML = `
                     <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #27ae60;">
-                        <h4 style="color: #2c3e50; margin-bottom: 10px;">Custom Primary Key Analysis</h4>
+                        <h4 style="color: #2c3e50; margin-bottom: 10px;">✅ Custom Primary Key Analysis</h4>
                         <p><strong>Primary Key Used:</strong> <code>${primaryKeyField}</code> (supports ANY custom field)</p>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
@@ -2400,10 +2289,11 @@
                             <table style="width: 100%; font-size: 0.9rem;">
                                 <tbody>
                                     <tr><td><strong>Total Records:</strong></td><td>${jsonTotal.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Unique Keys:</strong></td><td>${jsonUnique.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Duplicates:</strong></td><td style="color: ${jsonDuplicates > 0 ? '#f39c12' : '#27ae60'}; font-weight: 600;">${jsonDuplicates.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Non-null Keys:</strong></td><td>${(jsonTotal - jsonNulls).toLocaleString()}</td></tr>
-                                    <tr><td><strong>Null Keys:</strong></td><td>${jsonNulls.toLocaleString()}</td></tr>
+                                    <tr><td><strong>Unique Primary Keys:</strong></td><td>${jsonUnique.toLocaleString()}</td></tr>
+                                    <tr><td><strong>Duplicate Records:</strong></td><td style="color: ${jsonDuplicates > 0 ? '#f39c12' : '#27ae60'}; font-weight: 600;">${jsonDuplicates.toLocaleString()} ${jsonDuplicates > 0 ? '⚠️' : '✅'}</td></tr>
+                                    <tr><td><strong>Non-null Primary Keys:</strong></td><td>${(jsonTotal - jsonNulls).toLocaleString()}</td></tr>
+                                    <tr><td><strong>Null Primary Keys:</strong></td><td>${jsonNulls.toLocaleString()}</td></tr>
+                                    <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -2412,9 +2302,10 @@
                             <table style="width: 100%; font-size: 0.9rem;">
                                 <tbody>
                                     <tr><td><strong>Total Records:</strong></td><td>${bqTotal.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Unique Keys:</strong></td><td>${bqUnique.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Non-null Keys:</strong></td><td>${(bqTotal - bqNulls).toLocaleString()}</td></tr>
-                                    <tr><td><strong>Null Keys:</strong></td><td>${bqNulls.toLocaleString()}</td></tr>
+                                    <tr><td><strong>Unique Primary Keys:</strong></td><td>${bqUnique.toLocaleString()}</td></tr>
+                                    <tr><td><strong>Non-null Primary Keys:</strong></td><td>${(bqTotal - bqNulls).toLocaleString()}</td></tr>
+                                    <tr><td><strong>Null Primary Keys:</strong></td><td>${bqNulls.toLocaleString()}</td></tr>
+                                    <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -2423,9 +2314,17 @@
             }
         }
 
-        // Column Names Tab
-        function populateColumnNamesTab(schemaAnalysis) {
-            if (!schemaAnalysis) return;
+        // Complete Column Names Tab with 3-Column Layout
+        function populateColumnNamesTabComplete(schemaAnalysis) {
+            console.log('Populating COMPLETE Column Names tab...');
+
+            if (!schemaAnalysis) {
+                const columnNamesSummary = document.getElementById('column-names-summary');
+                if (columnNamesSummary) {
+                    columnNamesSummary.innerHTML = '<div class="summary-card warning"><div class="summary-number">⚠</div><div class="summary-label">Schema Analysis Failed</div></div>';
+                }
+                return;
+            }
 
             const commonFields = schemaAnalysis.commonFields || [];
             const jsonOnlyFields = schemaAnalysis.jsonOnlyFields || [];
@@ -2464,7 +2363,9 @@
 
             const columnComparisonGrid = document.getElementById('column-comparison-grid');
             if (columnComparisonGrid) {
-                let commonFieldsHTML = '<div class="column-list"><h4 style="color: #27ae60;">🤝 Common Fields</h4>';
+                
+                // Common fields column
+                let commonFieldsHTML = '<div class="column-list"><h4 style="color: #27ae60;">🤝 Common Fields (Available for Comparison)</h4>';
                 if (commonFields.length > 0) {
                     commonFields.forEach(field => {
                         const isPrimaryKeyCandidate = primaryKeyCandidates.includes(field);
@@ -2477,6 +2378,7 @@
                 }
                 commonFieldsHTML += '</div>';
 
+                // JSON-only fields column
                 let jsonOnlyHTML = '<div class="column-list"><h4 style="color: #e74c3c;">📄 JSON-Only Fields</h4>';
                 if (jsonOnlyFields.length > 0) {
                     jsonOnlyFields.forEach(field => {
@@ -2487,6 +2389,7 @@
                 }
                 jsonOnlyHTML += '</div>';
 
+                // BigQuery-only fields column
                 let bqOnlyHTML = '<div class="column-list"><h4 style="color: #f39c12;">🗄️ BigQuery-Only Fields</h4>';
                 if (bqOnlyFields.length > 0) {
                     bqOnlyFields.forEach(field => {
@@ -2501,8 +2404,10 @@
             }
         }
 
-        // Comparison Tab
-        function populateComparisonTab(comparisonResults, summary, metadata) {
+        // Complete Comparison Summary Tab
+        function populateComparisonTabComplete(comparisonResults, summary, metadata) {
+            console.log('Populating COMPLETE Comparison Summary tab...');
+
             const primaryKeyUsed = summary?.primaryKeyUsed || metadata?.primaryKey || 'unknown';
             const sourceCount = summary.totalRecordsInFile || 0;
             const uniqueCount = summary.uniqueSourceRecords || 0;
@@ -2511,16 +2416,17 @@
             const failedCount = summary.recordsFailedToReachTarget || 0;
             const successRate = summary.pipelineSuccessRate || '0.0';
 
+            // Strategy information
             const strategyInfo = document.getElementById('strategy-info');
             if (strategyInfo) {
                 strategyInfo.innerHTML = `
-                    <div class="strategy-title">⚙️ Enhanced Comparison</div>
-                    <div class="strategy-description">Analyzing data transfer from JSON Source (${sourceCount} records) → BigQuery Target (${targetCount} records) using custom primary key: <strong>${primaryKeyUsed}</strong></div>
+                    <div class="strategy-title">⚙️ Flexible Field-Based Comparison</div>
+                    <div class="strategy-description">Analyzing data transfer from JSON Source (${sourceCount} records) → BigQuery Target (${targetCount} records) using primary key: <strong>${primaryKeyUsed}</strong></div>
                     <ul class="insight-list">
-                        <li>Custom primary key support: <strong>${primaryKeyUsed}</strong></li>
-                        <li>ALL ${summary.commonFieldsCount || 0} common fields analyzed</li>
-                        <li>BigQuery duplicate detection enabled</li>
-                        <li>Pipeline success rate: ${successRate}% (${matchCount}/${uniqueCount} records found)</li>
+                        <li>Using flexible primary key: <strong>${primaryKeyUsed}</strong> (validated to exist in both tables)</li>
+                        <li>Schema compatibility: ${summary.schemaCompatibility || 'Unknown'}% (${summary.commonFieldsCount || 0} common fields)</li>
+                        <li>Pipeline success rate: ${successRate}% (${matchCount}/${uniqueCount} unique records found in target)</li>
+                        <li>Field analysis: ${summary.fieldsAnalyzed || 0} common fields analyzed across ${matchCount} matched records</li>
                     </ul>
                 `;
             }
@@ -2550,14 +2456,37 @@
                     </div>
                 `;
             }
+
+            const comparisonDetails = document.getElementById('comparison-details');
+            if (comparisonDetails) {
+                comparisonDetails.innerHTML = `
+                    <div style="background: #f0f8ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                        <h4 style="color: #2c3e50; margin-bottom: 15px;">📊 Pipeline Validation Analysis</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h5 style="color: #27ae60; margin-bottom: 10px;">✅ Successfully Transferred Records</h5>
+                                <p><strong>Count:</strong> ${matchCount} out of ${uniqueCount} unique records</p>
+                                <p><strong>Success Rate:</strong> ${successRate}%</p>
+                            </div>
+                            <div>
+                                <h5 style="color: #e74c3c; margin-bottom: 10px;">❌ Failed to Transfer Records</h5>
+                                <p><strong>Count:</strong> ${failedCount} records didn't reach target</p>
+                                <p><strong>Impact:</strong> ${failedCount > 0 ? 'Data pipeline has gaps - investigation needed' : 'Perfect data transfer'}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
         }
 
-        // ALL Fields Analysis Tab
-        function populateFieldWiseTabEnhanced(fieldWiseAnalysis, summary) {
+        // Complete Field-wise Analysis 
+        function populateFieldWiseTabComplete(fieldWiseAnalysis, summary) {
+            console.log('Populating COMPLETE Field-wise Analysis tab...');
+
             if (!fieldWiseAnalysis || !fieldWiseAnalysis.fieldComparison) {
                 const fieldWiseSummary = document.getElementById('field-wise-summary');
                 if (fieldWiseSummary) {
-                    fieldWiseSummary.innerHTML = '<div class="summary-card warning"><div class="summary-number">⚠</div><div class="summary-label">Field Analysis Not Available</div></div>';
+                    fieldWiseSummary.innerHTML = '<div class="summary-card warning"><div class="summary-number">❌</div><div class="summary-label">Field Analysis Not Available</div></div>';
                 }
                 return;
             }
@@ -2572,9 +2501,9 @@
             const fieldWiseSummary = document.getElementById('field-wise-summary');
             if (fieldWiseSummary) {
                 fieldWiseSummary.innerHTML = `
-                    <div class="summary-card matches">
+                    <div class="summary-card">
                         <div class="summary-number">${totalFields}</div>
-                        <div class="summary-label">ALL Fields Analyzed</div>
+                        <div class="summary-label">Fields Analyzed</div>
                     </div>
                     <div class="summary-card matches">
                         <div class="summary-number">${perfectFields}</div>
@@ -2598,33 +2527,27 @@
             const fieldWiseDetails = document.getElementById('field-wise-details');
             if (fieldWiseDetails) {
                 if (fieldComparisons.length === 0) {
-                    fieldWiseDetails.innerHTML = '<p>No field comparisons performed. No matching records found to analyze.</p>';
+                    fieldWiseDetails.innerHTML = '<p>No field comparisons performed. This usually means no matching records were found to analyze.</p>';
                     return;
                 }
 
                 let detailHTML = `
-                    <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #27ae60;">
-                        <h4 style="color: #2c3e50; margin-bottom: 10px;">Complete Field Analysis</h4>
-                        <p>Analyzing ALL ${totalFields} common fields for comprehensive data quality assessment</p>
-                        <ul style="margin-top: 10px; padding-left: 20px;">
-                            <li>Complete coverage of every available common field</li>
-                            <li>No artificial limits or filters applied</li>
-                            <li>Enhanced performance for large field sets</li>
-                        </ul>
+                    <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                        <h4 style="color: #2c3e50; margin-bottom: 10px;">🔬 Comprehensive Field-by-Field Analysis</h4>
+                        <p>Detailed comparison of all ${totalFields} common columns between JSON source and BigQuery target for ${recordsAnalyzed} matched records.</p>
                     </div>
                     <div class="field-comparison-grid">
                 `;
 
-                // Display ALL field comparisons
-                fieldComparisons.forEach((field, index) => {
+                fieldComparisons.forEach(field => {
                     const cardClass = field.error ? 'warning' : field.differences === 0 ? 'perfect' : 'issues';
                     const statusClass = field.error ? 'warning' : field.differences === 0 ? 'perfect' : 'issues';
-                    const statusText = field.error ? '⚠️ Error' : field.differences === 0 ? '✅ Perfect' : `⚠ ${field.differences} Issues`;
+                    const statusText = field.error ? '⚠️ Error' : field.differences === 0 ? '✅ Perfect' : `❌ ${field.differences} Issues`;
 
                     detailHTML += `
                         <div class="field-comparison-card ${cardClass}">
                             <div class="field-header">
-                                <div class="field-name">📋 ${field.fieldName} <small style="color: #6c757d;">(${index + 1}/${totalFields})</small></div>
+                                <div class="field-name">📋 ${field.fieldName}</div>
                                 <div class="field-status ${statusClass}">${statusText}</div>
                             </div>
                             <div class="field-metrics">
@@ -2648,11 +2571,11 @@
                     `;
 
                     if (field.error) {
-                        detailHTML += `<div style="color: #856404; font-style: italic; margin-top: 10px; background: #fff3cd; padding: 8px; border-radius: 4px;">⚠️ ${field.error}</div>`;
+                        detailHTML += `<div style="color: #856404; font-style: italic; margin-top: 10px; background: #fff3cd; padding: 8px; border-radius: 4px;">⚠️ Analysis Error: ${field.error}</div>`;
                     } else if (field.allComparisons && field.allComparisons.length > 0) {
                         detailHTML += `
                             <div class="field-samples">
-                                <h5>📋 Sample Comparisons</h5>
+                                <h5>📋 Sample Field Comparisons</h5>
                                 <table class="sample-comparison-table">
                                     <thead>
                                         <tr>
@@ -2665,7 +2588,7 @@
                                     <tbody>
                         `;
 
-                        field.allComparisons.slice(0, 3).forEach(comp => {
+                        field.allComparisons.slice(0, 5).forEach(comp => {
                             const rowClass = comp.comparison_result === 'MATCH' ? 'match-row' : 'differ-row';
                             const statusIcon = comp.comparison_result === 'MATCH' ? '✅' : '⚠️';
 
@@ -2681,175 +2604,105 @@
 
                         detailHTML += `</tbody></table></div>`;
                     } else if (field.differences === 0 && !field.error) {
-                        detailHTML += `<div style="margin-top: 10px; color: #27ae60; font-style: italic; background: #d4edda; padding: 8px; border-radius: 4px;">✅ Perfect data quality</div>`;
+                        detailHTML += `<div style="margin-top: 10px; color: #27ae60; font-style: italic; background: #d4edda; padding: 8px; border-radius: 4px;">✅ All ${field.totalRecords || 0} records have perfect data quality for this field</div>`;
                     }
 
                     detailHTML += `</div>`;
                 });
 
                 detailHTML += `</div>`;
-
                 fieldWiseDetails.innerHTML = detailHTML;
             }
         }
 
-        // JSON + BigQuery Duplicates Analysis Tab
-        function populateDuplicatesTabEnhanced(duplicatesAnalysis, summary) {
-            if (!duplicatesAnalysis) return;
+        // Complete Duplicates Analysis Tab
+        function populateDuplicatesTabComplete(duplicatesAnalysis, summary) {
+            console.log('Populating COMPLETE Duplicates Analysis tab...');
 
-            // Get data for both JSON and BigQuery duplicates
-            const jsonDuplicates = duplicatesAnalysis.jsonDuplicates || duplicatesAnalysis;
-            const bqDuplicates = duplicatesAnalysis.bqDuplicates || { hasDuplicates: false, duplicateCount: 0 };
-            const combinedAnalysis = duplicatesAnalysis.combinedAnalysis || {};
-            
-            const jsonHasDuplicates = jsonDuplicates.hasDuplicates || false;
-            const jsonDuplicateCount = jsonDuplicates.duplicateCount || 0;
-            const jsonTotalDuplicateRecords = jsonDuplicates.totalDuplicateRecords || 0;
-            
-            const bqHasDuplicates = bqDuplicates.hasDuplicates || false;
-            const bqDuplicateCount = bqDuplicates.duplicateCount || 0;
-            const bqTotalDuplicateRecords = bqDuplicates.totalDuplicateRecords || 0;
+            if (!duplicatesAnalysis) {
+                const duplicatesSummary = document.getElementById('duplicates-summary');
+                if (duplicatesSummary) {
+                    duplicatesSummary.innerHTML = '<div class="summary-card warning"><div class="summary-number">❌</div><div class="summary-label">Analysis Failed</div></div>';
+                }
+                return;
+            }
 
-            // Summary cards for BOTH tables
+            const hasDuplicates = duplicatesAnalysis.hasDuplicates || false;
+            const duplicateCount = duplicatesAnalysis.duplicateCount || 0;
+            const totalDuplicateRecords = duplicatesAnalysis.totalDuplicateRecords || 0;
+
             const duplicatesSummary = document.getElementById('duplicates-summary');
             if (duplicatesSummary) {
                 duplicatesSummary.innerHTML = `
-                    <div class="summary-card ${jsonHasDuplicates ? 'warning' : 'pass'}">
-                        <div class="summary-number">${jsonDuplicateCount}</div>
-                        <div class="summary-label">JSON Duplicate Keys</div>
+                    <div class="summary-card ${hasDuplicates ? 'warning' : 'pass'}">
+                        <div class="summary-number">${duplicateCount}</div>
+                        <div class="summary-label">Duplicate Keys Found</div>
                     </div>
-                    <div class="summary-card ${bqHasDuplicates ? 'warning' : 'pass'}">
-                        <div class="summary-number">${bqDuplicateCount}</div>
-                        <div class="summary-label">BigQuery Duplicate Keys</div>
+                    <div class="summary-card ${totalDuplicateRecords > 0 ? 'warning' : 'pass'}">
+                        <div class="summary-number">${totalDuplicateRecords}</div>
+                        <div class="summary-label">Total Duplicate Records</div>
                     </div>
-                    <div class="summary-card ${jsonTotalDuplicateRecords > 0 ? 'warning' : 'pass'}">
-                        <div class="summary-number">${jsonTotalDuplicateRecords}</div>
-                        <div class="summary-label">JSON Duplicate Records</div>
+                    <div class="summary-card">
+                        <div class="summary-number">${summary.totalRecordsInFile || 0}</div>
+                        <div class="summary-label">Total Records in File</div>
                     </div>
-                    <div class="summary-card ${bqTotalDuplicateRecords > 0 ? 'warning' : 'pass'}">
-                        <div class="summary-number">${bqTotalDuplicateRecords}</div>
-                        <div class="summary-label">BigQuery Duplicate Records</div>
-                    </div>
-                    <div class="summary-card ${(jsonHasDuplicates || bqHasDuplicates) ? 'warning' : 'pass'}">
-                        <div class="summary-number">${(jsonDuplicateCount + bqDuplicateCount)}</div>
-                        <div class="summary-label">Total Duplicate Keys</div>
+                    <div class="summary-card matches">
+                        <div class="summary-number">${summary.uniqueSourceRecords || 0}</div>
+                        <div class="summary-label">Unique Records</div>
                     </div>
                 `;
             }
 
-            // JSON Duplicates Section
-            const jsonDuplicatesDetails = document.getElementById('json-duplicates-details');
-            if (jsonDuplicatesDetails) {
-                if (!jsonHasDuplicates) {
-                    jsonDuplicatesDetails.innerHTML = `
-                        <div style="text-align: center; padding: 30px; background: #d4edda; border-radius: 8px; color: #155724;">
-                            <h4 style="margin-bottom: 10px;">✅ No Duplicates in JSON Source</h4>
-                            <p>Excellent data quality - all primary key values are unique.</p>
+            const duplicatesDetails = document.getElementById('duplicates-details');
+            if (duplicatesDetails) {
+                if (!hasDuplicates) {
+                    duplicatesDetails.innerHTML = `
+                        <div style="text-align: center; padding: 40px; background: #d4edda; border-radius: 8px; color: #155724;">
+                            <h3 style="margin-bottom: 10px;">✅ No Duplicate Records Found</h3>
+                            <p>Your JSON file has excellent data quality - all primary key values are unique.</p>
+                            <p style="margin-top: 10px; font-style: italic;">This is ideal for data processing and ensures accurate comparisons.</p>
                         </div>
                     `;
-                } else {
-                    let jsonDupHTML = `
-                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
-                            <h4 style="color: #856404; margin-bottom: 10px;">📄 JSON Duplicates Detected</h4>
-                            <p><strong>Impact:</strong> ${jsonDuplicateCount} duplicate keys affecting ${jsonTotalDuplicateRecords} records</p>
-                        </div>
-                    `;
-
-                    if (jsonDuplicates.duplicateKeys && jsonDuplicates.duplicateKeys.length > 0) {
-                        jsonDuplicates.duplicateKeys.forEach((dup, index) => {
-                            jsonDupHTML += `
-                                <div class="duplicate-card">
-                                    <div class="duplicate-header">
-                                        <div>
-                                            <strong>🔑 Duplicate Key ${index + 1}:</strong>
-                                            <div class="duplicate-key">${dup.key}</div>
-                                        </div>
-                                        <div class="duplicate-count">${dup.count} occurrences</div>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                    }
-
-                    jsonDuplicatesDetails.innerHTML = jsonDupHTML;
+                    return;
                 }
-            }
 
-            // BigQuery Duplicates Section
-            const bqDuplicatesDetails = document.getElementById('bq-duplicates-details');
-            if (bqDuplicatesDetails) {
-                if (!bqHasDuplicates) {
-                    bqDuplicatesDetails.innerHTML = `
-                        <div style="text-align: center; padding: 30px; background: #d4edda; border-radius: 8px; color: #155724;">
-                            <h4 style="margin-bottom: 10px;">✅ No Duplicates in BigQuery Target</h4>
-                            <p>BigQuery target table has excellent data quality.</p>
-                        </div>
-                    `;
-                } else {
-                    let bqDupHTML = `
-                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
-                            <h4 style="color: #856404; margin-bottom: 10px;">🗄️ BigQuery Duplicates Detected</h4>
-                            <p><strong>Impact:</strong> ${bqDuplicateCount} duplicate keys affecting ${bqTotalDuplicateRecords} records in BigQuery</p>
-                        </div>
-                    `;
+                let detailHTML = `
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                        <h4 style="color: #856404; margin-bottom: 10px;">📄 Duplicate Records Detected</h4>
+                        <p><strong>Impact:</strong> Found ${duplicateCount} duplicate primary key values affecting ${totalDuplicateRecords} total records</p>
+                        <p><strong>Processing:</strong> System automatically deduplicates for comparison, but source data quality should be reviewed</p>
+                    </div>
+                `;
 
-                    if (bqDuplicates.duplicateKeys && bqDuplicates.duplicateKeys.length > 0) {
-                        bqDuplicates.duplicateKeys.forEach((dup, index) => {
-                            bqDupHTML += `
-                                <div class="duplicate-card">
-                                    <div class="duplicate-header">
-                                        <div>
-                                            <strong>🔑 BigQuery Duplicate Key ${index + 1}:</strong>
-                                            <div class="duplicate-key">${dup.key}</div>
-                                        </div>
-                                        <div class="duplicate-count">${dup.count} occurrences</div>
+                if (duplicatesAnalysis.duplicateKeys && duplicatesAnalysis.duplicateKeys.length > 0) {
+                    duplicatesAnalysis.duplicateKeys.forEach((dup, index) => {
+                        detailHTML += `
+                            <div class="duplicate-card">
+                                <div class="duplicate-header">
+                                    <div>
+                                        <strong>🔑 Duplicate Key ${index + 1}:</strong>
+                                        <div class="duplicate-key">${dup.key}</div>
                                     </div>
+                                    <div class="duplicate-count">${dup.count} occurrences</div>
                                 </div>
-                            `;
-                        });
-                    }
-
-                    bqDuplicatesDetails.innerHTML = bqDupHTML;
+                            </div>
+                        `;
+                    });
                 }
-            }
 
-            // Comparative Analysis Section
-            const comparativeDuplicatesDetails = document.getElementById('comparative-duplicates-details');
-            if (comparativeDuplicatesDetails) {
-                const overallQuality = combinedAnalysis.overallDataQuality || 
-                    ((!jsonHasDuplicates && !bqHasDuplicates) ? 'Excellent' : 
-                     (jsonHasDuplicates && bqHasDuplicates) ? 'Poor' : 'Good');
-
-                comparativeDuplicatesDetails.innerHTML = `
-                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
-                        <h4 style="color: #2c3e50; margin-bottom: 15px;">📊 Cross-System Analysis</h4>
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-                            <div style="text-align: center; padding: 15px; background: white; border-radius: 8px;">
-                                <h5 style="color: #3498db;">📄 JSON Source</h5>
-                                <div style="font-size: 1.5rem; font-weight: bold; color: ${jsonHasDuplicates ? '#f39c12' : '#27ae60'};">${jsonDuplicateCount}</div>
-                                <div style="font-size: 0.9rem; color: #6c757d;">Duplicate Keys</div>
-                            </div>
-                            <div style="text-align: center; padding: 15px; background: white; border-radius: 8px;">
-                                <h5 style="color: #2980b9;">🗄️ BigQuery Target</h5>
-                                <div style="font-size: 1.5rem; font-weight: bold; color: ${bqHasDuplicates ? '#f39c12' : '#27ae60'};">${bqDuplicateCount}</div>
-                                <div style="font-size: 0.9rem; color: #6c757d;">Duplicate Keys</div>
-                            </div>
-                            <div style="text-align: center; padding: 15px; background: white; border-radius: 8px;">
-                                <h5 style="color: #27ae60;">📊 Overall Quality</h5>
-                                <div style="font-size: 1.2rem; font-weight: bold; color: ${overallQuality === 'Excellent' ? '#27ae60' : overallQuality === 'Good' ? '#f39c12' : '#e74c3c'};">${overallQuality}</div>
-                                <div style="font-size: 0.9rem; color: #6c757d;">Data Quality</div>
-                            </div>
-                        </div>
-                        
-                        <div style="background: #e3f2fd; padding: 15px; border-radius: 8px;">
-                            <h5 style="color: #1565c0; margin-bottom: 10px;">💡 Recommendations:</h5>
+                if (duplicatesAnalysis.recommendations && duplicatesAnalysis.recommendations.length > 0) {
+                    detailHTML += `
+                        <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+                            <h5 style="color: #1565c0; margin-bottom: 10px;">💡 Data Quality Recommendations:</h5>
                             <ul style="margin: 0; padding-left: 20px;">
-                                ${duplicatesAnalysis.recommendations ? duplicatesAnalysis.recommendations.map(rec => `<li>${rec}</li>`).join('') : ''}
-                            </ul>
-                        </div>
-                    </div>
-                `;
+                    `;
+                    duplicatesAnalysis.recommendations.forEach(rec => {
+                        detailHTML += `<li>${rec}</li>`;
+                    });
+                    detailHTML += `</ul></div>`;
+                }
+
+                duplicatesDetails.innerHTML = detailHTML;
             }
         }
 
@@ -3018,6 +2871,7 @@
         // Table validation form handler
         document.getElementById('validationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
+            clearErrorMessages();
 
             const tableName = document.getElementById('tableName').value.trim();
             const nullColumns = parseColumns(document.getElementById('nullColumns').value);
@@ -3026,7 +2880,15 @@
             const compositeKeyColumns = parseColumns(document.getElementById('compositeKeyColumns').value);
 
             if (!tableName) {
-                alert('Please enter a BigQuery table name');
+                displayErrorMessage({
+                    type: 'MISSING_TABLE_NAME',
+                    title: 'Missing Table Name',
+                    message: 'Please enter a BigQuery table name to run validation.',
+                    suggestions: [
+                        'Enter a valid BigQuery table name',
+                        'Use format: project.dataset.table'
+                    ]
+                });
                 return;
             }
 
@@ -3060,19 +2922,23 @@
                     createCharts(result.data);
                     populateTable(result.data);
                 } else {
-                    alert('Validation failed: ' + (result.error?.message || 'Unknown error'));
+                    displayErrorMessage(result.error);
                 }
 
             } catch (error) {
                 document.getElementById('loadingSection').style.display = 'none';
                 document.getElementById('runValidation').disabled = false;
-                alert('Connection error: ' + error.message);
-            }
-        });
 
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            setupEnhancedPrimaryKeyInput();
+                displayErrorMessage({
+                    type: 'NETWORK_ERROR',
+                    title: 'Connection Error',
+                    message: 'Unable to connect to the validation service.',
+                    suggestions: [
+                        'Check your internet connection',
+                        'Try again in a few moments'
+                    ]
+                });
+            }
         });
     </script>
 </body>

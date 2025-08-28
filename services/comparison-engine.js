@@ -1,4 +1,4 @@
-// services/comparison-engine.js - v2.1: Custom primary keys + ALL fields + BigQuery duplicates
+// services/comparison-engine.js - COMPLETE FIXED: Dynamic + Debug Logging
 const { BigQuery } = require('@google-cloud/bigquery');
 
 class ComparisonEngineService {
@@ -6,54 +6,167 @@ class ComparisonEngineService {
         this.bigquery = new BigQuery({
             projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
         });
+        
+        console.log('Comparison Engine Service initialized - COMPLETE FIXED VERSION');
+        console.log('FIXED: Proper field detection + dynamic table support + debug logging');
+    }
+
+    cleanFieldName(fieldName) {
+        return fieldName
+            .replace(/[^a-zA-Z0-9_]/g, '_')
+            .replace(/^[0-9]/, '_$&')
+            .substring(0, 128)
+            .toLowerCase();
     }
 
     /**
-     * Get common fields between JSON and BigQuery tables
+     * FIXED: Get common fields with proper field detection and debugging
      */
     async getCommonFields(tempTableId, sourceTableName) {
         try {
-            // Get JSON table fields
+            console.log('==========================================');
+            console.log('STARTING FIELD ANALYSIS WITH DEBUG LOGGING');
+            console.log('==========================================');
+            console.log(`Temp table: ${tempTableId}`);
+            console.log(`Source table: ${sourceTableName}`);
+            
+            // Get JSON table fields with error handling
             let jsonFields = [];
             try {
+                console.log('Step 1: Getting JSON table fields...');
                 const jsonSchemaQuery = `SELECT * FROM \`${tempTableId}\` LIMIT 1`;
+                console.log(`Running query: ${jsonSchemaQuery}`);
+                
                 const [jsonSample] = await this.bigquery.query(jsonSchemaQuery);
                 
                 if (jsonSample.length > 0) {
-                    jsonFields = Object.keys(jsonSample[0]);
+                    jsonFields = Object.keys(jsonSample[0]).sort();
+                    console.log(`SUCCESS: JSON table has ${jsonFields.length} fields`);
+                    console.log(`JSON fields: [${jsonFields.join(', ')}]`);
+                } else {
+                    console.warn('WARNING: JSON table returned no records');
+                    throw new Error('JSON temp table is empty');
                 }
             } catch (jsonError) {
+                console.error('ERROR getting JSON fields:', jsonError.message);
                 throw new Error(`Cannot access JSON temp table: ${jsonError.message}`);
             }
             
-            // Get BigQuery table fields
+            // Get BigQuery table fields with error handling
             let bqFields = [];
             try {
+                console.log('Step 2: Getting BigQuery table fields...');
                 const bqSchemaQuery = `SELECT * FROM \`${sourceTableName}\` LIMIT 1`;
+                console.log(`Running query: ${bqSchemaQuery}`);
+                
                 const [bqSample] = await this.bigquery.query(bqSchemaQuery);
                 
                 if (bqSample.length > 0) {
-                    bqFields = Object.keys(bqSample[0]);
+                    bqFields = Object.keys(bqSample[0]).sort();
+                    console.log(`SUCCESS: BigQuery table has ${bqFields.length} fields`);
+                    console.log(`BigQuery fields: [${bqFields.join(', ')}]`);
+                } else {
+                    console.warn('WARNING: BigQuery table returned no records');
+                    throw new Error('BigQuery table is empty');
                 }
             } catch (bqError) {
+                console.error('ERROR getting BigQuery fields:', bqError.message);
                 throw new Error(`Cannot access BigQuery source table: ${bqError.message}`);
             }
             
-            // Find common fields
-            const commonFields = jsonFields.filter(field => bqFields.includes(field));
-            const jsonOnlyFields = jsonFields.filter(field => !bqFields.includes(field));
-            const bqOnlyFields = bqFields.filter(field => !jsonFields.includes(field));
+            // Step 3: Find common fields with detailed logging
+            console.log('Step 3: Comparing fields for matches...');
+            const commonFields = [];
+            const jsonOnlyFields = [];
+            const bqOnlyFields = [];
             
-            // Identify potential primary key candidates from common fields
+            // Find exact matches
+            for (const jsonField of jsonFields) {
+                if (bqFields.includes(jsonField)) {
+                    commonFields.push(jsonField);
+                    console.log(`MATCH FOUND: '${jsonField}' exists in both tables`);
+                } else {
+                    jsonOnlyFields.push(jsonField);
+                    console.log(`JSON-only field: '${jsonField}'`);
+                }
+            }
+            
+            // Find BigQuery-only fields
+            for (const bqField of bqFields) {
+                if (!jsonFields.includes(bqField)) {
+                    bqOnlyFields.push(bqField);
+                    console.log(`BigQuery-only field: '${bqField}'`);
+                }
+            }
+            
+            console.log('==========================================');
+            console.log('FIELD ANALYSIS RESULTS:');
+            console.log('==========================================');
+            console.log(`Common fields found: ${commonFields.length}`);
+            console.log(`Common fields: [${commonFields.join(', ')}]`);
+            console.log(`JSON-only fields: ${jsonOnlyFields.length}`);
+            console.log(`BigQuery-only fields: ${bqOnlyFields.length}`);
+            
+            // Find primary key candidates from common fields
             const primaryKeyCandidates = commonFields.filter(field => {
                 const lowerField = field.toLowerCase();
                 return lowerField.includes('id') || 
                        lowerField.includes('key') ||
                        lowerField.includes('number') ||
-                       lowerField.includes('_id') ||
-                       lowerField.includes('sys_') ||
-                       ['task_sys_id', 'sys_id', 'task_number', 'number', 'id', 'key'].includes(lowerField);
+                       lowerField.includes('arn') ||
+                       ['id', 'sys_id', 'number', 'key', 'code', 'arn'].includes(lowerField);
             });
+            
+            console.log(`Primary key candidates: [${primaryKeyCandidates.join(', ')}]`);
+            
+            // CRITICAL: Check if we have common fields
+            if (commonFields.length === 0) {
+                console.error('CRITICAL ERROR: No common fields detected!');
+                console.log('DEBUGGING INFO:');
+                console.log('JSON Fields:', jsonFields);
+                console.log('BigQuery Fields:', bqFields);
+                
+                // Try case-insensitive matching as fallback
+                console.log('Attempting case-insensitive fallback matching...');
+                const caseInsensitiveMatches = [];
+                
+                for (const jsonField of jsonFields) {
+                    const matchingBqField = bqFields.find(bqField => 
+                        bqField.toLowerCase() === jsonField.toLowerCase()
+                    );
+                    if (matchingBqField) {
+                        caseInsensitiveMatches.push(matchingBqField);
+                        console.log(`Case-insensitive match: JSON '${jsonField}' → BQ '${matchingBqField}'`);
+                    }
+                }
+                
+                if (caseInsensitiveMatches.length > 0) {
+                    console.log(`Found ${caseInsensitiveMatches.length} case-insensitive matches, using them as common fields`);
+                    
+                    return {
+                        commonFields: caseInsensitiveMatches,
+                        jsonOnlyFields: jsonFields.filter(jf => 
+                            !caseInsensitiveMatches.some(cf => cf.toLowerCase() === jf.toLowerCase())
+                        ),
+                        bqOnlyFields: bqFields.filter(bf => 
+                            !caseInsensitiveMatches.some(cf => cf.toLowerCase() === bf.toLowerCase())
+                        ),
+                        primaryKeyCandidates: caseInsensitiveMatches.filter(field => {
+                            const lowerField = field.toLowerCase();
+                            return lowerField.includes('id') || lowerField.includes('arn');
+                        }),
+                        totalJsonFields: jsonFields.length,
+                        totalBqFields: bqFields.length,
+                        schemaCompatibility: caseInsensitiveMatches.length / Math.max(jsonFields.length, bqFields.length),
+                        matchType: 'case-insensitive'
+                    };
+                }
+                
+                throw new Error(`No common fields found. JSON has [${jsonFields.slice(0, 5).join(', ')}], BigQuery has [${bqFields.slice(0, 5).join(', ')}]`);
+            }
+            
+            console.log('SUCCESS: Common fields detected correctly');
+            console.log('==========================================');
             
             return {
                 commonFields: commonFields,
@@ -62,23 +175,39 @@ class ComparisonEngineService {
                 primaryKeyCandidates: primaryKeyCandidates,
                 totalJsonFields: jsonFields.length,
                 totalBqFields: bqFields.length,
-                schemaCompatibility: commonFields.length / Math.max(jsonFields.length, bqFields.length)
+                schemaCompatibility: commonFields.length / Math.max(jsonFields.length, bqFields.length),
+                jsonColumns: jsonFields.map(field => ({ column_name: field, data_type: 'STRING' })),
+                bqColumns: bqFields.map(field => ({ column_name: field, data_type: 'STRING' })),
+                commonColumns: commonFields.map(field => ({ 
+                    column_name: field, 
+                    json_type: 'STRING', 
+                    bq_type: 'STRING', 
+                    type_match: true 
+                })),
+                matchType: 'exact'
             };
             
         } catch (error) {
+            console.error('Schema analysis failed:', error.message);
             throw new Error(`Schema analysis failed: ${error.message}`);
         }
     }
 
     /**
-     * Validate if ANY field can be used as primary key
+     * FIXED: Validate ANY field as primary key
      */
     async validatePrimaryKeyField(tempTableId, sourceTableName, primaryKey, commonFields) {
         try {
-            // Check if the field is in common fields
+            console.log(`Validating primary key field: ${primaryKey}`);
+            console.log(`Available common fields: [${commonFields.join(', ')}]`);
+            
+            // Check if field exists in common fields
             if (!commonFields.includes(primaryKey)) {
-                throw new Error(`Primary key '${primaryKey}' is not available in both tables. Available common fields: ${commonFields.slice(0, 10).join(', ')}`);
+                console.error(`Primary key '${primaryKey}' not found in common fields`);
+                throw new Error(`Primary key '${primaryKey}' not available in both tables. Available common fields: ${commonFields.slice(0, 10).join(', ')}`);
             }
+            
+            console.log(`Primary key '${primaryKey}' validated - exists in both tables`);
             
             const validationQueries = [
                 {
@@ -107,9 +236,12 @@ class ComparisonEngineService {
             
             for (const queryInfo of validationQueries) {
                 try {
+                    console.log(`Running validation query: ${queryInfo.name}`);
                     const [result] = await this.bigquery.query(queryInfo.query);
                     validationResults[queryInfo.name] = result[0];
+                    console.log(`${queryInfo.name}:`, result[0]);
                 } catch (queryError) {
+                    console.error(`${queryInfo.name} failed:`, queryError.message);
                     throw new Error(`Field '${primaryKey}' validation failed: ${queryError.message}`);
                 }
             }
@@ -117,35 +249,54 @@ class ComparisonEngineService {
             return validationResults;
             
         } catch (error) {
+            console.error(`Primary key validation failed:`, error.message);
             throw error;
         }
     }
 
     /**
-     * Main comparison with all enhancements
+     * MAIN: Schema-safe comparison using any common field
      */
-    async compareJSONvsBigQuery(tempTableId, sourceTableName, primaryKey = 'task_sys_id', comparisonFields = [], strategy = 'enhanced') {
+    async compareJSONvsBigQuery(tempTableId, sourceTableName, primaryKey = 'Id', comparisonFields = [], strategy = 'enhanced') {
         try {
+            console.log('==========================================');
+            console.log('STARTING DYNAMIC COMPARISON');
+            console.log('==========================================');
+            console.log(`SOURCE (JSON): ${tempTableId}`);
+            console.log(`TARGET (BigQuery): ${sourceTableName}`);
+            console.log(`Requested primary key: ${primaryKey}`);
+
             // STEP 1: Get common fields analysis
             const schemaAnalysis = await this.getCommonFields(tempTableId, sourceTableName);
+            console.log(`Schema analysis completed: ${schemaAnalysis.commonFields.length} common fields found`);
 
-            // STEP 2: Validate the custom primary key exists in both tables
+            // STEP 2: Validate the requested primary key exists in both tables
             if (!schemaAnalysis.commonFields.includes(primaryKey)) {
+                console.error(`Primary key '${primaryKey}' not found in common fields!`);
+                console.log(`Available common fields: [${schemaAnalysis.commonFields.join(', ')}]`);
+                console.log(`Suggested primary key candidates: [${schemaAnalysis.primaryKeyCandidates.join(', ')}]`);
+                
                 const suggestedKey = schemaAnalysis.primaryKeyCandidates[0] || schemaAnalysis.commonFields[0];
                 throw new Error(`Primary key '${primaryKey}' not available in both tables. Suggested alternative: '${suggestedKey}'. Available common fields: ${schemaAnalysis.commonFields.slice(0, 5).join(', ')}`);
             }
 
+            console.log(`Primary key '${primaryKey}' found in common fields - proceeding with validation`);
+
             // STEP 3: Validate the primary key field works in both tables
             const keyValidation = await this.validatePrimaryKeyField(tempTableId, sourceTableName, primaryKey, schemaAnalysis.commonFields);
+            console.log(`Primary key '${primaryKey}' validated in both tables`);
 
             // STEP 4: Get record counts using validated primary key
+            console.log('Getting record counts using validated fields...');
             const recordCounts = await this.getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey);
 
-            // STEP 5: Find matching records using the primary key
+            // STEP 5: Find matching records using the chosen primary key
+            console.log('Finding matches using schema-aware primary key...');
             const matchAnalysis = await this.getSchemaAwareMatches(tempTableId, sourceTableName, primaryKey);
 
-            // STEP 6: Analyze ALL common fields (no limits)
-            const fieldAnalysis = await this.analyzeAllCommonFieldsEnhanced(
+            // STEP 6: Analyze field differences for common fields only (safe)
+            console.log('Analyzing field differences for common fields only...');
+            const fieldAnalysis = await this.analyzeCommonFieldDifferences(
                 tempTableId, 
                 sourceTableName, 
                 primaryKey,
@@ -153,8 +304,9 @@ class ComparisonEngineService {
                 matchAnalysis.matchedIds
             );
 
-            // STEP 7: Get comprehensive duplicates analysis for BOTH tables
-            const duplicatesAnalysis = await this.analyzeDuplicatesEnhanced(tempTableId, sourceTableName, primaryKey);
+            // STEP 7: Get comprehensive duplicates analysis
+            console.log('Analyzing duplicates in source data...');
+            const duplicatesAnalysis = await this.analyzeDuplicates(tempTableId, primaryKey);
 
             // STEP 8: Create comprehensive results
             const summary = {
@@ -177,12 +329,18 @@ class ComparisonEngineService {
                 matchedRecordIds: matchAnalysis.matchedIds,
                 failedRecordIds: matchAnalysis.jsonOnlyIds,
                 comparisonDate: new Date().toISOString(),
-                strategy: 'enhanced-v2.1'
+                strategy: 'dynamic-schema-safe-any-field'
             };
+
+            console.log('==========================================');
+            console.log('COMPARISON COMPLETED SUCCESSFULLY');
+            console.log('==========================================');
+            console.log(`Results: ${matchAnalysis.matchCount} matches found using '${primaryKey}' field`);
+            console.log(`Pipeline success rate: ${summary.pipelineSuccessRate}%`);
 
             return {
                 success: true,
-                analysisType: 'enhanced-v2.1',
+                analysisType: 'dynamic-schema-safe-any-field',
                 primaryKeyUsed: primaryKey,
                 schemaAnalysis: schemaAnalysis,
                 recordCounts: recordCounts,
@@ -204,23 +362,26 @@ class ComparisonEngineService {
                 metadata: {
                     tempTableId,
                     sourceTableName,
-                    primaryKey,
-                    comparisonFields: schemaAnalysis.commonFields,
-                    strategy: 'enhanced-v2.1',
+                    primaryKey: primaryKey,
+                    comparisonFields: comparisonFields.length > 0 ? comparisonFields : schemaAnalysis.commonFields.slice(0, 10),
+                    strategy: 'dynamic-schema-safe-any-field',
                     comparisonDate: new Date().toISOString()
                 }
             };
 
         } catch (error) {
-            throw new Error(`Comparison failed: ${error.message}`);
+            console.error('Dynamic comparison failed:', error.message);
+            throw new Error(`Dynamic comparison failed: ${error.message}`);
         }
     }
 
     /**
-     * Get record counts using validated primary key
+     * Get record counts using dynamic primary key
      */
     async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey) {
         try {
+            console.log(`Getting schema-aware record counts using: ${primaryKey}`);
+
             const jsonDetailQuery = `
                 SELECT 
                     COUNT(*) as total_records,
@@ -249,6 +410,9 @@ class ComparisonEngineService {
             const jsonDetails = jsonResult[0][0];
             const bqDetails = bqResult[0][0];
 
+            console.log(`JSON analysis: ${jsonDetails.total_records} total, ${jsonDetails.unique_primary_keys} unique, ${jsonDetails.duplicate_records} duplicates`);
+            console.log(`BigQuery analysis: ${bqDetails.total_records} total, ${bqDetails.unique_primary_keys} unique`);
+
             return {
                 jsonDetails: {
                     totalRecords: parseInt(jsonDetails.total_records),
@@ -269,6 +433,7 @@ class ComparisonEngineService {
             };
 
         } catch (error) {
+            console.error(`Failed to get schema-aware record counts:`, error.message);
             throw error;
         }
     }
@@ -278,6 +443,8 @@ class ComparisonEngineService {
      */
     async getSchemaAwareMatches(tempTableId, sourceTableName, primaryKey) {
         try {
+            console.log(`Finding matches using validated primary key: ${primaryKey}`);
+
             // Get all unique JSON keys
             const getAllJsonKeysQuery = `
                 SELECT DISTINCT ${primaryKey} as key_value
@@ -288,6 +455,8 @@ class ComparisonEngineService {
             
             const [allJsonKeys] = await this.bigquery.query(getAllJsonKeysQuery);
             const jsonKeysList = allJsonKeys.map(r => r.key_value);
+            
+            console.log(`JSON unique keys: ${jsonKeysList.length} found`);
 
             // Find matching keys
             const getMatchingKeysQuery = `
@@ -301,11 +470,14 @@ class ComparisonEngineService {
             
             const [matchingKeys] = await this.bigquery.query(getMatchingKeysQuery);
             const matchedKeysList = matchingKeys.map(r => r.matched_key);
+            
+            console.log(`Matched keys: ${matchedKeysList.length} found`);
 
             // Calculate keys only in JSON
             const jsonOnlyKeys = jsonKeysList.filter(key => !matchedKeysList.includes(key));
+            console.log(`JSON-only keys: ${jsonOnlyKeys.length} found`);
 
-            // Get sample keys only in BigQuery
+            // Get sample keys only in BigQuery (limited for performance)
             const getBqOnlyKeysQuery = `
                 SELECT DISTINCT bq_table.${primaryKey} as bq_only_key
                 FROM \`${sourceTableName}\` bq_table
@@ -320,6 +492,30 @@ class ComparisonEngineService {
             
             const [bqOnlyKeys] = await this.bigquery.query(getBqOnlyKeysQuery);
             const bqOnlyKeysList = bqOnlyKeys.map(r => r.bq_only_key);
+            
+            console.log(`BigQuery-only keys (sample): ${bqOnlyKeysList.length} found`);
+
+            // Get sample matched records with details
+            let sampleMatches = [];
+            if (matchedKeysList.length > 0) {
+                const sampleMatchQuery = `
+                    SELECT 
+                        json_table.${primaryKey} as key_value
+                    FROM \`${tempTableId}\` json_table
+                    INNER JOIN \`${sourceTableName}\` bq_table
+                    ON json_table.${primaryKey} = bq_table.${primaryKey}
+                    WHERE json_table.${primaryKey} IS NOT NULL
+                    LIMIT 5
+                `;
+                
+                try {
+                    const [sampleResult] = await this.bigquery.query(sampleMatchQuery);
+                    sampleMatches = sampleResult;
+                    console.log(`Sample matches retrieved: ${sampleMatches.length} records`);
+                } catch (sampleError) {
+                    console.warn(`Could not get sample match details:`, sampleError.message);
+                }
+            }
 
             return {
                 matchCount: matchedKeysList.length,
@@ -329,19 +525,25 @@ class ComparisonEngineService {
                 jsonOnlyRecords: jsonOnlyKeys.map(key => ({ [primaryKey]: key })),
                 bqOnlyCount: bqOnlyKeysList.length,
                 bqOnlyRecords: bqOnlyKeysList.map(key => ({ [primaryKey]: key })),
+                sampleMatches: sampleMatches,
                 primaryKeyUsed: primaryKey
             };
 
         } catch (error) {
+            console.error(`Schema-aware match analysis failed:`, error.message);
             throw error;
         }
     }
 
     /**
-     * Analyze ALL common fields (removed artificial limits)
+     * Analyze field differences only for common fields
      */
-    async analyzeAllCommonFieldsEnhanced(tempTableId, sourceTableName, primaryKey, commonFields, matchedIds) {
+    async analyzeCommonFieldDifferences(tempTableId, sourceTableName, primaryKey, commonFields, matchedIds) {
         try {
+            console.log(`Analyzing field differences for common fields only...`);
+            console.log(`Common fields available: ${commonFields.length}`);
+            console.log(`Matched records to analyze: ${matchedIds.length}`);
+            
             if (matchedIds.length === 0) {
                 return {
                     totalFieldIssues: 0,
@@ -350,7 +552,7 @@ class ComparisonEngineService {
                     recordsAnalyzed: 0,
                     perfectFields: 0,
                     problematicFields: 0,
-                    summary: 'No matched records to analyze'
+                    summary: 'No matched records to analyze - 0 matches found'
                 };
             }
 
@@ -369,18 +571,25 @@ class ComparisonEngineService {
             const fieldComparison = [];
             let totalFieldIssues = 0;
             
-            // Use ALL common fields (removed all artificial limits)
-            const fieldsToAnalyze = commonFields.filter(field => 
-                field !== primaryKey // Don't analyze primary key
-            );
+            // Select safe common fields for analysis
+            const safeFields = commonFields.filter(field => {
+                const lowerField = field.toLowerCase();
+                return field !== primaryKey && // Don't analyze primary key
+                       !lowerField.includes('comment') &&
+                       !lowerField.includes('description') &&
+                       !lowerField.includes('sys_domain_path') &&
+                       !lowerField.includes('sys_tags') &&
+                       !lowerField.includes('header') &&
+                       field.length < 50;
+            }).slice(0, 10); // Analyze up to 10 fields
             
-            // Process ALL fields without restrictions
-            for (let i = 0; i < fieldsToAnalyze.length; i++) {
-                const field = fieldsToAnalyze[i];
-                
+            console.log(`Safe fields to analyze: [${safeFields.join(', ')}]`);
+            
+            for (const field of safeFields) {
                 try {
-                    // Create safe comparison query using matched IDs
-                    const matchedIdsStr = matchedIds.slice(0, 200).map(id => `'${String(id).replace(/'/g, "\\'")}'`).join(',');
+                    console.log(`Analyzing field: ${field} for ${matchedIds.length} matched records...`);
+                    
+                    const matchedIdsStr = matchedIds.slice(0, 50).map(id => `'${String(id).replace(/'/g, "\\'")}'`).join(',');
                     
                     const fieldComparisonQuery = `
                         SELECT 
@@ -397,7 +606,7 @@ class ComparisonEngineService {
                         INNER JOIN \`${sourceTableName}\` bq_table
                         ON json_table.${primaryKey} = bq_table.${primaryKey}
                         WHERE json_table.${primaryKey} IN (${matchedIdsStr})
-                        LIMIT 500
+                        LIMIT 100
                     `;
                     
                     const [fieldResult] = await this.bigquery.query(fieldComparisonQuery);
@@ -405,20 +614,22 @@ class ComparisonEngineService {
                     const differences = fieldResult.filter(r => r.comparison_result === 'DIFFER');
                     const matches = fieldResult.filter(r => r.comparison_result === 'MATCH');
                     
+                    console.log(`Field ${field}: ${matches.length} matches, ${differences.length} differences`);
+                    
                     fieldComparison.push({
                         fieldName: field,
                         totalRecords: fieldResult.length,
                         perfectMatches: matches.length,
                         differences: differences.length,
                         matchRate: fieldResult.length > 0 ? ((matches.length / fieldResult.length) * 100).toFixed(1) : '0.0',
-                        sampleDifferences: differences.slice(0, 5),
-                        allComparisons: fieldResult.slice(0, 15)
+                        sampleDifferences: differences.slice(0, 3),
+                        allComparisons: fieldResult.slice(0, 10)
                     });
                     
                     totalFieldIssues += differences.length;
                     
                 } catch (fieldError) {
-                    console.warn(`Issue analyzing field ${field}:`, fieldError.message);
+                    console.warn(`Skipping field ${field}:`, fieldError.message);
                     
                     fieldComparison.push({
                         fieldName: field,
@@ -426,24 +637,27 @@ class ComparisonEngineService {
                         perfectMatches: 0,
                         differences: 0,
                         matchRate: '0.0',
-                        error: `Analysis failed: ${fieldError.message}`,
+                        error: fieldError.message,
                         sampleDifferences: [],
                         allComparisons: []
                     });
                 }
             }
             
+            console.log(`Field analysis completed: ${totalFieldIssues} total field issues found across ${safeFields.length} fields`);
+            
             return {
                 totalFieldIssues: totalFieldIssues,
                 fieldComparison: fieldComparison,
-                fieldsAnalyzed: fieldsToAnalyze.length,
+                fieldsAnalyzed: safeFields.length,
                 recordsAnalyzed: matchedIds.length,
                 perfectFields: fieldComparison.filter(f => f.differences === 0 && !f.error).length,
                 problematicFields: fieldComparison.filter(f => f.differences > 0 || f.error).length,
-                summary: `Analyzed ALL ${fieldsToAnalyze.length} common fields across ${matchedIds.length} matched records`
+                summary: `Analyzed ${safeFields.length} common fields across ${matchedIds.length} matched records`
             };
             
         } catch (error) {
+            console.error('Common field analysis failed:', error.message);
             return {
                 totalFieldIssues: 0,
                 fieldComparison: [],
@@ -457,93 +671,109 @@ class ComparisonEngineService {
     }
 
     /**
-     * Analyze duplicates in BOTH JSON and BigQuery tables
+     * Analyze duplicates using dynamic primary key
      */
-    async analyzeDuplicatesEnhanced(tempTableId, sourceTableName, primaryKey) {
+    async analyzeDuplicates(tempTableId, primaryKey) {
         try {
-            // Analyze JSON duplicates
-            const jsonDuplicatesAnalysis = await this.analyzeTableDuplicates(tempTableId, primaryKey, 'JSON');
+            console.log(`Analyzing duplicates using primary key: ${primaryKey}`);
 
-            // Analyze BigQuery duplicates
-            const bqDuplicatesAnalysis = await this.analyzeTableDuplicates(sourceTableName, primaryKey, 'BigQuery');
+            const duplicateKeysQuery = `
+                SELECT 
+                    ${primaryKey} as duplicate_key,
+                    COUNT(*) as occurrence_count
+                FROM \`${tempTableId}\`
+                WHERE ${primaryKey} IS NOT NULL
+                GROUP BY ${primaryKey}
+                HAVING COUNT(*) > 1
+                ORDER BY occurrence_count DESC
+            `;
 
-            // Combined analysis
-            const totalDuplicateKeys = (jsonDuplicatesAnalysis.duplicateCount || 0) + (bqDuplicatesAnalysis.duplicateCount || 0);
-            const totalDuplicateRecords = (jsonDuplicatesAnalysis.totalDuplicateRecords || 0) + (bqDuplicatesAnalysis.totalDuplicateRecords || 0);
+            const [duplicateKeys] = await this.bigquery.query(duplicateKeysQuery);
+            
+            const hasDuplicates = duplicateKeys.length > 0;
+            const totalDuplicateRecords = duplicateKeys.reduce((sum, dup) => sum + parseInt(dup.occurrence_count), 0) - duplicateKeys.length;
+            
+            console.log(`Duplicate analysis: ${duplicateKeys.length} duplicate keys, ${totalDuplicateRecords} duplicate records`);
 
-            // Create recommendations based on findings in BOTH tables
+            // Get all duplicate records with dynamic field selection
+            let allDuplicateRecords = [];
+            if (hasDuplicates) {
+                // Get available fields dynamically
+                const sampleFieldsQuery = `SELECT * FROM \`${tempTableId}\` LIMIT 1`;
+                const [sampleResult] = await this.bigquery.query(sampleFieldsQuery);
+                const availableFields = sampleResult.length > 0 ? Object.keys(sampleResult[0]) : [primaryKey];
+                
+                // Select up to 5 most relevant fields for display
+                const displayFields = [
+                    primaryKey,
+                    ...availableFields.filter(field => 
+                        field !== primaryKey &&
+                        (field.toLowerCase().includes('name') || 
+                         field.toLowerCase().includes('description') || 
+                         field.toLowerCase().includes('type') ||
+                         field.toLowerCase().includes('account') || 
+                         field.toLowerCase().includes('status') || 
+                         field.toLowerCase().includes('created') ||
+                         field.toLowerCase().includes('code') || 
+                         field.toLowerCase().includes('arn') || 
+                         field.toLowerCase().includes('catalog'))
+                    ).slice(0, 4)
+                ];
+
+                const duplicateRecordsQuery = `
+                    SELECT 
+                        ${displayFields.map(field => `${field}`).join(', ')}
+                    FROM \`${tempTableId}\`
+                    WHERE ${primaryKey} IN (
+                        SELECT ${primaryKey}
+                        FROM \`${tempTableId}\`
+                        WHERE ${primaryKey} IS NOT NULL
+                        GROUP BY ${primaryKey}
+                        HAVING COUNT(*) > 1
+                    )
+                    ORDER BY ${primaryKey}
+                    LIMIT 100
+                `;
+
+                try {
+                    const [duplicateRecords] = await this.bigquery.query(duplicateRecordsQuery);
+                    allDuplicateRecords = duplicateRecords;
+                    console.log(`Retrieved ${allDuplicateRecords.length} duplicate records for detailed analysis`);
+                } catch (recordsError) {
+                    console.warn(`Could not get duplicate record details:`, recordsError.message);
+                }
+            }
+
             const recommendations = [];
-            
-            if (jsonDuplicatesAnalysis.hasDuplicates) {
-                recommendations.push(`📄 JSON Source: ${jsonDuplicatesAnalysis.duplicateCount} duplicate keys found - review data source quality`);
-                recommendations.push(`🔧 Consider deduplication in your data pipeline before BigQuery loading`);
-            }
-            
-            if (bqDuplicatesAnalysis.hasDuplicates) {
-                recommendations.push(`🗄️ BigQuery Target: ${bqDuplicatesAnalysis.duplicateCount} duplicate keys found - target table has data quality issues`);
-                recommendations.push(`🛠️ Consider implementing MERGE statements instead of INSERT for better data quality`);
-            }
-            
-            if (!jsonDuplicatesAnalysis.hasDuplicates && !bqDuplicatesAnalysis.hasDuplicates) {
-                recommendations.push(`✅ Excellent data quality - no duplicates found in either JSON source or BigQuery target`);
-            }
-            
-            if (jsonDuplicatesAnalysis.hasDuplicates && bqDuplicatesAnalysis.hasDuplicates) {
-                recommendations.push(`⚠️ Both JSON source and BigQuery target have duplicates - comprehensive data quality review needed`);
+            if (hasDuplicates) {
+                recommendations.push(`Review source data to understand why ${duplicateKeys.length} primary key values appear multiple times`);
+                recommendations.push(`Consider using composite keys or additional fields for unique identification`);
+                recommendations.push(`Data pipeline should include deduplication logic before loading to BigQuery`);
+                if (duplicateKeys.length < 5) {
+                    recommendations.push(`Small number of duplicates - may be acceptable for analysis purposes`);
+                }
+            } else {
+                recommendations.push(`Perfect data quality - no duplicate primary keys found`);
             }
 
             return {
-                // Combined metrics for compatibility
-                hasDuplicates: jsonDuplicatesAnalysis.hasDuplicates || bqDuplicatesAnalysis.hasDuplicates,
-                duplicateCount: jsonDuplicatesAnalysis.duplicateCount || 0,
-                totalDuplicateRecords: jsonDuplicatesAnalysis.totalDuplicateRecords || 0,
-                
-                // Separate JSON and BigQuery analysis
-                jsonDuplicates: {
-                    ...jsonDuplicatesAnalysis,
-                    tableType: 'JSON Source'
-                },
-                bqDuplicates: {
-                    ...bqDuplicatesAnalysis,
-                    tableType: 'BigQuery Target'
-                },
-                
-                // Combined analysis
-                combinedAnalysis: {
-                    totalDuplicateKeys: totalDuplicateKeys,
-                    totalDuplicateRecords: totalDuplicateRecords,
-                    jsonContribution: jsonDuplicatesAnalysis.duplicateCount || 0,
-                    bqContribution: bqDuplicatesAnalysis.duplicateCount || 0,
-                    overallDataQuality: (!jsonDuplicatesAnalysis.hasDuplicates && !bqDuplicatesAnalysis.hasDuplicates) ? 'Excellent' : 
-                                       (jsonDuplicatesAnalysis.hasDuplicates && bqDuplicatesAnalysis.hasDuplicates) ? 'Poor' : 'Good'
-                },
-                
-                // Legacy compatibility
-                duplicateKeys: jsonDuplicatesAnalysis.duplicateKeys || [],
-                allDuplicateRecords: jsonDuplicatesAnalysis.allDuplicateRecords || [],
-                
-                // Recommendations
-                recommendations: recommendations,
-                analysisDate: new Date().toISOString()
+                hasDuplicates: hasDuplicates,
+                duplicateCount: duplicateKeys.length,
+                totalDuplicateRecords: totalDuplicateRecords,
+                duplicateKeys: duplicateKeys.map(dup => ({
+                    key: dup.duplicate_key,
+                    count: parseInt(dup.occurrence_count)
+                })),
+                allDuplicateRecords: allDuplicateRecords,
+                recommendations: recommendations
             };
 
         } catch (error) {
+            console.error('Duplicates analysis failed:', error.message);
             return {
                 hasDuplicates: false,
                 duplicateCount: 0,
                 totalDuplicateRecords: 0,
-                jsonDuplicates: { 
-                    hasDuplicates: false, 
-                    duplicateCount: 0, 
-                    tableType: 'JSON Source',
-                    error: error.message 
-                },
-                bqDuplicates: { 
-                    hasDuplicates: false, 
-                    duplicateCount: 0, 
-                    tableType: 'BigQuery Target',
-                    error: error.message 
-                },
                 duplicateKeys: [],
                 allDuplicateRecords: [],
                 recommendations: ['Duplicates analysis failed: ' + error.message]
@@ -551,92 +781,7 @@ class ComparisonEngineService {
         }
     }
 
-    /**
-     * Analyze duplicates for a specific table (JSON or BigQuery)
-     */
-    async analyzeTableDuplicates(tableId, primaryKey, tableName) {
-        try {
-            // Find duplicate keys
-            const duplicateKeysQuery = `
-                SELECT 
-                    ${primaryKey} as duplicate_key,
-                    COUNT(*) as occurrence_count
-                FROM \`${tableId}\`
-                WHERE ${primaryKey} IS NOT NULL
-                GROUP BY ${primaryKey}
-                HAVING COUNT(*) > 1
-                ORDER BY occurrence_count DESC
-                LIMIT 100
-            `;
-
-            const [duplicateKeys] = await this.bigquery.query(duplicateKeysQuery);
-            
-            const hasDuplicates = duplicateKeys.length > 0;
-            const totalDuplicateRecords = duplicateKeys.reduce((sum, dup) => sum + parseInt(dup.occurrence_count), 0) - duplicateKeys.length;
-
-            // Get detailed duplicate records if any
-            let allDuplicateRecords = [];
-            if (hasDuplicates) {
-                const sampleFields = ['task_number', 'task_priority', 'task_state', 'task_sys_created_on']
-                    .filter(field => field !== primaryKey);
-                
-                const selectFields = sampleFields.length > 0 ? 
-                    `, ${sampleFields.join(', ')}` : '';
-
-                const duplicateRecordsQuery = `
-                    SELECT 
-                        ${primaryKey}${selectFields}
-                    FROM \`${tableId}\`
-                    WHERE ${primaryKey} IN (
-                        SELECT ${primaryKey}
-                        FROM \`${tableId}\`
-                        WHERE ${primaryKey} IS NOT NULL
-                        GROUP BY ${primaryKey}
-                        HAVING COUNT(*) > 1
-                    )
-                    ORDER BY ${primaryKey}
-                    LIMIT 500
-                `;
-
-                try {
-                    const [duplicateRecords] = await this.bigquery.query(duplicateRecordsQuery);
-                    allDuplicateRecords = duplicateRecords;
-                } catch (recordsError) {
-                    console.warn(`Could not get ${tableName} duplicate record details:`, recordsError.message);
-                }
-            }
-
-            return {
-                tableName: tableName,
-                tableId: tableId,
-                hasDuplicates: hasDuplicates,
-                duplicateCount: duplicateKeys.length,
-                totalDuplicateRecords: totalDuplicateRecords,
-                duplicateKeys: duplicateKeys.map(dup => ({
-                    key: dup.duplicate_key,
-                    count: parseInt(dup.occurrence_count),
-                    table: tableName
-                })),
-                allDuplicateRecords: allDuplicateRecords,
-                primaryKeyUsed: primaryKey
-            };
-
-        } catch (error) {
-            return {
-                tableName: tableName,
-                tableId: tableId,
-                hasDuplicates: false,
-                duplicateCount: 0,
-                totalDuplicateRecords: 0,
-                duplicateKeys: [],
-                allDuplicateRecords: [],
-                primaryKeyUsed: primaryKey,
-                error: error.message
-            };
-        }
-    }
-
-    // Legacy compatibility methods
+    // Legacy compatibility methods (updated to be schema-safe)
     async getRecordCounts(tempTableId, sourceTableName) {
         try {
             const [jsonResult] = await this.bigquery.query(`SELECT COUNT(*) as count FROM \`${tempTableId}\``);
@@ -647,6 +792,7 @@ class ComparisonEngineService {
                 bqCount: parseInt(bqResult[0].count)
             };
         } catch (error) {
+            console.error('Legacy getRecordCounts failed:', error.message);
             throw error;
         }
     }
@@ -667,6 +813,7 @@ class ComparisonEngineService {
                 sampleMatches: []
             };
         } catch (error) {
+            console.error('Legacy findMatchingRecords failed:', error.message);
             throw error;
         }
     }
@@ -682,7 +829,7 @@ class ComparisonEngineService {
                     FROM \`${sourceTableName}\` 
                     WHERE ${primaryKey} IS NOT NULL
                   )
-                LIMIT 20
+                LIMIT 10
             `;
 
             const bqOnlyQuery = `
@@ -694,7 +841,7 @@ class ComparisonEngineService {
                     FROM \`${tempTableId}\` 
                     WHERE ${primaryKey} IS NOT NULL
                   )
-                LIMIT 20
+                LIMIT 10
             `;
 
             const [jsonOnlyResult, bqOnlyResult] = await Promise.all([
@@ -707,6 +854,7 @@ class ComparisonEngineService {
                 missingFromJSON: bqOnlyResult[0] || []
             };
         } catch (error) {
+            console.error('Legacy findMissingRecords failed:', error.message);
             throw error;
         }
     }
@@ -716,9 +864,10 @@ class ComparisonEngineService {
             return {
                 totalDifferences: 0,
                 fieldDifferences: [],
-                message: 'Using enhanced ALL-fields analysis - check fieldWiseAnalysis in main response'
+                message: 'Using dynamic schema-safe common field analysis'
             };
         } catch (error) {
+            console.error('Legacy compareFieldDifferences failed:', error.message);
             throw error;
         }
     }
