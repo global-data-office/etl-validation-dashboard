@@ -1,0 +1,8 @@
+# BigQuery Configuration
+GOOGLE_CLOUD_PROJECT_ID=rax-staging-qa
+BIGQUERY_DATASET=stage_three_dw
+GOOGLE_APPLICATION_CREDENTIALS=./config/service-account-key.json
+
+# Server Configuration
+PORT=8080
+NODE_ENV=production
