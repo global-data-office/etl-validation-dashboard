@@ -8,10 +8,11 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
-    "@google-cloud/bigquery": "^7.0.0",
+    "@google-cloud/bigquery": "^7.9.4",
+    "axios": "^1.6.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "express": "^4.18.2",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
     "lodash": "^4.17.21",
     "moment": "^2.30.1",
     "multer": "^2.0.2",

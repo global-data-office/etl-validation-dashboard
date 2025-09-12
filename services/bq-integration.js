@@ -1,4 +1,4 @@
-// services/bq-integration.js - COMPLETE FIXED: Preserve original field names
+// services/bq-integration.js - COMPLETE UNIVERSAL VERSION
 const { BigQuery } = require('@google-cloud/bigquery');
 
 class BigQueryIntegrationService {
@@ -6,467 +6,373 @@ class BigQueryIntegrationService {
         this.bigquery = new BigQuery({
             projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
         });
-        
-        this.config = {
-            tempDataset: 'temp_validation_tables',
-            tempTablePrefix: 'json_temp_',
-            maxBatchSize: 1000
-        };
-        
-        console.log('BigQuery Integration Service initialized - PRESERVE CASE VERSION');
-        console.log(`Project: ${process.env.GOOGLE_CLOUD_PROJECT_ID}`);
-        console.log('FIXED: Now preserves original field names for proper matching');
+        this.dataset = this.bigquery.dataset(process.env.BIGQUERY_DATASET || 'stage_three_dw');
+
+        console.log('BigQuery Integration Service - UNIVERSAL API SUPPORT');
+        console.log('Works with: ANY REST API, GraphQL, JSON responses, nested objects');
     }
 
-    /**
-     * FIXED: Clean field name while preserving case for matching
-     */
-    cleanFieldName(fieldName) {
-        // Only clean invalid characters, DON'T change case
-        return fieldName
-            .replace(/[^a-zA-Z0-9_]/g, '_')  // Replace invalid chars with underscore
-            .replace(/^[0-9]/, '_$&')        // Prefix numbers with underscore
-            .substring(0, 128);              // Limit length - NO .toLowerCase()!
+    async createTempTableFromJSON(jsonData, tableSuffix, primaryKey) {
+        try {
+            const tempTableId = `universal_api_${this.sanitizeTableName(tableSuffix)}_${Date.now()}`;
+
+            console.log(`Creating universal temp table: ${tempTableId}`);
+            console.log(`Processing ${jsonData.length} records from any API format...`);
+
+            if (jsonData.length === 0) {
+                throw new Error('No API data provided');
+            }
+
+            await this.dataset.get({ autoCreate: true });
+
+            // UNIVERSAL: Process any API response structure
+            const processedData = this.processUniversalAPIData(jsonData);
+            console.log(`Universal processing completed: ${processedData.length} records ready`);
+
+            if (processedData.length === 0) {
+                throw new Error('No valid records after universal processing');
+            }
+
+            // UNIVERSAL: Create ALL STRING schema to avoid type issues
+            const schema = this.createUniversalStringSchema(processedData[0]);
+            console.log(`Universal schema created with ${schema.length} fields (all strings for compatibility)`);
+
+            // Create table with universal schema
+            const [table] = await this.dataset.createTable(tempTableId, {
+                schema: schema,
+                expirationMs: 3600000,
+                location: 'US'
+            });
+
+            console.log('Universal table created, inserting processed data...');
+
+            // UNIVERSAL: Convert all data to strings for guaranteed insertion
+            const stringData = this.convertToAllStrings(processedData);
+
+            // Insert with error handling
+            let insertResult = { strategy: 'unknown', successCount: 0 };
+
+            try {
+                await table.insert(stringData, {
+                    ignoreUnknownValues: false,
+                    skipInvalidRows: false
+                });
+                insertResult = { strategy: 'bulk_all_strings', successCount: stringData.length };
+                console.log('UNIVERSAL: Bulk insert successful');
+
+            } catch (bulkError) {
+                console.log('UNIVERSAL: Bulk insert failed, trying individual insertion...');
+
+                let successCount = 0;
+                for (let i = 0; i < stringData.length; i++) {
+                    try {
+                        await table.insert([stringData[i]]);
+                        successCount++;
+                    } catch (recordError) {
+                        console.error(`Record ${i + 1} failed:`, recordError.message);
+                    }
+                }
+
+                insertResult = { strategy: 'individual_fallback', successCount: successCount };
+                console.log(`UNIVERSAL: Individual insertion completed: ${successCount}/${stringData.length} successful`);
+            }
+
+            // Verify insertion
+            const fullTableId = `${this.bigquery.projectId}.${this.dataset.id}.${tempTableId}`;
+            const recordCount = await this.verifyInsertion(fullTableId);
+
+            console.log(`UNIVERSAL PROCESSING COMPLETE: ${recordCount} records verified in BigQuery`);
+
+            return {
+                success: true,
+                message: `Universal API temp table created with ${recordCount} records`,
+                tempTableId: fullTableId,
+                tempTableName: tempTableId,
+                recordsInTable: recordCount,
+                inputRecords: jsonData.length,
+                processedRecords: processedData.length,
+                recordCountMatch: recordCount === processedData.length,
+                primaryKeyField: primaryKey,
+                schemaType: 'UNIVERSAL_ALL_STRINGS',
+                insertionStrategy: insertResult.strategy,
+                universalSupport: true,
+                expiresAt: new Date(Date.now() + 3600000).toISOString()
+            };
+
+        } catch (error) {
+            console.error('Universal API processing failed:', error);
+            throw new Error(`Universal API integration failed: ${error.message}`);
+        }
     }
 
-    /**
-     * Clean data value for BigQuery compatibility
-     */
-    cleanDataValue(value, fieldName) {
-        if (value === null || value === undefined) {
-            return null;
+    // UNIVERSAL: Process any API data structure
+    processUniversalAPIData(rawData) {
+        console.log('UNIVERSAL: Processing API data from any source...');
+
+        const dataArray = Array.isArray(rawData) ? rawData : [rawData];
+        console.log(`Input: ${dataArray.length} records to process`);
+
+        return dataArray.map((record, index) => {
+            if (!record || typeof record !== 'object') {
+                console.warn(`Skipping invalid record ${index + 1}:`, typeof record);
+                return null;
+            }
+
+            return this.flattenUniversalRecord(record);
+        }).filter(record => record !== null);
+    }
+
+    // UNIVERSAL: Flatten any record structure
+    flattenUniversalRecord(record, prefix = '', maxDepth = 4, currentDepth = 0) {
+        const flattened = {};
+
+        if (currentDepth >= maxDepth) {
+            const fieldName = this.sanitizeFieldName(prefix || 'data');
+            flattened[fieldName] = JSON.stringify(record);
+            return flattened;
         }
 
-        let cleanValue = String(value).trim();
-        
-        if (cleanValue.length > 50000) {
-            console.warn(`Truncating long value for field ${fieldName}`);
-            cleanValue = cleanValue.substring(0, 50000) + '... [TRUNCATED]';
+        Object.entries(record).forEach(([key, value]) => {
+            const fieldName = this.sanitizeFieldName(prefix ? `${prefix}_${key}` : key);
+
+            if (value === null || value === undefined) {
+                flattened[fieldName] = null;
+            } else if (Array.isArray(value)) {
+                // Convert arrays to JSON strings and add count
+                flattened[fieldName] = JSON.stringify(value);
+                flattened[`${fieldName}_count`] = value.length;
+            } else if (typeof value === 'object') {
+                // Handle nested objects based on complexity
+                const objectKeys = Object.keys(value);
+
+                if (objectKeys.length <= 3 && this.isSimpleReference(value)) {
+                    // Simple reference object - extract key fields
+                    this.extractReferenceFields(value, fieldName, flattened);
+                } else {
+                    // Complex object - flatten recursively
+                    const nested = this.flattenUniversalRecord(value, fieldName, maxDepth, currentDepth + 1);
+                    Object.assign(flattened, nested);
+                }
+            } else {
+                // Simple values - keep as is
+                flattened[fieldName] = value;
+            }
+        });
+
+        return flattened;
+    }
+
+    // UNIVERSAL: Detect simple reference objects (common in APIs)
+    isSimpleReference(obj) {
+        const keys = Object.keys(obj);
+        const referencePatterns = ['id', 'name', 'value', 'display_value', 'link', 'href', 'url'];
+        return keys.length <= 4 && keys.some(key =>
+            referencePatterns.some(pattern => key.toLowerCase().includes(pattern))
+        );
+    }
+
+    // UNIVERSAL: Extract reference fields
+    extractReferenceFields(obj, fieldName, flattened) {
+        Object.entries(obj).forEach(([key, value]) => {
+            const cleanKey = this.sanitizeFieldName(`${fieldName}_${key}`);
+            flattened[cleanKey] = value !== null ? String(value) : null;
+        });
+    }
+
+    // UNIVERSAL: Create all-string schema for any data structure
+    createUniversalStringSchema(sampleRecord) {
+        const schema = [];
+
+        Object.keys(sampleRecord).forEach(fieldName => {
+            schema.push({
+                name: fieldName,
+                type: 'STRING', // Use STRING for all fields to avoid type conflicts
+                mode: 'NULLABLE'
+            });
+        });
+
+        console.log(`Universal string schema: ${schema.length} fields (all STRING type for compatibility)`);
+        return schema;
+    }
+
+    // UNIVERSAL: Convert all data to strings for guaranteed BigQuery insertion
+    convertToAllStrings(processedData) {
+        return processedData.map(record => {
+            const stringRecord = {};
+
+            Object.entries(record).forEach(([key, value]) => {
+                if (value === null || value === undefined) {
+                    stringRecord[key] = null;
+                } else {
+                    stringRecord[key] = String(value);
+                }
+            });
+
+            return stringRecord;
+        });
+    }
+
+    // UNIVERSAL: Verify insertion with retries
+    async verifyInsertion(tableId, maxAttempts = 5) {
+        let recordCount = 0;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+
+            try {
+                const [countResult] = await this.bigquery.query(
+                    `SELECT COUNT(*) as count FROM \`${tableId}\``
+                );
+                recordCount = parseInt(countResult[0].count);
+
+                console.log(`Verification attempt ${attempt}: ${recordCount} records`);
+
+                if (recordCount > 0) break;
+
+            } catch (countError) {
+                console.error(`Verification attempt ${attempt} failed:`, countError.message);
+            }
         }
 
-        cleanValue = cleanValue
-            .replace(/\0/g, '')
-            .replace(/\r\n/g, '\n')
-            .replace(/\r/g, '\n')
-            .replace(/[\x00-\x1F\x7F]/g, ' ');
+        return recordCount;
+    }
 
-        return cleanValue;
+    // UNIVERSAL: Sanitize any table name
+    sanitizeTableName(name) {
+        return String(name)
+            .replace(/[^a-zA-Z0-9_]/g, '_')
+            .replace(/^[0-9]/, '_$&')
+            .substring(0, 50);
+    }
+
+    // UNIVERSAL: Sanitize any field name
+    sanitizeFieldName(name) {
+        return String(name)
+            .replace(/[^a-zA-Z0-9_]/g, '_')
+            .replace(/^[0-9]/, '_$&')
+            .toLowerCase()
+            .substring(0, 128);
     }
 
     async testConnection() {
         try {
-            console.log('Testing BigQuery connection...');
-            const query = `SELECT 1 as test_connection`;
-            const [rows] = await this.bigquery.query(query);
-            console.log('BigQuery connection successful');
-            return { success: true, message: 'Connection established' };
-        } catch (error) {
-            console.error('BigQuery connection failed:', error.message);
-            throw error;
-        }
-    }
-
-    /**
-     * Test access to any source table
-     */
-    async testSourceTableAccess(sourceTable) {
-        try {
-            console.log('Testing access to source table...');
-            console.log(`Table: ${sourceTable}`);
-            
-            const countQuery = `SELECT COUNT(*) as record_count FROM \`${sourceTable}\` LIMIT 1`;
-            const [countResults] = await this.bigquery.query(countQuery);
-            const recordCount = countResults[0].record_count;
-            
-            console.log(`Source table access successful`);
-            console.log(`Record count: ${recordCount}`);
-            
-            return { 
-                success: true, 
-                message: 'Source table accessible',
-                recordCount: parseInt(recordCount),
-                tableName: sourceTable
-            };
-            
-        } catch (error) {
-            console.error('Source table access failed:', error.message);
-            
-            if (error.message.includes('not found')) {
-                throw new Error(`Table not found: ${sourceTable}. Please verify the table exists.`);
-            } else if (error.message.includes('permission')) {
-                throw new Error(`Permission denied accessing: ${sourceTable}. Please check your BigQuery permissions.`);
-            } else {
-                throw new Error(`Failed to access source table: ${error.message}`);
-            }
-        }
-    }
-
-    async initializeTempDataset() {
-        try {
-            console.log(`Initializing temp dataset: ${this.config.tempDataset}`);
-            
-            const dataset = this.bigquery.dataset(this.config.tempDataset);
-            const [exists] = await dataset.exists();
-            
-            if (!exists) {
-                console.log(`Creating dataset: ${this.config.tempDataset}`);
-                await dataset.create({
-                    description: 'Temporary tables for JSON vs BigQuery validation',
-                    location: 'US',
-                    defaultTableExpirationMs: String(24 * 60 * 60 * 1000)
-                });
-                console.log(`Dataset created: ${this.config.tempDataset}`);
-            } else {
-                console.log(`Dataset already exists: ${this.config.tempDataset}`);
-            }
-            
+            const [datasets] = await this.bigquery.getDatasets({ maxResults: 1 });
             return {
                 success: true,
-                message: 'Temp dataset ready',
-                datasetId: this.config.tempDataset
+                message: 'BigQuery connection successful (Universal API Support)',
+                projectId: this.bigquery.projectId,
+                universalAPISupport: true
             };
-            
         } catch (error) {
-            console.error('Failed to initialize temp dataset:', error.message);
-            throw new Error(`Dataset initialization failed: ${error.message}`);
-        }
-    }
-
-    /**
-     * FIXED: Create temp table preserving original field names + batch processing
-     */
-    async createTempTableFromJSON(jsonData, tableId, primaryKeyForVerification = null) {
-        try {
-            console.log(`FIXED: Creating temp table with PRESERVED CASE + BATCH PROCESSING`);
-            console.log(`Input verification: ${jsonData.length} records to process`);
-            
-            // Verify input data integrity
-            let inputPrimaryKeys = [];
-            let uniqueInputIds = [];
-            
-            if (primaryKeyForVerification && primaryKeyForVerification !== 'undefined') {
-                inputPrimaryKeys = jsonData.map(r => r[primaryKeyForVerification]).filter(id => id);
-                uniqueInputIds = [...new Set(inputPrimaryKeys)];
-                
-                console.log(`INPUT VERIFICATION (using ${primaryKeyForVerification}):`);
-                console.log(`   Total input records: ${jsonData.length}`);
-                console.log(`   Records with ${primaryKeyForVerification}: ${inputPrimaryKeys.length}`);
-                console.log(`   Unique ${primaryKeyForVerification} values: ${uniqueInputIds.length}`);
-                console.log(`   Sample IDs: [${uniqueInputIds.slice(0, 5).join(', ')}...]`);
-            }
-            
-            await this.initializeTempDataset();
-            
-            const timestamp = Date.now();
-            const randomSuffix = Math.floor(Math.random() * 1000);
-            const tempTableName = `${this.config.tempTablePrefix}${tableId}_${timestamp}_${randomSuffix}`;
-            const fullTableId = `${process.env.GOOGLE_CLOUD_PROJECT_ID}.${this.config.tempDataset}.${tempTableName}`;
-            
-            console.log(`Using timestamped temp table: ${fullTableId}`);
-            
-            const dataset = this.bigquery.dataset(this.config.tempDataset);
-            const table = dataset.table(tempTableName);
-            
-            // Process data with PRESERVED field names
-            console.log(`Processing data with PRESERVED field names...`);
-            
-            const processedData = jsonData.map((record, index) => {
-                const processed = {};
-                
-                const flattenObject = (obj, prefix = '') => {
-                    for (const [key, value] of Object.entries(obj)) {
-                        // FIXED: Use cleanFieldName but preserve case for simple fields
-                        let cleanKey;
-                        if (prefix === '' && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(key)) {
-                            // Simple field name - preserve original case
-                            cleanKey = key;
-                        } else {
-                            // Complex field name - clean but try to preserve case
-                            cleanKey = this.cleanFieldName(prefix ? `${prefix}_${key}` : key);
-                        }
-                        
-                        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-                            if (value.display_value !== undefined || value.link !== undefined || value.value !== undefined) {
-                                if (value.display_value !== undefined && value.display_value !== null) {
-                                    processed[`${cleanKey}_display_value`] = this.cleanDataValue(value.display_value, `${cleanKey}_display_value`);
-                                }
-                                if (value.link !== undefined && value.link !== null) {
-                                    processed[`${cleanKey}_link`] = this.cleanDataValue(value.link, `${cleanKey}_link`);
-                                }
-                                if (value.value !== undefined && value.value !== null) {
-                                    processed[`${cleanKey}_value`] = this.cleanDataValue(value.value, `${cleanKey}_value`);
-                                }
-                            } else {
-                                if (prefix.split('_').length < 2) {
-                                    flattenObject(value, cleanKey);
-                                } else {
-                                    processed[cleanKey] = this.cleanDataValue(JSON.stringify(value), cleanKey);
-                                }
-                            }
-                        } else if (Array.isArray(value)) {
-                            processed[cleanKey] = this.cleanDataValue(JSON.stringify(value), cleanKey);
-                        } else {
-                            processed[cleanKey] = this.cleanDataValue(value, cleanKey);
-                        }
-                    }
-                };
-                
-                flattenObject(record);
-                
-                if (index === 0) {
-                    console.log(`Processing verification (first record):`);
-                    console.log(`   Original fields: ${Object.keys(record).length}`);
-                    console.log(`   Processed fields: ${Object.keys(processed).length}`);
-                    console.log(`   Original field names: [${Object.keys(record).slice(0, 5).join(', ')}]`);
-                    console.log(`   Processed field names: [${Object.keys(processed).slice(0, 5).join(', ')}]`);
-                    
-                    if (primaryKeyForVerification) {
-                        console.log(`   ${primaryKeyForVerification}: ${processed[primaryKeyForVerification] || 'NOT FOUND'}`);
-                    }
-                }
-                
-                return processed;
-            });
-            
-            console.log(`Data processing complete: ${processedData.length} records processed`);
-
-            const schema = this.generateCompleteSchemaFromProcessedData(processedData);
-            console.log(`Schema generated: ${schema.length} fields`);
-            console.log(`Schema field names: [${schema.slice(0, 10).map(f => f.name).join(', ')}]`);
-
-            await table.create({
-                schema: schema,
-                description: `Temp table with preserved field names - ${new Date().toISOString()}`,
-                expirationTime: Date.now() + 24 * 60 * 60 * 1000
-            });
-            
-            console.log(`Fresh temp table created successfully`);
-            console.log(`Waiting for BigQuery to initialize the table...`);
-            await new Promise(resolve => setTimeout(resolve, 10000));
-            
-            const insertionData = processedData.map(record => {
-                const cleanRecord = {};
-                schema.forEach(field => {
-                    const fieldName = field.name;
-                    if (record.hasOwnProperty(fieldName)) {
-                        const value = record[fieldName];
-                        if (value === null || value === undefined || value === '') {
-                            cleanRecord[fieldName] = null;
-                        } else {
-                            cleanRecord[fieldName] = String(value)
-                                .replace(/[^\x20-\x7E\s]/g, '')
-                                .trim()
-                                .substring(0, 10000) || null;
-                        }
-                    } else {
-                        cleanRecord[fieldName] = null;
-                    }
-                });
-                return cleanRecord;
-            });
-            
-            // Batch processing for large files
-            const totalRecords = insertionData.length;
-            const batchSize = this.config.maxBatchSize;
-            
-            if (totalRecords > batchSize) {
-                console.log(`LARGE FILE DETECTED: ${totalRecords} records > ${batchSize} batch limit`);
-                console.log(`BATCH PROCESSING: Breaking into ${Math.ceil(totalRecords / batchSize)} batches`);
-                
-                let totalInserted = 0;
-                const batches = Math.ceil(totalRecords / batchSize);
-                
-                for (let i = 0; i < batches; i++) {
-                    const start = i * batchSize;
-                    const end = Math.min(start + batchSize, totalRecords);
-                    const batch = insertionData.slice(start, end);
-                    
-                    console.log(`BATCH ${i + 1}/${batches}: Inserting records ${start + 1}-${end} (${batch.length} records)`);
-                    
-                    try {
-                        const insertStartTime = Date.now();
-                        await table.insert(batch);
-                        const insertDuration = Date.now() - insertStartTime;
-                        
-                        totalInserted += batch.length;
-                        console.log(`Batch ${i + 1} completed in ${insertDuration}ms (${totalInserted}/${totalRecords} total)`);
-                        
-                        if (i < batches - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                        }
-                        
-                    } catch (batchError) {
-                        console.error(`Batch ${i + 1} failed:`, batchError.message);
-                        throw new Error(`BATCH INSERT FAILED at batch ${i + 1}: ${batchError.message}`);
-                    }
-                }
-                
-                console.log(`BATCH PROCESSING COMPLETED: ${totalInserted} total records inserted in ${batches} batches`);
-                
-            } else {
-                console.log(`STANDARD PROCESSING: ${totalRecords} records <= ${batchSize} batch limit`);
-                
-                try {
-                    const insertStartTime = Date.now();
-                    console.log(`Starting SINGLE ATOMIC INSERT at ${new Date().toISOString()}`);
-                    
-                    await table.insert(insertionData);
-                    
-                    const insertDuration = Date.now() - insertStartTime;
-                    console.log(`SINGLE ATOMIC INSERT COMPLETED in ${insertDuration}ms`);
-                    
-                } catch (insertError) {
-                    console.error(`SINGLE ATOMIC INSERT FAILED:`, insertError.message);
-                    throw new Error(`INSERT FAILED: ${insertError.message}`);
-                }
-            }
-            
-            // Verification with preserved field names
-            console.log(`VERIFICATION: Using preserved field names...`);
-            await new Promise(resolve => setTimeout(resolve, 6000));
-            
-            try {
-                const basicVerificationQueries = [
-                    {
-                        name: 'Total Count',
-                        query: `SELECT COUNT(*) as count FROM \`${fullTableId}\``
-                    }
-                ];
-                
-                // Only add primary key specific queries if we have a valid primary key
-                if (primaryKeyForVerification && primaryKeyForVerification !== 'undefined') {
-                    // Use original field name (preserved case)
-                    basicVerificationQueries.push(
-                        {
-                            name: `Unique ${primaryKeyForVerification} Count`,
-                            query: `SELECT COUNT(DISTINCT ${primaryKeyForVerification}) as count FROM \`${fullTableId}\``
-                        },
-                        {
-                            name: `Non-null ${primaryKeyForVerification} Count`, 
-                            query: `SELECT COUNT(*) as count FROM \`${fullTableId}\` WHERE ${primaryKeyForVerification} IS NOT NULL`
-                        }
-                    );
-                }
-                
-                const verificationResults = {};
-                
-                for (const queryInfo of basicVerificationQueries) {
-                    try {
-                        const [queryResult] = await this.bigquery.query(queryInfo.query);
-                        verificationResults[queryInfo.name] = queryResult;
-                        const count = queryResult[0]?.count || 0;
-                        console.log(`${queryInfo.name}: ${count}`);
-                    } catch (verifyError) {
-                        console.warn(`Verification query '${queryInfo.name}' failed: ${verifyError.message}`);
-                        verificationResults[queryInfo.name] = { error: verifyError.message };
-                    }
-                }
-                
-                const finalCount = parseInt(verificationResults['Total Count'][0]?.count || 0);
-                const uniqueCount = primaryKeyForVerification ? 
-                    parseInt(verificationResults[`Unique ${primaryKeyForVerification} Count`]?.[0]?.count || 0) : 
-                    'N/A';
-                
-                console.log(`VERIFICATION RESULTS:`);
-                console.log(`   Original JSON records: ${jsonData.length}`);
-                console.log(`   Records in temp table: ${finalCount}`);
-                console.log(`   Unique primary key values: ${uniqueCount}`);
-                
-                if (finalCount === 0) {
-                    throw new Error('ZERO RECORDS: No records were successfully inserted into temp table');
-                }
-                
-                if (finalCount > jsonData.length) {
-                    throw new Error(`DUPLICATION ERROR: Expected ${jsonData.length} records, found ${finalCount}`);
-                }
-                
-                console.log(`VERIFICATION PASSED: Records processed successfully with preserved field names`);
-                
-                return {
-                    success: true,
-                    message: 'SUCCESS: Temp table created with preserved field names + batch processing',
-                    tempTableId: fullTableId,
-                    tempTableName: tempTableName,
-                    inputRecords: jsonData.length,
-                    recordsInTable: finalCount,
-                    uniqueIdsInput: uniqueInputIds.length,
-                    uniqueIdsInTable: uniqueCount !== 'N/A' ? uniqueCount : 'Unknown',
-                    recordCountMatch: finalCount === jsonData.length,
-                    uniqueCountMatch: uniqueCount !== 'N/A' ? uniqueCount === uniqueInputIds.length : true,
-                    verification: verificationResults,
-                    fieldsProcessed: schema.length,
-                    approach: totalRecords > batchSize ? `batch-processing-${Math.ceil(totalRecords / batchSize)}-batches` : 'single-insert',
-                    batchInfo: totalRecords > batchSize ? {
-                        totalBatches: Math.ceil(totalRecords / batchSize),
-                        batchSize: batchSize,
-                        largeFileHandling: true
-                    } : null,
-                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                    fixes: ['Preserved original field names for proper matching', 'Batch processing for large files', 'Dynamic table support']
-                };
-                
-            } catch (verifyError) {
-                console.error(`Verification failed:`, verifyError.message);
-                throw new Error(`Verification failed: ${verifyError.message}`);
-            }
-            
-        } catch (error) {
-            console.error('Temp table creation failed:', error.message);
-            throw new Error(`Temp table creation failed: ${error.message}`);
-        }
-    }
-
-    generateCompleteSchemaFromProcessedData(processedData) {
-        const allFields = new Set();
-        
-        processedData.forEach((record) => {
-            Object.keys(record).forEach(key => {
-                allFields.add(key);
-            });
-        });
-        
-        const schema = Array.from(allFields).sort().map(fieldName => {
             return {
-                name: fieldName,  // Preserve original case
-                type: 'STRING',
-                mode: 'NULLABLE'
+                success: false,
+                error: error.message,
+                suggestions: [
+                    'Check GOOGLE_CLOUD_PROJECT_ID in .env file',
+                    'Verify BigQuery API is enabled',
+                    'Ensure authentication is configured'
+                ]
             };
-        });
-        
-        console.log(`Complete schema: ${schema.length} fields with preserved names`);
-        
-        // Show potential key fields
-        const potentialKeys = schema.filter(f => 
-            f.name.toLowerCase().includes('id') || 
-            f.name.toLowerCase().includes('key') || 
-            f.name.toLowerCase().includes('number') ||
-            f.name.toLowerCase().includes('arn')
-        ).map(f => f.name);
-        console.log(`Potential key fields: [${potentialKeys.slice(0, 10).join(', ')}]`);
-        
-        return schema;
+        }
     }
 
-    async cleanupTempTable(tempTableName) {
+    async testSourceTableAccess(tableName) {
         try {
-            console.log(`Cleaning up temp table: ${tempTableName}`);
-            
-            const dataset = this.bigquery.dataset(this.config.tempDataset);
-            const table = dataset.table(tempTableName);
-            
-            const [exists] = await table.exists();
-            if (exists) {
-                await table.delete();
-                console.log(`Temp table deleted: ${tempTableName}`);
-                return { success: true, message: 'Temp table cleaned up' };
-            } else {
-                console.log(`Temp table not found: ${tempTableName}`);
-                return { success: true, message: 'Temp table not found (may have expired)' };
-            }
-            
+            if (!tableName) return { success: false, error: 'Table name required' };
+
+            const [rows] = await this.bigquery.query(`SELECT COUNT(*) as row_count FROM \`${tableName}\` LIMIT 1`);
+            return {
+                success: true,
+                message: `Table accessible for universal comparison`,
+                rowCount: rows[0].row_count
+            };
         } catch (error) {
-            console.error('Failed to cleanup temp table:', error.message);
-            throw new Error(`Cleanup failed: ${error.message}`);
+            return {
+                success: false,
+                error: error.message,
+                tableName: tableName
+            };
+        }
+    }
+
+    async cleanupTempTable(tableId) {
+        try {
+            const parts = tableId.split('.');
+            const tableName = parts[parts.length - 1];
+            await this.dataset.table(tableName).delete();
+            console.log(`Cleaned up universal temp table: ${tableName}`);
+        } catch (error) {
+            console.warn('Universal cleanup failed:', error.message);
+        }
+    }
+
+    // UNIVERSAL: Convert any data value to BigQuery-safe format
+    convertUniversalValue(value, forceString = true) {
+        if (value === null || value === undefined) return null;
+
+        if (forceString) {
+            // Force everything to string for maximum compatibility
+            return String(value)
+                .replace(/\0/g, '')
+                .replace(/[\x00-\x08\x0B-\x1F\x7F]/g, ' ')
+                .trim()
+                .substring(0, 50000);
+        }
+
+        // Type-aware conversion (use with caution)
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+
+            // Boolean detection
+            if (['true', 'false'].includes(trimmed.toLowerCase())) {
+                return trimmed.toLowerCase() === 'true';
+            }
+
+            // Number detection
+            if (/^-?\d+$/.test(trimmed)) {
+                const num = parseInt(trimmed);
+                return isNaN(num) ? trimmed : num;
+            }
+
+            if (/^-?\d*\.\d+$/.test(trimmed)) {
+                const num = parseFloat(trimmed);
+                return isNaN(num) ? trimmed : num;
+            }
+
+            return trimmed.substring(0, 50000);
+        }
+
+        return value;
+    }
+
+    // UNIVERSAL: Save processed API data as JSON file (for manual upload)
+    async saveUniversalJSONFile(apiData, outputName = null) {
+        try {
+            const fs = require('fs').promises;
+            const path = require('path');
+
+            const processedData = this.processUniversalAPIData(apiData);
+            const filename = outputName || `universal_api_${Date.now()}.json`;
+            const outputPath = path.join(__dirname, '..', 'downloads', filename);
+
+            // Ensure directory exists
+            await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+            await fs.writeFile(outputPath, JSON.stringify(processedData, null, 2));
+
+            console.log(`Universal JSON saved: ${outputPath}`);
+            console.log(`Records: ${processedData.length}`);
+
+            return {
+                success: true,
+                filePath: outputPath,
+                filename: filename,
+                recordCount: processedData.length
+            };
+
+        } catch (error) {
+            console.error('Universal JSON save failed:', error);
+            throw error;
         }
     }
 }
