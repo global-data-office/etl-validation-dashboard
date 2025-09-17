@@ -2042,81 +2042,194 @@
                 alert('File uploaded successfully (' + fileName + ') but preview failed. You can still proceed with comparison.');
             }
         }
+// ROBUST FIX: Display File Preview Function with Debugging
+function displayFilePreview(preview, fileName) {
+    try {
+        console.log('=== DEBUGGING PREVIEW OBJECT ===');
+        console.log('Full preview object:', preview);
+        console.log('Available fields:', preview.availableFields);
+        console.log('All fields list:', preview.allFieldsList);
+        console.log('ID fields:', preview.idFields);
+        console.log('Important fields:', preview.importantFields);
+        console.log('Sample records:', preview.sampleRecords);
 
-        function displayFilePreview(preview, fileName) {
-            try {
-                const fileNameElement = document.getElementById('fileName');
-                if (fileNameElement) {
-                    fileNameElement.textContent = fileName;
-                }
+        const fileNameElement = document.getElementById('fileName');
+        if (fileNameElement) {
+            fileNameElement.textContent = fileName;
+        }
 
-                const fileStats = document.getElementById('file-stats');
-                if (fileStats) {
-                    fileStats.innerHTML = `
-                        <div class="stat-card">
-                            <div class="stat-number">${preview.totalRecords.toLocaleString()}</div>
-                            <div class="stat-label">Total Records</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">${preview.fieldsDetected}</div>
-                            <div class="stat-label">Fields Detected</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">${formatFileSize(preview.fileSize)}</div>
-                            <div class="stat-label">File Size</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">${preview.format}</div>
-                            <div class="stat-label">Format</div>
-                        </div>
-                    `;
-                }
+        const fileStats = document.getElementById('file-stats');
+        if (fileStats) {
+            fileStats.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${preview.totalRecords.toLocaleString()}</div>
+                    <div class="stat-label">Total Records</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${preview.fieldsDetected}</div>
+                    <div class="stat-label">Fields Detected</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${formatFileSize(preview.fileSize)}</div>
+                    <div class="stat-label">File Size</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${preview.format}</div>
+                    <div class="stat-label">Format</div>
+                </div>
+            `;
+        }
 
-                if (preview.idFields || preview.importantFields) {
-                    const idFields = preview.idFields || [];
-                    const importantFields = preview.importantFields || [];
+        // ROBUST FIELD EXTRACTION: Multiple fallback strategies
+        let allFields = [];
 
-                    const fieldSuggestions = document.getElementById('field-suggestions');
-                    if (fieldSuggestions) {
-                        let suggestionsHTML = '';
+        // Strategy 1: Use availableFields from preview
+        if (preview.availableFields && Array.isArray(preview.availableFields)) {
+            allFields = preview.availableFields;
+            console.log('Strategy 1: Found availableFields:', allFields);
+        }
 
-                        if (idFields.length > 0) {
-                            suggestionsHTML += '<div class="field-category-header first">🔑 ID/Key Fields (Recommended - Click to Use):</div>';
-                            suggestionsHTML += '<div style="margin-bottom: 15px;">';
-                            idFields.forEach(field => {
-                                suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
-                            });
-                            suggestionsHTML += '</div>';
-                        }
+        // Strategy 2: Use allFieldsList from preview
+        if (allFields.length === 0 && preview.allFieldsList && Array.isArray(preview.allFieldsList)) {
+            allFields = preview.allFieldsList;
+            console.log('Strategy 2: Found allFieldsList:', allFields);
+        }
 
-                        if (importantFields.length > 0) {
-                            suggestionsHTML += '<div class="field-category-header">📋 Other Important Fields (Click to Use):</div>';
-                            suggestionsHTML += '<div>';
-                            importantFields.forEach(field => {
-                                suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
-                            });
-                            suggestionsHTML += '</div>';
-                        }
-
-                        fieldSuggestions.innerHTML = suggestionsHTML;
-                    }
-                }
-
-                const filePreview = document.getElementById('file-preview');
-                if (filePreview) {
-                    filePreview.style.display = 'block';
-                }
-
-                const startButton = document.getElementById('startComparison');
-                if (startButton) {
-                    startButton.disabled = false;
-                }
-
-            } catch (error) {
-                console.error('Error in displayFilePreview:', error);
-                alert('File uploaded successfully (' + fileName + ') but preview display failed. You can still proceed with comparison.');
+        // Strategy 3: Extract from sampleRecords
+        if (allFields.length === 0 && preview.sampleRecords && preview.sampleRecords.length > 0) {
+            const sampleRecord = preview.sampleRecords[0];
+            if (sampleRecord && typeof sampleRecord === 'object') {
+                allFields = Object.keys(sampleRecord);
+                console.log('Strategy 3: Extracted from sampleRecords:', allFields);
             }
         }
+
+        // Strategy 4: Extract from originalSample
+        if (allFields.length === 0 && preview.originalSample && typeof preview.originalSample === 'object') {
+            allFields = Object.keys(preview.originalSample);
+            console.log('Strategy 4: Extracted from originalSample:', allFields);
+        }
+
+        // Strategy 5: Manual extraction if fieldsDetected > 0 but no fields array
+        if (allFields.length === 0 && preview.fieldsDetected > 0) {
+            console.log('Strategy 5: Fields detected but no field arrays - this indicates a backend issue');
+
+            // Show helpful message for manual entry
+            const fieldSuggestions = document.getElementById('field-suggestions');
+            if (fieldSuggestions) {
+                fieldSuggestions.innerHTML = `
+                    <div style="color: #f39c12; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #f39c12;">
+                        <h4 style="margin-bottom: 10px;">⚠️ Field Detection Issue</h4>
+                        <p><strong>Status:</strong> ${preview.fieldsDetected} fields detected but field list not available</p>
+                        <p><strong>Solution:</strong> Manually type your primary key field name in the input box above</p>
+                        <p><strong>Example:</strong> If your JSON has an "id" or "account_id" field, type that exact field name</p>
+                        <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 4px;">
+                            <strong>Debug Info:</strong> Backend API needs to populate the availableFields array properly
+                        </div>
+                    </div>
+                `;
+            }
+
+            const filePreview = document.getElementById('file-preview');
+            if (filePreview) {
+                filePreview.style.display = 'block';
+            }
+
+            const startButton = document.getElementById('startComparison');
+            if (startButton) {
+                startButton.disabled = false;
+            }
+
+            return; // Exit early since we handled this case
+        }
+
+        console.log(`Final extracted fields (${allFields.length}):`, allFields);
+
+        // Use the existing categorization logic if we have fields
+        const idFields = preview.idFields || [];
+        const importantFields = preview.importantFields || [];
+
+        const fieldSuggestions = document.getElementById('field-suggestions');
+        if (fieldSuggestions) {
+            let suggestionsHTML = '';
+
+            if (idFields.length > 0) {
+                suggestionsHTML += '<div class="field-category-header first">🔑 ID/Key Fields (Recommended - Click to Use):</div>';
+                suggestionsHTML += '<div style="margin-bottom: 15px;">';
+                idFields.forEach(field => {
+                    suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                });
+                suggestionsHTML += '</div>';
+            }
+
+            if (importantFields.length > 0) {
+                suggestionsHTML += '<div class="field-category-header">📋 Other Important Fields (Click to Use):</div>';
+                suggestionsHTML += '<div style="margin-bottom: 15px;">';
+                importantFields.forEach(field => {
+                    suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                });
+                suggestionsHTML += '</div>';
+            }
+
+            // CRITICAL FIX: Always show all extracted fields if no categorization worked
+            if (idFields.length === 0 && importantFields.length === 0 && allFields.length > 0) {
+                suggestionsHTML += '<div class="field-category-header first">📋 All Available Fields (Click to Use):</div>';
+                suggestionsHTML += '<div>';
+                allFields.forEach(field => {
+                    suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                });
+                suggestionsHTML += '</div>';
+            }
+
+            // Final fallback for when no fields are found anywhere
+            if (suggestionsHTML === '') {
+                suggestionsHTML = `
+                    <div style="color: #e74c3c; padding: 15px; background: #fef2f2; border-radius: 8px; border-left: 4px solid #e74c3c;">
+                        <h4 style="margin-bottom: 10px;">❌ No Fields Available</h4>
+                        <p><strong>Issue:</strong> Cannot extract field names from JSON file</p>
+                        <p><strong>Fields Detected:</strong> ${preview.fieldsDetected}</p>
+                        <p><strong>Solution:</strong> Manually type your primary key field name in the input box above</p>
+                        <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                            Debug: availableFields=${preview.availableFields ? 'exists' : 'missing'},
+                            allFieldsList=${preview.allFieldsList ? 'exists' : 'missing'},
+                            sampleRecords=${preview.sampleRecords ? 'exists' : 'missing'}
+                        </div>
+                    </div>
+                `;
+            }
+
+            console.log('Field suggestions HTML generated successfully');
+            fieldSuggestions.innerHTML = suggestionsHTML;
+        }
+
+        const filePreview = document.getElementById('file-preview');
+        if (filePreview) {
+            filePreview.style.display = 'block';
+        }
+
+        const startButton = document.getElementById('startComparison');
+        if (startButton) {
+            startButton.disabled = false;
+        }
+
+    } catch (error) {
+        console.error('Error in displayFilePreview:', error);
+
+        // Show error in field suggestions area
+        const fieldSuggestions = document.getElementById('field-suggestions');
+        if (fieldSuggestions) {
+            fieldSuggestions.innerHTML = `
+                <div style="color: #e74c3c; padding: 15px; background: #fef2f2; border-radius: 8px; border-left: 4px solid #e74c3c;">
+                    <h4>❌ Preview Error</h4>
+                    <p>Error: ${error.message}</p>
+                    <p>You can still manually type the primary key field name above and proceed with comparison.</p>
+                </div>
+            `;
+        }
+
+        alert('File uploaded successfully (' + fileName + ') but preview display failed. You can still proceed with comparison.');
+    }
+}
 
         function formatFileSize(bytes) {
             if (bytes === 0) return '0 B';

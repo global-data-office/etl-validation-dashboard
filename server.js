@@ -312,10 +312,10 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
     try {
         const { fileId } = req.params;
         console.log(`=== STARTING PREVIEW FOR FILE: ${fileId} ===`);
-        
+
         const fs = require('fs');
         const path = require('path');
-        
+
         // Check multiple possible file locations
         const possiblePaths = [
             path.join(__dirname, 'uploads', `${fileId}.json`),
@@ -324,7 +324,7 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
             path.join(__dirname, 'temp-files', `${fileId}.json`),
             path.join(__dirname, 'temp-files', `${fileId}.jsonl`)
         ];
-        
+
         let filePath = null;
         for (const possiblePath of possiblePaths) {
             if (fs.existsSync(possiblePath)) {
@@ -333,7 +333,7 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
                 break;
             }
         }
-        
+
         if (!filePath) {
             console.log('File not found for preview in any expected location');
             return res.status(404).json({
@@ -342,14 +342,14 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
                 details: `File ${fileId} not found in any upload directory`
             });
         }
-        
+
         // Read file content and stats
         console.log(`Reading file content from: ${filePath}`);
         const fileContent = fs.readFileSync(filePath, 'utf8');
         const fileStat = fs.statSync(filePath);
-        
+
         console.log(`File size: ${fileStat.size} bytes`);
-        
+
         // CONSISTENT: Use the same parsing logic as create-temp-table
         let parseResult;
         try {
@@ -368,10 +368,10 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
                 ]
             });
         }
-        
+
         const jsonData = parseResult.jsonData;
         console.log(`Preview parsing successful: ${jsonData.length} records using ${parseResult.parseMethod}`);
-        
+
         if (jsonData.length === 0) {
             console.error('No JSON data was successfully parsed for preview');
             return res.status(400).json({
@@ -380,24 +380,24 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
                 details: 'File was readable but contained no valid JSON data'
             });
         }
-        
+
         // Generate comprehensive field analysis
         console.log('=== GENERATING FIELD ANALYSIS ===');
-        
+
         // Flatten the first record to understand the full field structure
         const firstRecord = jsonData[0];
         const flattenedSample = {};
-        
+
         function flattenObject(obj, prefix = '', depth = 0) {
             // Prevent infinite recursion
             if (depth > 5) {
                 console.warn(`Max flattening depth reached for prefix: ${prefix}`);
                 return;
             }
-            
+
             for (const [key, value] of Object.entries(obj)) {
                 const cleanKey = prefix ? `${prefix}_${key}` : key;
-                
+
                 if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
                     // Handle ServiceNow-style objects with display_value/link/value
                     if (value.display_value !== undefined || value.link !== undefined || value.value !== undefined) {
@@ -423,7 +423,7 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
                 }
             }
         }
-        
+
         try {
             flattenObject(firstRecord);
             console.log(`Flattening completed: ${Object.keys(flattenedSample).length} fields generated`);
@@ -432,17 +432,17 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
             // Fallback to original fields
             Object.assign(flattenedSample, firstRecord);
         }
-        
+
         // Get all available fields
         const allFields = Object.keys(flattenedSample);
         console.log(`Total fields available: ${allFields.length}`);
         console.log(`Sample fields: [${allFields.slice(0, 10).join(', ')}]`);
-        
+
         // Smart field categorization
         const idFields = allFields.filter(field => {
             const lowerField = field.toLowerCase();
-            return lowerField.includes('id') || 
-                   lowerField.includes('key') || 
+            return lowerField.includes('id') ||
+                   lowerField.includes('key') ||
                    lowerField.includes('number') ||
                    lowerField === 'arn' ||
                    lowerField === 'catalog' ||
@@ -450,7 +450,7 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
                    lowerField.startsWith('id_') ||
                    lowerField.includes('identifier');
         });
-        
+
         const importantFields = allFields.filter(field => {
             const lowerField = field.toLowerCase();
             return !idFields.includes(field) && (
@@ -467,11 +467,11 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
                 lowerField.includes('monitor')
             );
         });
-        
+
         console.log(`Field categorization complete:`);
         console.log(`  ID/Key fields: ${idFields.length} [${idFields.slice(0, 5).join(', ')}]`);
         console.log(`  Important fields: ${importantFields.length} [${importantFields.slice(0, 5).join(', ')}]`);
-        
+
         // Create comprehensive preview response
         const preview = {
             totalRecords: jsonData.length,
@@ -492,7 +492,7 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
                 timestamp: new Date().toISOString()
             }
         };
-        
+
         console.log(`=== PREVIEW GENERATION COMPLETE ===`);
         console.log(`Preview created successfully:`);
         console.log(`  - Records: ${preview.totalRecords}`);
