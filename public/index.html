@@ -1563,24 +1563,368 @@
         </div>
 
         <!-- Page 4: RDBMS vs BigQuery -->
-        <div id="rdbms-comparison-page" class="page-content">
-            <div class="page-header">
-                <h2><span class="tab-icon">🗄️</span> RDBMS vs BigQuery Comparison</h2>
-                <p>Cross-platform database validation between RDBMS and BigQuery tables</p>
+<div id="rdbms-comparison-page" class="page-content">
+    <div class="page-header">
+        <h2><span class="tab-icon">🗄️</span> RDBMS vs BigQuery Comparison</h2>
+        <p>Cross-platform database validation between RDBMS and BigQuery tables</p>
+    </div>
+
+    <!-- Database Selection Navigation -->
+<div class="results-navigation-tabs" style="background: #f8f9fa; border-bottom: 2px solid #e9ecef;">
+    <button class="results-tab-button active" onclick="showRDBMSTab('postgresql')">
+        <span class="results-tab-icon">🐘</span>
+        <span class="results-tab-label">PostgreSQL to BQ</span>
+    </button>
+    <button class="results-tab-button" onclick="showRDBMSTab('mysql')">
+        <span class="results-tab-icon">🐬</span>
+        <span class="results-tab-label">MySQL to BQ</span>
+    </button>
+    <button class="results-tab-button" onclick="showRDBMSTab('oracle')">
+        <span class="results-tab-icon">🔴</span>
+        <span class="results-tab-label">Oracle to BQ</span>
+    </button>
+    <button class="results-tab-button" onclick="showRDBMSTab('sqlserver')">
+        <span class="results-tab-icon">🟦</span>
+        <span class="results-tab-label">SQL Server to BQ</span>
+    </button>
+</div>
+
+<!-- PostgreSQL Tab -->
+<div id="postgresql-rdbms-tab" class="results-tab-content active">
+    <div class="upload-section">
+        <div class="upload-container">
+            <div class="comparison-options">
+                <h3 style="margin-bottom: 20px; color: #2c3e50;">🐘 PostgreSQL Configuration</h3>
+                
+                <div class="option-group">
+                    <label>PostgreSQL Host</label>
+                    <input type="text" id="pg-host" placeholder="e.g., localhost or your-server.com" value="localhost">
+                </div>
+                
+                <div class="form-row">
+                    <div class="option-group">
+                        <label>Port</label>
+                        <input type="number" id="pg-port" placeholder="5432" value="5432">
+                    </div>
+                    <div class="option-group">
+                        <label>Database Name</label>
+                        <input type="text" id="pg-database" placeholder="your_database">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="option-group">
+                        <label>Username</label>
+                        <input type="text" id="pg-username" placeholder="postgres">
+                    </div>
+                    <div class="option-group">
+                        <label>Password</label>
+                        <input type="password" id="pg-password" placeholder="your_password">
+                    </div>
+                </div>
+
+                <div class="option-group">
+                    <label>PostgreSQL Table</label>
+                    <input type="text" id="pg-table" placeholder="schema.table_name">
+                    <small class="field-notice info">Enter the PostgreSQL table to validate (include schema if needed)</small>
+                </div>
+                
+                <button class="btn-secondary" id="testPGConnection" onclick="simpleTest()" style="width: 100%; margin-bottom: 15px;">
+                    🔍 Test PostgreSQL Connection
+                </button>
+                
+                <div id="pg-connection-status" style="display: none; padding: 10px; border-radius: 5px; margin-bottom: 15px;"></div>
             </div>
 
-            <div class="coming-soon-section">
-                <div class="coming-soon-icon">🗄️</div>
-                <div class="coming-soon-title">RDBMS vs BigQuery Comparison</div>
-                <div class="coming-soon-description">
-                    Validate data migration between traditional databases and BigQuery.
+            <div class="comparison-options">
+                <h3 style="margin-bottom: 20px; color: #2c3e50;">🗄️ BigQuery Target Configuration</h3>
+                
+                <div class="option-group">
+                    <label>BigQuery Table</label>
+                    <input type="text" id="pg-bq-table" placeholder="project.dataset.table_name">
+                    <small class="field-notice info">Enter the BigQuery table to compare against</small>
                 </div>
-                <button class="btn-primary" style="margin-top: 30px;" onclick="alert('RDBMS vs BQ comparison feature is currently under development.')">
-                    🔔 Notify Me When Available
+                
+                <div class="option-group">
+                    <label>Primary Key Field</label>
+                    <input type="text" id="pg-primary-key" placeholder="id, user_id, etc.">
+                    <small class="field-notice success">Field that exists in both PostgreSQL and BigQuery tables</small>
+                </div>
+
+                <div class="option-group">
+                    <label>Comparison Fields (Optional)</label>
+                    <textarea id="pg-comparison-fields" placeholder="field1, field2, field3"></textarea>
+                    <small class="field-notice info">Leave empty to compare all common fields</small>
+                </div>
+                
+                <button class="btn-primary" id="startPGComparison" onclick="startRDBMSComparison('postgresql')" style="width: 100%; margin-top: 20px;" disabled>
+                    🚀 Start PostgreSQL vs BigQuery Validation
                 </button>
             </div>
         </div>
     </div>
+
+    <div class="processing-state" id="pg-processing" style="display: none;">
+        <div class="processing-spinner"></div>
+        <div class="processing-text">Connecting to PostgreSQL and BigQuery...</div>
+        <div class="processing-subtext">Running comprehensive ETL validation</div>
+    </div>
+
+    <div class="comparison-results" id="pg-results" style="display: none;">
+        <!-- Results will be populated here -->
+    </div>
+</div>
+
+<!-- MySQL Tab -->
+<div id="mysql-rdbms-tab" class="results-tab-content">
+    <div class="upload-section">
+        <div class="upload-container">
+            <div class="comparison-options">
+                <h3 style="margin-bottom: 20px; color: #2c3e50;">🐬 MySQL Configuration</h3>
+                
+                <div class="option-group">
+                    <label>MySQL Host</label>
+                    <input type="text" id="mysql-host" placeholder="e.g., localhost or your-server.com" value="localhost">
+                </div>
+                
+                <div class="form-row">
+                    <div class="option-group">
+                        <label>Port</label>
+                        <input type="number" id="mysql-port" placeholder="3306" value="3306">
+                    </div>
+                    <div class="option-group">
+                        <label>Database Name</label>
+                        <input type="text" id="mysql-database" placeholder="your_database">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="option-group">
+                        <label>Username</label>
+                        <input type="text" id="mysql-username" placeholder="root">
+                    </div>
+                    <div class="option-group">
+                        <label>Password</label>
+                        <input type="password" id="mysql-password" placeholder="your_password">
+                    </div>
+                </div>
+
+                <div class="option-group">
+                    <label>MySQL Table</label>
+                    <input type="text" id="mysql-table" placeholder="table_name">
+                    <small class="field-notice info">Enter the MySQL table to validate</small>
+                </div>
+                
+                <button class="btn-secondary" id="testMySQLConnection" onclick="testDatabaseConnection('mysql')" style="width: 100%; margin-bottom: 15px;">
+                    🔍 Test MySQL Connection
+                </button>
+                
+                <div id="mysql-connection-status" style="display: none; padding: 10px; border-radius: 5px; margin-bottom: 15px;"></div>
+            </div>
+
+            <div class="comparison-options">
+                <h3 style="margin-bottom: 20px; color: #2c3e50;">🗄️ BigQuery Target Configuration</h3>
+                
+                <div class="option-group">
+                    <label>BigQuery Table</label>
+                    <input type="text" id="mysql-bq-table" placeholder="project.dataset.table_name">
+                </div>
+                
+                <div class="option-group">
+                    <label>Primary Key Field</label>
+                    <input type="text" id="mysql-primary-key" placeholder="id, user_id, etc.">
+                </div>
+
+                <div class="option-group">
+                    <label>Comparison Fields (Optional)</label>
+                    <textarea id="mysql-comparison-fields" placeholder="field1, field2, field3"></textarea>
+                </div>
+                
+                <button class="btn-primary" id="startMySQLComparison" onclick="startRDBMSComparison('mysql')" style="width: 100%; margin-top: 20px;" disabled>
+                    🚀 Start MySQL vs BigQuery Validation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="processing-state" id="mysql-processing" style="display: none;">
+        <div class="processing-spinner"></div>
+        <div class="processing-text">Connecting to MySQL and BigQuery...</div>
+        <div class="processing-subtext">Running comprehensive ETL validation</div>
+    </div>
+
+    <div class="comparison-results" id="mysql-results" style="display: none;">
+        <!-- Results will be populated here -->
+    </div>
+</div>
+
+<!-- Oracle Tab -->
+<div id="oracle-rdbms-tab" class="results-tab-content">
+    <div class="upload-section">
+        <div class="upload-container">
+            <div class="comparison-options">
+                <h3 style="margin-bottom: 20px; color: #2c3e50;">🔴 Oracle Configuration</h3>
+                
+                <div class="option-group">
+                    <label>Oracle Host</label>
+                    <input type="text" id="oracle-host" placeholder="e.g., localhost or your-server.com" value="localhost">
+                </div>
+                
+                <div class="form-row">
+                    <div class="option-group">
+                        <label>Port</label>
+                        <input type="number" id="oracle-port" placeholder="1521" value="1521">
+                    </div>
+                    <div class="option-group">
+                        <label>Service Name / SID</label>
+                        <input type="text" id="oracle-service" placeholder="XE or ORCL">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="option-group">
+                        <label>Username</label>
+                        <input type="text" id="oracle-username" placeholder="hr">
+                    </div>
+                    <div class="option-group">
+                        <label>Password</label>
+                        <input type="password" id="oracle-password" placeholder="your_password">
+                    </div>
+                </div>
+
+                <div class="option-group">
+                    <label>Oracle Table</label>
+                    <input type="text" id="oracle-table" placeholder="SCHEMA.TABLE_NAME">
+                    <small class="field-notice info">Enter the Oracle table to validate (include schema)</small>
+                </div>
+                
+                <button class="btn-secondary" id="testOracleConnection" onclick="testDatabaseConnection('oracle')" style="width: 100%; margin-bottom: 15px;">
+                    🔍 Test Oracle Connection
+                </button>
+                
+                <div id="oracle-connection-status" style="display: none; padding: 10px; border-radius: 5px; margin-bottom: 15px;"></div>
+            </div>
+
+            <div class="comparison-options">
+                <h3 style="margin-bottom: 20px; color: #2c3e50;">🗄️ BigQuery Target Configuration</h3>
+                
+                <div class="option-group">
+                    <label>BigQuery Table</label>
+                    <input type="text" id="oracle-bq-table" placeholder="project.dataset.table_name">
+                </div>
+                
+                <div class="option-group">
+                    <label>Primary Key Field</label>
+                    <input type="text" id="oracle-primary-key" placeholder="EMPLOYEE_ID, ID, etc.">
+                </div>
+
+                <div class="option-group">
+                    <label>Comparison Fields (Optional)</label>
+                    <textarea id="oracle-comparison-fields" placeholder="FIELD1, FIELD2, FIELD3"></textarea>
+                </div>
+                
+                <button class="btn-primary" id="startOracleComparison" onclick="startRDBMSComparison('oracle')" style="width: 100%; margin-top: 20px;" disabled>
+                    🚀 Start Oracle vs BigQuery Validation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="processing-state" id="oracle-processing" style="display: none;">
+        <div class="processing-spinner"></div>
+        <div class="processing-text">Connecting to Oracle and BigQuery...</div>
+        <div class="processing-subtext">Running comprehensive ETL validation</div>
+    </div>
+
+    <div class="comparison-results" id="oracle-results" style="display: none;">
+        <!-- Results will be populated here -->
+    </div>
+</div>
+
+<!-- SQL Server Tab -->
+<div id="sqlserver-rdbms-tab" class="results-tab-content">
+    <div class="upload-section">
+        <div class="upload-container">
+            <div class="comparison-options">
+                <h3 style="margin-bottom: 20px; color: #2c3e50;">🟦 SQL Server Configuration</h3>
+                
+                <div class="option-group">
+                    <label>SQL Server Host</label>
+                    <input type="text" id="sqlserver-host" placeholder="e.g., localhost or server\\instance" value="localhost">
+                </div>
+                
+                <div class="form-row">
+                    <div class="option-group">
+                        <label>Port (Optional)</label>
+                        <input type="number" id="sqlserver-port" placeholder="1433" value="1433">
+                    </div>
+                    <div class="option-group">
+                        <label>Database Name</label>
+                        <input type="text" id="sqlserver-database" placeholder="your_database">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="option-group">
+                        <label>Username</label>
+                        <input type="text" id="sqlserver-username" placeholder="sa">
+                    </div>
+                    <div class="option-group">
+                        <label>Password</label>
+                        <input type="password" id="sqlserver-password" placeholder="your_password">
+                    </div>
+                </div>
+
+                <div class="option-group">
+                    <label>SQL Server Table</label>
+                    <input type="text" id="sqlserver-table" placeholder="dbo.TableName">
+                    <small class="field-notice info">Enter the SQL Server table to validate (include schema)</small>
+                </div>
+                
+                <button class="btn-secondary" id="testSQLServerConnection" onclick="testDatabaseConnection('sqlserver')" style="width: 100%; margin-bottom: 15px;">
+                    🔍 Test SQL Server Connection
+                </button>
+                
+                <div id="sqlserver-connection-status" style="display: none; padding: 10px; border-radius: 5px; margin-bottom: 15px;"></div>
+            </div>
+
+            <div class="comparison-options">
+                <h3 style="margin-bottom: 20px; color: #2c3e50;">🗄️ BigQuery Target Configuration</h3>
+                
+                <div class="option-group">
+                    <label>BigQuery Table</label>
+                    <input type="text" id="sqlserver-bq-table" placeholder="project.dataset.table_name">
+                </div>
+                
+                <div class="option-group">
+                    <label>Primary Key Field</label>
+                    <input type="text" id="sqlserver-primary-key" placeholder="Id, UserId, etc.">
+                </div>
+
+                <div class="option-group">
+                    <label>Comparison Fields (Optional)</label>
+                    <textarea id="sqlserver-comparison-fields" placeholder="Field1, Field2, Field3"></textarea>
+                </div>
+                
+                <button class="btn-primary" id="startSQLServerComparison" onclick="startRDBMSComparison('sqlserver')" style="width: 100%; margin-top: 20px;" disabled>
+                    🚀 Start SQL Server vs BigQuery Validation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="processing-state" id="sqlserver-processing" style="display: none;">
+        <div class="processing-spinner"></div>
+        <div class="processing-text">Connecting to SQL Server and BigQuery...</div>
+        <div class="processing-subtext">Running comprehensive ETL validation</div>
+    </div>
+
+    <div class="comparison-results" id="sqlserver-results" style="display: none;">
+        <!-- Results will be populated here -->
+    </div>
+</div>
+</div>
+
 
     <script>
         let globalComparisonResults = null;
@@ -1618,7 +1962,75 @@
                 }, 1500);
             }
         }
-
+	async function simpleTest() {
+    const button = document.getElementById('testPGConnection');
+    const statusDiv = document.getElementById('pg-connection-status');
+    const validationButton = document.getElementById('startPGComparison');
+    
+    // Get form values
+    const connectionData = {
+        host: document.getElementById('pg-host').value.trim(),
+        port: document.getElementById('pg-port').value.trim(),
+        database: document.getElementById('pg-database').value.trim(),
+        username: document.getElementById('pg-username').value.trim(),
+        password: document.getElementById('pg-password').value.trim()
+    };
+    
+    // Validation
+    if (!connectionData.host || !connectionData.port || !connectionData.database || 
+        !connectionData.username || !connectionData.password) {
+        alert('Please fill in all PostgreSQL connection fields');
+        return;
+    }
+    
+    const originalText = button.innerHTML;
+    
+    try {
+        button.disabled = true;
+        button.innerHTML = '🔄 Testing Connection...';
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = 'Testing PostgreSQL connection...';
+        statusDiv.style.background = '#fff3cd';
+        statusDiv.style.color = '#856404';
+        statusDiv.style.border = '1px solid #ffeaa7';
+        
+        // Make API call to test connection
+        const response = await fetch('/api/test-postgres-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(connectionData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = '✅ PostgreSQL connection successful! Ready for validation.';
+            statusDiv.style.background = '#d4edda';
+            statusDiv.style.color = '#155724';
+            statusDiv.style.border = '1px solid #c3e6cb';
+            
+            // Enable validation button
+            validationButton.disabled = false;
+            
+        } else {
+            throw new Error(result.error || 'Connection test failed');
+        }
+        
+    } catch (error) {
+        console.error('Connection test failed:', error);
+        
+        statusDiv.innerHTML = `❌ Connection failed: ${error.message}`;
+        statusDiv.style.background = '#f8d7da';
+        statusDiv.style.color = '#721c24';
+        statusDiv.style.border = '1px solid #f5c6cb';
+        
+        validationButton.disabled = true;
+        
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
         // Excel Export with 6 Professional Sheets
         function exportResultsToExcel() {
             if (!globalComparisonResults) {
@@ -2935,6 +3347,216 @@
                 });
             }
         });
+		// RDBMS Tab Management
+function showRDBMSTab(dbType) {
+    // Hide all RDBMS tabs
+    const rdbmsTabs = document.querySelectorAll('[id$="-rdbms-tab"]');
+    rdbmsTabs.forEach(tab => tab.classList.remove('active'));
+
+    // Remove active class from all tab buttons
+    const tabButtons = document.querySelectorAll('#rdbms-comparison-page .results-tab-button');
+    tabButtons.forEach(button => button.classList.remove('active'));
+
+    // Show selected tab
+    const selectedTab = document.getElementById(dbType + '-rdbms-tab');
+    if (selectedTab) selectedTab.classList.add('active');
+
+    // Mark active button
+    const activeButton = event?.target?.closest('.results-tab-button');
+    if (activeButton) activeButton.classList.add('active');
+
+    console.log(`Switched to RDBMS tab: ${dbType}`);
+}
+
+// Test Database Connection
+async function testDatabaseConnection(dbType) {
+    const button = document.getElementById(`test${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Connection`);
+    const statusDiv = document.getElementById(`${dbType}-connection-status`);
+    const originalText = button.innerHTML;
+    
+    try {
+        button.disabled = true;
+        button.innerHTML = '🔄 Testing Connection...';
+        
+        // Get connection parameters
+        const connectionData = getConnectionData(dbType);
+        
+        const response = await fetch('/api/test-rdbms-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dbType: dbType,
+                ...connectionData
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = '✅ Connection successful! Ready for validation.';
+            statusDiv.style.background = '#d4edda';
+            statusDiv.style.color = '#155724';
+            statusDiv.style.border = '1px solid #c3e6cb';
+            
+            // Enable comparison button
+            const comparisonButton = document.getElementById(`start${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Comparison`);
+            if (comparisonButton) comparisonButton.disabled = false;
+            
+        } else {
+            throw new Error(result.error || 'Connection test failed');
+        }
+        
+    } catch (error) {
+        statusDiv.innerHTML = `❌ Connection failed: ${error.message}`;
+        statusDiv.style.background = '#f8d7da';
+        statusDiv.style.color = '#721c24';
+        statusDiv.style.border = '1px solid #f5c6cb';
+        
+        // Keep comparison button disabled
+        const comparisonButton = document.getElementById(`start${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Comparison`);
+        if (comparisonButton) comparisonButton.disabled = true;
+    } finally {
+        statusDiv.style.display = 'block';
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+// Get Connection Data for specific database type
+function getConnectionData(dbType) {
+    const data = {};
+    
+    switch(dbType) {
+        case 'postgresql':
+            data.host = document.getElementById('pg-host').value;
+            data.port = document.getElementById('pg-port').value;
+            data.database = document.getElementById('pg-database').value;
+            data.username = document.getElementById('pg-username').value;
+            data.password = document.getElementById('pg-password').value;
+            data.table = document.getElementById('pg-table').value;
+            break;
+            
+        case 'mysql':
+            data.host = document.getElementById('mysql-host').value;
+            data.port = document.getElementById('mysql-port').value;
+            data.database = document.getElementById('mysql-database').value;
+            data.username = document.getElementById('mysql-username').value;
+            data.password = document.getElementById('mysql-password').value;
+            data.table = document.getElementById('mysql-table').value;
+            break;
+            
+        case 'oracle':
+            data.host = document.getElementById('oracle-host').value;
+            data.port = document.getElementById('oracle-port').value;
+            data.serviceName = document.getElementById('oracle-service').value;
+            data.username = document.getElementById('oracle-username').value;
+            data.password = document.getElementById('oracle-password').value;
+            data.table = document.getElementById('oracle-table').value;
+            break;
+            
+        case 'sqlserver':
+            data.host = document.getElementById('sqlserver-host').value;
+            data.port = document.getElementById('sqlserver-port').value;
+            data.database = document.getElementById('sqlserver-database').value;
+            data.username = document.getElementById('sqlserver-username').value;
+            data.password = document.getElementById('sqlserver-password').value;
+            data.table = document.getElementById('sqlserver-table').value;
+            break;
+    }
+    
+    return data;
+}
+
+// Start RDBMS Comparison
+async function startRDBMSComparison(dbType) {
+    const button = document.getElementById(`start${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Comparison`);
+    const processingDiv = document.getElementById(`${dbType}-processing`);
+    const resultsDiv = document.getElementById(`${dbType}-results`);
+    const uploadSection = document.querySelector(`#${dbType}-rdbms-tab .upload-section`);
+    
+    const originalText = button.innerHTML;
+    
+    try {
+        button.disabled = true;
+        button.innerHTML = '🔄 Running Validation...';
+        
+        // Show processing state
+        uploadSection.style.display = 'none';
+        processingDiv.style.display = 'block';
+        resultsDiv.style.display = 'none';
+        
+        // Get all configuration data
+        const connectionData = getConnectionData(dbType);
+        const comparisonData = {
+            dbType: dbType,
+            ...connectionData,
+            bqTable: document.getElementById(`${dbType}-bq-table`).value,
+            primaryKey: document.getElementById(`${dbType}-primary-key`).value,
+            comparisonFields: document.getElementById(`${dbType}-comparison-fields`).value.split(',').map(f => f.trim()).filter(f => f)
+        };
+        
+        // Validate required fields
+        if (!comparisonData.bqTable || !comparisonData.primaryKey) {
+            throw new Error('BigQuery table and Primary Key are required');
+        }
+        
+        const response = await fetch('/api/compare-rdbms-vs-bq', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(comparisonData)
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            // Display results
+            displayRDBMSResults(dbType, result);
+            
+            processingDiv.style.display = 'none';
+            resultsDiv.style.display = 'block';
+            
+        } else {
+            throw new Error(result.error || 'Comparison failed');
+        }
+        
+    } catch (error) {
+        console.error(`${dbType} comparison failed:`, error);
+        alert(`${dbType.toUpperCase()} vs BigQuery comparison failed: ${error.message}`);
+        
+        processingDiv.style.display = 'none';
+        uploadSection.style.display = 'block';
+        
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+// Display RDBMS Results (simplified version)
+function displayRDBMSResults(dbType, results) {
+    const resultsDiv = document.getElementById(`${dbType}-results`);
+    const dbName = {
+        'postgresql': 'PostgreSQL',
+        'mysql': 'MySQL',
+        'oracle': 'Oracle',
+        'sqlserver': 'SQL Server'  
+    }[dbType];
+    
+    resultsDiv.innerHTML = `
+        <div class="results-header">
+            <div class="results-title">
+                ${dbName} vs BigQuery Analysis Results
+            </div>
+        </div>
+        <div style="padding: 20px;">
+            <h3>Validation Complete!</h3>
+            <p>Source Records: ${results.summary?.sourceRecords || 0}</p>
+            <p>Target Records: ${results.summary?.targetRecords || 0}</p>
+            <p>Matching Records: ${results.summary?.matchingRecords || 0}</p>
+            <p>Success Rate: ${results.summary?.successRate || 0}%</p>
+        </div>
+    `;
+}
     </script>
 </body>
 </html>

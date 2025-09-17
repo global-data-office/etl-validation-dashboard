@@ -5,6 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const jsonUploadRouter = require('./routes/json-upload');
 const BigQueryIntegrationService = require('./services/bq-integration');
+const RDBMSIntegrationService = require('./services/rdbms-integration');
 require('dotenv').config();
 
 const app = express();
@@ -1091,7 +1092,294 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Serve the dashboard HTML file
+// RDBMS API ENDPOINTS - ADD THE THREE ENDPOINTS HERE
+app.post('/api/test-rdbms-connection', async (req, res) => {
+    try {
+        const { dbType, host, port, database, username, password, serviceName, table } = req.body;
+        
+        if (!dbType || !host || !username || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required connection parameters',
+                details: 'dbType, host, username, and password are required'
+            });
+        }
+
+        console.log(`Testing ${dbType} connection to ${host}:${port || 'default'}`);
+
+        const rdbmsService = new RDBMSIntegrationService();
+        
+        const config = {
+            host,
+            port: parseInt(port) || undefined,
+            database,
+            username,
+            password,
+            serviceName // Oracle specific
+        };
+
+        const connectionResult = await rdbmsService.testConnection(dbType, config);
+        
+        // If connection successful and table specified, test table access
+        if (connectionResult.success && table) {
+            try {
+                const tableInfo = await rdbmsService.getTableInfo(dbType, config, table);
+                connectionResult.tableInfo = {
+                    tableName: tableInfo.tableName,
+                    rowCount: tableInfo.rowCount,
+                    columns: tableInfo.columns.length,
+                    sampleFields: tableInfo.fields.slice(0, 5)
+                };
+                console.log(`Table ${table} validated: ${tableInfo.rowCount} rows, ${tableInfo.columns.length} columns`);
+            } catch (tableError) {
+                console.warn(`Table validation failed: ${tableError.message}`);
+                connectionResult.tableWarning = `Table '${table}' could not be accessed: ${tableError.message}`;
+            }
+        }
+
+        res.json(connectionResult);
+
+    } catch (error) {
+        console.error('RDBMS connection test failed:', error.message);
+        
+        let errorMessage = error.message;
+        let suggestions = [
+            'Verify database server is running and accessible',
+            'Check connection parameters (host, port, credentials)',
+            'Ensure database user has proper permissions',
+            'Test network connectivity to the database server'
+        ];
+
+        // Specific error handling
+        if (error.message.includes('ECONNREFUSED')) {
+            suggestions = [
+                'Database server is not running or not accessible',
+                'Check if the host and port are correct',
+                'Verify firewall settings allow database connections',
+                'Ensure the database service is started'
+            ];
+        } else if (error.message.includes('authentication') || error.message.includes('password')) {
+            suggestions = [
+                'Check username and password are correct',
+                'Verify database user exists and is not locked',
+                'Ensure user has login permissions to the database',
+                'Try connecting with database admin tools first'
+            ];
+        } else if (error.message.includes('database') && error.message.includes('does not exist')) {
+            suggestions = [
+                'Verify the database name is spelled correctly',
+                'Check if the database exists on the server',
+                'Ensure you have access to the specified database',
+                'Try connecting without specifying a database first'
+            ];
+        }
+
+        res.status(500).json({
+            success: false,
+            error: errorMessage,
+            dbType: dbType,
+            suggestions: suggestions,
+            details: `${dbType} connection test failed`
+        });
+    }
+});
+
+app.post('/api/compare-rdbms-vs-bq', async (req, res) => {
+    try {
+        const {
+            dbType,
+            host,
+            port,
+            database,
+            username,
+            password,
+            serviceName,
+            table,
+            bqTable,
+            primaryKey,
+            comparisonFields = []
+        } = req.body;
+
+        // Validation
+        if (!dbType || !host || !username || !password || !table || !bqTable || !primaryKey) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required parameters',
+                details: 'dbType, host, username, password, table, bqTable, and primaryKey are required'
+            });
+        }
+
+        console.log(`Starting ${dbType} vs BigQuery comparison...`);
+        console.log(`Source: ${dbType} ${table}`);
+        console.log(`Target: BigQuery ${bqTable}`);
+        console.log(`Primary Key: ${primaryKey}`);
+
+        const rdbmsService = new RDBMSIntegrationService();
+        
+        const config = {
+            host,
+            port: parseInt(port) || undefined,
+            database,
+            username,
+            password,
+            serviceName // Oracle specific
+        };
+
+        // Test connection first
+        const connectionTest = await rdbmsService.testConnection(dbType, config);
+        if (!connectionTest.success) {
+            throw new Error(`Connection failed: ${connectionTest.error}`);
+        }
+
+        // Run comparison
+        const comparisonResult = await rdbmsService.compareWithBigQuery(
+            dbType,
+            config,
+            table,
+            bqTable,
+            primaryKey,
+            comparisonFields
+        );
+
+        console.log('RDBMS vs BigQuery comparison completed successfully');
+        console.log(`Results: ${comparisonResult.summary.matchingRecords}/${comparisonResult.summary.sourceRecords} records matched (${comparisonResult.summary.successRate}%)`);
+
+        res.json(comparisonResult);
+
+    } catch (error) {
+        console.error('RDBMS vs BigQuery comparison failed:', error.message);
+        
+        let errorMessage = error.message;
+        let suggestions = [
+            'Verify both database tables exist and are accessible',
+            'Check that the primary key field exists in both tables',
+            'Ensure you have proper permissions for both databases',
+            'Try testing the connection first before running comparison'
+        ];
+
+        // Specific error handling
+        if (error.message.includes('not found') || error.message.includes('does not exist')) {
+            suggestions = [
+                'Check table names are spelled correctly',
+                'Verify tables exist in their respective databases',
+                'Include schema names if required (e.g., schema.table)',
+                'Test table access using database admin tools'
+            ];
+        } else if (error.message.includes('primary key') || error.message.includes('column')) {
+            suggestions = [
+                'Verify the primary key field name is correct',
+                'Check that the field exists in both source and target tables',
+                'Field names are case-sensitive in some databases',
+                'Try using a different field that exists in both tables'
+            ];
+        } else if (error.message.includes('permission') || error.message.includes('access')) {
+            suggestions = [
+                'Ensure database user has SELECT permissions on the table',
+                'Verify BigQuery service account has proper roles',
+                'Check if tables are in restricted schemas',
+                'Contact your database administrator for access'
+            ];
+        }
+
+        res.status(500).json({
+            success: false,
+            error: errorMessage,
+            details: `${dbType} vs BigQuery comparison failed`,
+            suggestions: suggestions,
+            dbType: dbType
+        });
+    }
+});
+
+app.post('/api/get-rdbms-schema', async (req, res) => {
+    try {
+        const { dbType, host, port, database, username, password, serviceName, table } = req.body;
+        
+        if (!dbType || !host || !username || !password || !table) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required parameters',
+                details: 'dbType, host, username, password, and table are required'
+            });
+        }
+
+        console.log(`Getting schema for ${dbType} table: ${table}`);
+
+        const rdbmsService = new RDBMSIntegrationService();
+        
+        const config = {
+            host,
+            port: parseInt(port) || undefined,
+            database,
+            username,
+            password,
+            serviceName
+        };
+
+        const tableInfo = await rdbmsService.getTableInfo(dbType, config, table);
+        
+        res.json({
+            success: true,
+            tableInfo: tableInfo,
+            message: `Schema retrieved for ${dbType} table: ${table}`
+        });
+
+    } catch (error) {
+        console.error('RDBMS schema retrieval failed:', error.message);
+        
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            details: `Failed to retrieve schema for ${dbType} table: ${table}`,
+            suggestions: [
+                'Verify the table name is correct and exists',
+                'Check database connection parameters',
+                'Ensure user has permissions to access table metadata',
+                'Include schema name if required (e.g., schema.table)'
+            ]
+        });
+    }
+});
+});
+app.post('/api/test-rdbms-connection', async (req, res) => {
+    try {
+        const { Client } = require('pg');
+        const { host, port, database, username, password } = req.body;
+        
+        const client = new Client({
+            host: host,
+            port: parseInt(port) || 5432,
+            database: database,
+            user: username,
+            password: password,
+            connectionTimeoutMillis: 10000,
+            ssl: { rejectUnauthorized: false }
+        });
+        
+        await client.connect();
+        
+        // Test with a simple query
+        const result = await client.query('SELECT 1 as connection_test');
+        
+        await client.end();
+        
+        res.json({ 
+            success: true, 
+            message: 'PostgreSQL connection successful',
+            data: result.rows 
+        });
+        
+    } catch (error) {
+        console.error('PostgreSQL connection error:', error);
+        res.json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+// Serve the dashboard HTML file (this is line 1095 in your file)
+app.get('/', (req, res) => {
+// Serve the dashboard HTML file (this is line 1095 in your file)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
