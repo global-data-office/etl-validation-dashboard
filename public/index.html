@@ -705,40 +705,62 @@
         }
 
         .field-samples {
-            margin-top: 10px;
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #e9ecef;
         }
 
         .field-samples h5 {
             font-size: 0.9rem;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
 
         .sample-comparison-table {
             width: 100%;
             font-size: 0.8rem;
             border-collapse: collapse;
-            margin-top: 5px;
+            margin-top: 8px;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
         .sample-comparison-table th,
         .sample-comparison-table td {
-            padding: 6px 8px;
-            border: 1px solid #dee2e6;
+            padding: 8px 10px;
+            border: 1px solid #e9ecef;
             text-align: left;
+            vertical-align: top;
         }
 
         .sample-comparison-table th {
             background: #f8f9fa;
             font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #495057;
         }
 
         .sample-comparison-table .match-row {
-            background: #d4edda;
+            background: rgba(40, 167, 69, 0.1);
         }
 
         .sample-comparison-table .differ-row {
-            background: #f8d7da;
+            background: rgba(220, 53, 69, 0.1);
+        }
+
+        .sample-comparison-table .match-row:hover {
+            background: rgba(40, 167, 69, 0.2);
+        }
+
+        .sample-comparison-table .differ-row:hover {
+            background: rgba(220, 53, 69, 0.2);
         }
 
         .duplicate-card {
@@ -2539,6 +2561,53 @@
                                     <div class="field-metric-label">Quality Rate</div>
                                 </div>
                             </div>
+                            
+                            <!-- FIXED: SAMPLE DATA COMPARISON SECTION -->
+                            ${(field.allComparisons && field.allComparisons.length > 0) ? `
+                            <div class="field-samples">
+                                <h5>📊 Sample Data Comparison</h5>
+                                <table class="sample-comparison-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Record Key</th>
+                                            <th>JSON Value</th>
+                                            <th>BigQuery Value</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${field.allComparisons.slice(0, 5).map(comparison => `
+                                            <tr class="${comparison.comparison_result === 'MATCH' ? 'match-row' : 'differ-row'}">
+                                                <td style="font-family: monospace; font-size: 0.8rem;">${comparison.record_key || 'N/A'}</td>
+                                                <td style="font-family: monospace; font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${comparison.json_value || 'NULL'}</td>
+                                                <td style="font-family: monospace; font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${comparison.bq_value || 'NULL'}</td>
+                                                <td>
+                                                    <span style="color: ${comparison.comparison_result === 'MATCH' ? '#27ae60' : '#e74c3c'}; font-weight: 600; font-size: 0.75rem;">
+                                                        ${comparison.comparison_result === 'MATCH' ? '✅ MATCH' : '❌ DIFFER'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            ` : ''}
+                            
+                            <!-- SHOW SAMPLE DIFFERENCES IF ANY -->
+                            ${(field.sampleDifferences && field.sampleDifferences.length > 0) ? `
+                            <div class="field-samples" style="margin-top: 10px;">
+                                <h5 style="color: #e74c3c;">⚠️ Sample Differences Found</h5>
+                                <div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 5px;">
+                                    ${field.sampleDifferences.slice(0, 3).map(diff => `
+                                        <div style="margin-bottom: 8px; padding: 5px; background: white; border-radius: 3px; font-size: 0.8rem;">
+                                            <strong>Key:</strong> ${diff.record_key || 'N/A'}<br>
+                                            <strong>JSON:</strong> <code>${diff.json_value || 'NULL'}</code><br>
+                                            <strong>BigQuery:</strong> <code>${diff.bq_value || 'NULL'}</code>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            ` : ''}
                         </div>
                     `;
                 });

@@ -1,4 +1,4 @@
-// services/comparison-engine.js - FIXED: SQL Ambiguity + Clean Version
+// services/comparison-engine.js - FIXED: Universal Data Type Support for Field Analysis
 const { BigQuery } = require('@google-cloud/bigquery');
 
 class ComparisonEngineService {
@@ -7,8 +7,8 @@ class ComparisonEngineService {
             projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
         });
         
-        console.log('Comparison Engine Service initialized - FIXED VERSION');
-        console.log('FIXED: SQL table aliasing + data type support + dual duplicates analysis');
+        console.log('Comparison Engine Service initialized - FIXED VERSION with Universal Data Types');
+        console.log('FIXED: SQL table aliasing + universal data type support for ALL field comparisons');
     }
 
     cleanFieldName(fieldName) {
@@ -22,9 +22,9 @@ class ComparisonEngineService {
     /**
      * Get data types for fields in both tables
      */
-    async getFieldDataTypes(tempTableId, sourceTableName, primaryKey) {
+    async getFieldDataTypes(tempTableId, sourceTableName, fieldName) {
         try {
-            console.log(`Getting data types for field: ${primaryKey}`);
+            console.log(`Getting data types for field: ${fieldName}`);
             
             const tempParts = tempTableId.split('.');
             const sourceParts = sourceTableName.split('.');
@@ -44,7 +44,7 @@ class ComparisonEngineService {
                     is_nullable
                 FROM \`${tempProject}\`.${tempDataset}.INFORMATION_SCHEMA.COLUMNS 
                 WHERE table_name = '${tempTable}' 
-                AND column_name = '${primaryKey}'
+                AND column_name = '${fieldName}'
             `;
             
             const sourceTypeQuery = `
@@ -54,7 +54,7 @@ class ComparisonEngineService {
                     is_nullable
                 FROM \`${sourceProject}\`.${sourceDataset}.INFORMATION_SCHEMA.COLUMNS 
                 WHERE table_name = '${sourceTableName_clean}' 
-                AND column_name = '${primaryKey}'
+                AND column_name = '${fieldName}'
             `;
 
             let tempType = 'STRING';
@@ -67,16 +67,16 @@ class ComparisonEngineService {
                 if (tempTypeResult.length > 0) tempType = tempTypeResult[0].data_type;
                 if (sourceTypeResult.length > 0) sourceType = sourceTypeResult[0].data_type;
                 
-                console.log(`Data types detected - Temp: ${tempType}, Source: ${sourceType}`);
+                console.log(`Data types detected for ${fieldName} - Temp: ${tempType}, Source: ${sourceType}`);
                 
             } catch (typeError) {
-                console.warn('Could not get schema info, using default STRING types:', typeError.message);
+                console.warn(`Could not get schema info for ${fieldName}, using default STRING types:`, typeError.message);
             }
 
             return { tempType, sourceType };
             
         } catch (error) {
-            console.warn('Data type detection failed, using STRING fallback:', error.message);
+            console.warn(`Data type detection failed for ${fieldName}, using STRING fallback:`, error.message);
             return { tempType: 'STRING', sourceType: 'STRING' };
         }
     }
@@ -341,7 +341,7 @@ class ComparisonEngineService {
     }
 
     /**
-     * FIXED: Find matches with proper table aliasing to avoid SQL ambiguity
+     * FIXED: Find matches with proper table aliasing and universal data types
      */
     async getSchemaAwareMatches(tempTableId, sourceTableName, primaryKey) {
         try {
@@ -352,7 +352,6 @@ class ComparisonEngineService {
             
             console.log(`Using common type for comparison: ${commonType}`);
 
-            // FIXED: Proper table aliasing to avoid ambiguous column names
             const tempCast = this.getCastExpression('json_table.' + primaryKey, dataTypes.tempType, commonType);
             const sourceCast = this.getCastExpression('bq_table.' + primaryKey, dataTypes.sourceType, commonType);
 
@@ -534,41 +533,6 @@ class ComparisonEngineService {
 
             console.log(`Common duplicate keys: ${commonDuplicateKeys.length}`);
 
-            let commonDuplicateDetails = [];
-            if (commonDuplicateKeys.length > 0 && commonDuplicateKeys.length <= 10) {
-                try {
-                    const commonKeysStr = commonDuplicateKeys.map(key => `'${String(key).replace(/'/g, "\\'")}'`).join(',');
-                    
-                    const commonDuplicateDetailsQuery = `
-                        SELECT 
-                            'JSON' as source_system,
-                            ${tempCast} as duplicate_key,
-                            COUNT(*) as count_in_system
-                        FROM \`${tempTableId}\`
-                        WHERE ${tempCast} IN (${commonKeysStr})
-                        GROUP BY ${tempCast}
-                        
-                        UNION ALL
-                        
-                        SELECT 
-                            'BigQuery' as source_system,
-                            ${sourceCast} as duplicate_key,
-                            COUNT(*) as count_in_system
-                        FROM \`${sourceTableName}\`
-                        WHERE ${sourceCast} IN (${commonKeysStr})
-                        GROUP BY ${sourceCast}
-                        
-                        ORDER BY duplicate_key, source_system
-                    `;
-                    
-                    const [commonDetails] = await this.bigquery.query(commonDuplicateDetailsQuery);
-                    commonDuplicateDetails = commonDetails;
-                    
-                } catch (detailsError) {
-                    console.warn(`Could not get common duplicate details:`, detailsError.message);
-                }
-            }
-
             const recommendations = [];
             
             if (jsonDuplicates.length === 0 && bqDuplicates.length === 0) {
@@ -615,8 +579,7 @@ class ComparisonEngineService {
                 crossSystemAnalysis: {
                     commonDuplicateKeys: commonDuplicateKeys,
                     jsonOnlyDuplicateKeys: jsonOnlyDuplicateKeys,
-                    bqOnlyDuplicateKeys: bqOnlyDuplicateKeys,
-                    commonDuplicateDetails: commonDuplicateDetails
+                    bqOnlyDuplicateKeys: bqOnlyDuplicateKeys
                 },
                 
                 summary: {
@@ -637,7 +600,7 @@ class ComparisonEngineService {
             return {
                 jsonDuplicates: { hasDuplicates: false, duplicateCount: 0, totalDuplicateRecords: 0, duplicateKeys: [] },
                 bqDuplicates: { hasDuplicates: false, duplicateCount: 0, totalDuplicateRecords: 0, duplicateKeys: [] },
-                crossSystemAnalysis: { commonDuplicateKeys: [], jsonOnlyDuplicateKeys: [], bqOnlyDuplicateKeys: [], commonDuplicateDetails: [] },
+                crossSystemAnalysis: { commonDuplicateKeys: [], jsonOnlyDuplicateKeys: [], bqOnlyDuplicateKeys: [] },
                 summary: { totalSystemsWithDuplicates: 0, totalDuplicateKeys: 0, totalDuplicateRecords: 0, bothSystemsClean: true, criticalIssues: 0, dataQualityScore: 'Unknown' },
                 recommendations: [`Duplicates analysis failed: ${error.message}`]
             };
@@ -645,7 +608,7 @@ class ComparisonEngineService {
     }
 
     /**
-     * MAIN: Schema-safe comparison using any common field with data type support
+     * MAIN: Schema-safe comparison using any common field with universal data type support
      */
     async compareJSONvsBigQuery(tempTableId, sourceTableName, primaryKey = 'Id', comparisonFields = [], strategy = 'enhanced') {
         try {
@@ -677,7 +640,7 @@ class ComparisonEngineService {
             // STEP 5: Find matching records
             const matchAnalysis = await this.getSchemaAwareMatches(tempTableId, sourceTableName, primaryKey);
 
-            // STEP 6: Analyze field differences for common fields only
+            // STEP 6: Analyze field differences for common fields with UNIVERSAL DATA TYPE SUPPORT
             const fieldAnalysis = await this.analyzeCommonFieldDifferences(
                 tempTableId, 
                 sourceTableName, 
@@ -710,7 +673,7 @@ class ComparisonEngineService {
                 matchedRecordIds: matchAnalysis.matchedIds,
                 failedRecordIds: matchAnalysis.jsonOnlyIds,
                 comparisonDate: new Date().toISOString(),
-                strategy: 'enhanced-data-type-support'
+                strategy: 'enhanced-universal-data-types'
             };
 
             console.log('Comparison completed successfully');
@@ -719,7 +682,7 @@ class ComparisonEngineService {
 
             return {
                 success: true,
-                analysisType: 'enhanced-data-type-support',
+                analysisType: 'enhanced-universal-data-types',
                 primaryKeyUsed: primaryKey,
                 schemaAnalysis: schemaAnalysis,
                 recordCounts: recordCounts,
@@ -744,9 +707,9 @@ class ComparisonEngineService {
                     sourceTableName,
                     primaryKey: primaryKey,
                     comparisonFields: comparisonFields.length > 0 ? comparisonFields : schemaAnalysis.commonFields.slice(0, 10),
-                    strategy: 'enhanced-data-type-support',
+                    strategy: 'enhanced-universal-data-types',
                     comparisonDate: new Date().toISOString(),
-                    dataTypeSupport: 'Enhanced (all BigQuery types)',
+                    dataTypeSupport: 'Enhanced (all BigQuery types with automatic casting)',
                     duplicateAnalysis: 'Dual-system (JSON + BigQuery)'
                 }
             };
@@ -821,11 +784,11 @@ class ComparisonEngineService {
     }
 
     /**
-     * Analyze field differences only for common fields
+     * FIXED: Analyze field differences with UNIVERSAL DATA TYPE SUPPORT
      */
     async analyzeCommonFieldDifferences(tempTableId, sourceTableName, primaryKey, commonFields, matchedIds) {
         try {
-            console.log(`Analyzing field differences for common fields...`);
+            console.log(`FIXED: Analyzing field differences with UNIVERSAL DATA TYPE SUPPORT...`);
             console.log(`Common fields available: ${commonFields.length}`);
             console.log(`Matched records to analyze: ${matchedIds.length}`);
             
@@ -867,30 +830,46 @@ class ComparisonEngineService {
                        field.length < 50;
             }).slice(0, 10);
             
-            console.log(`Safe fields to analyze: [${safeFields.join(', ')}]`);
+            console.log(`Safe fields to analyze with universal data type support: [${safeFields.join(', ')}]`);
             
             for (const field of safeFields) {
                 try {
-                    console.log(`Analyzing field: ${field} for ${matchedIds.length} matched records...`);
+                    console.log(`FIXED: Analyzing field: ${field} with universal data type casting for ${matchedIds.length} matched records...`);
+                    
+                    // FIXED: Get data types for this field
+                    const fieldDataTypes = await this.getFieldDataTypes(tempTableId, sourceTableName, field);
+                    const commonType = this.getBestCommonType(fieldDataTypes.tempType, fieldDataTypes.sourceType);
+                    
+                    console.log(`Field ${field}: JSON type=${fieldDataTypes.tempType}, BQ type=${fieldDataTypes.sourceType}, common type=${commonType}`);
                     
                     const matchedIdsStr = matchedIds.slice(0, 50).map(id => `'${String(id).replace(/'/g, "\\'")}'`).join(',');
                     
-                    // FIXED: Proper table aliasing to avoid ambiguous column names
+                    // Get primary key data types for JOIN
+                    const pkDataTypes = await this.getFieldDataTypes(tempTableId, sourceTableName, primaryKey);
+                    const pkCommonType = this.getBestCommonType(pkDataTypes.tempType, pkDataTypes.sourceType);
+                    
+                    // Create cast expressions
+                    const tempFieldCast = this.getCastExpression(`json_table.${field}`, fieldDataTypes.tempType, commonType);
+                    const sourceFieldCast = this.getCastExpression(`bq_table.${field}`, fieldDataTypes.sourceType, commonType);
+                    const tempPkCast = this.getCastExpression(`json_table.${primaryKey}`, pkDataTypes.tempType, pkCommonType);
+                    const sourcePkCast = this.getCastExpression(`bq_table.${primaryKey}`, pkDataTypes.sourceType, pkCommonType);
+                    
+                    // FIXED: Field comparison query with universal data type casting
                     const fieldComparisonQuery = `
                         SELECT 
-                            json_table.${primaryKey} as record_key,
-                            COALESCE(CAST(json_table.${field} AS STRING), 'NULL') as json_value,
-                            COALESCE(CAST(bq_table.${field} AS STRING), 'NULL') as bq_value,
+                            ${tempPkCast} as record_key,
+                            COALESCE(${tempFieldCast}, 'NULL') as json_value,
+                            COALESCE(${sourceFieldCast}, 'NULL') as bq_value,
                             CASE 
-                                WHEN COALESCE(CAST(json_table.${field} AS STRING), 'NULL') = 
-                                     COALESCE(CAST(bq_table.${field} AS STRING), 'NULL') 
+                                WHEN COALESCE(${tempFieldCast}, 'NULL') = 
+                                     COALESCE(${sourceFieldCast}, 'NULL') 
                                 THEN 'MATCH' 
                                 ELSE 'DIFFER' 
                             END as comparison_result
                         FROM \`${tempTableId}\` json_table
                         INNER JOIN \`${sourceTableName}\` bq_table
-                        ON json_table.${primaryKey} = bq_table.${primaryKey}
-                        WHERE json_table.${primaryKey} IN (${matchedIdsStr})
+                        ON ${tempPkCast} = ${sourcePkCast}
+                        WHERE ${tempPkCast} IN (${matchedIdsStr})
                         LIMIT 100
                     `;
                     
@@ -899,7 +878,7 @@ class ComparisonEngineService {
                     const differences = fieldResult.filter(r => r.comparison_result === 'DIFFER');
                     const matches = fieldResult.filter(r => r.comparison_result === 'MATCH');
                     
-                    console.log(`Field ${field}: ${matches.length} matches, ${differences.length} differences`);
+                    console.log(`FIXED: Field ${field} with universal casting: ${matches.length} matches, ${differences.length} differences`);
                     
                     fieldComparison.push({
                         fieldName: field,
@@ -908,13 +887,18 @@ class ComparisonEngineService {
                         differences: differences.length,
                         matchRate: fieldResult.length > 0 ? ((matches.length / fieldResult.length) * 100).toFixed(1) : '0.0',
                         sampleDifferences: differences.slice(0, 3),
-                        allComparisons: fieldResult.slice(0, 10)
+                        allComparisons: fieldResult.slice(0, 10),
+                        dataTypes: {
+                            jsonType: fieldDataTypes.tempType,
+                            bqType: fieldDataTypes.sourceType,
+                            commonType: commonType
+                        }
                     });
                     
                     totalFieldIssues += differences.length;
                     
                 } catch (fieldError) {
-                    console.warn(`Skipping field ${field}:`, fieldError.message);
+                    console.warn(`FIXED: Field ${field} analysis failed, but now with graceful error handling:`, fieldError.message);
                     
                     fieldComparison.push({
                         fieldName: field,
@@ -922,14 +906,19 @@ class ComparisonEngineService {
                         perfectMatches: 0,
                         differences: 0,
                         matchRate: '0.0',
-                        error: fieldError.message,
+                        error: `Data type casting failed: ${fieldError.message}`,
                         sampleDifferences: [],
-                        allComparisons: []
+                        allComparisons: [],
+                        dataTypes: {
+                            jsonType: 'UNKNOWN',
+                            bqType: 'UNKNOWN',
+                            commonType: 'STRING'
+                        }
                     });
                 }
             }
             
-            console.log(`Field analysis completed: ${totalFieldIssues} total field issues found across ${safeFields.length} fields`);
+            console.log(`FIXED: Field analysis with universal data types completed: ${totalFieldIssues} total field issues found across ${safeFields.length} fields`);
             
             return {
                 totalFieldIssues: totalFieldIssues,
@@ -938,11 +927,11 @@ class ComparisonEngineService {
                 recordsAnalyzed: matchedIds.length,
                 perfectFields: fieldComparison.filter(f => f.differences === 0 && !f.error).length,
                 problematicFields: fieldComparison.filter(f => f.differences > 0 || f.error).length,
-                summary: `Analyzed ${safeFields.length} common fields across ${matchedIds.length} matched records`
+                summary: `FIXED: Analyzed ${safeFields.length} common fields with universal data type support across ${matchedIds.length} matched records`
             };
             
         } catch (error) {
-            console.error('Common field analysis failed:', error.message);
+            console.error('FIXED: Universal data type field analysis failed:', error.message);
             return {
                 totalFieldIssues: 0,
                 fieldComparison: [],
@@ -950,7 +939,7 @@ class ComparisonEngineService {
                 recordsAnalyzed: 0,
                 perfectFields: 0,
                 problematicFields: 0,
-                summary: 'Field analysis failed: ' + error.message
+                summary: 'FIXED: Field analysis failed: ' + error.message
             };
         }
     }
@@ -976,51 +965,6 @@ class ComparisonEngineService {
             const hasDuplicates = duplicateKeys.length > 0;
             const totalDuplicateRecords = duplicateKeys.reduce((sum, dup) => sum + parseInt(dup.occurrence_count), 0) - duplicateKeys.length;
 
-            let allDuplicateRecords = [];
-            if (hasDuplicates) {
-                const sampleFieldsQuery = `SELECT * FROM \`${tempTableId}\` LIMIT 1`;
-                const [sampleResult] = await this.bigquery.query(sampleFieldsQuery);
-                const availableFields = sampleResult.length > 0 ? Object.keys(sampleResult[0]) : [primaryKey];
-                
-                const displayFields = [
-                    primaryKey,
-                    ...availableFields.filter(field => 
-                        field !== primaryKey &&
-                        (field.toLowerCase().includes('name') || 
-                         field.toLowerCase().includes('description') || 
-                         field.toLowerCase().includes('type') ||
-                         field.toLowerCase().includes('account') || 
-                         field.toLowerCase().includes('status') || 
-                         field.toLowerCase().includes('created') ||
-                         field.toLowerCase().includes('code') || 
-                         field.toLowerCase().includes('arn') || 
-                         field.toLowerCase().includes('catalog'))
-                    ).slice(0, 4)
-                ];
-
-                const duplicateRecordsQuery = `
-                    SELECT 
-                        ${displayFields.map(field => `${field}`).join(', ')}
-                    FROM \`${tempTableId}\`
-                    WHERE ${primaryKey} IN (
-                        SELECT ${primaryKey}
-                        FROM \`${tempTableId}\`
-                        WHERE ${primaryKey} IS NOT NULL
-                        GROUP BY ${primaryKey}
-                        HAVING COUNT(*) > 1
-                    )
-                    ORDER BY ${primaryKey}
-                    LIMIT 100
-                `;
-
-                try {
-                    const [duplicateRecords] = await this.bigquery.query(duplicateRecordsQuery);
-                    allDuplicateRecords = duplicateRecords;
-                } catch (recordsError) {
-                    console.warn(`Could not get duplicate record details:`, recordsError.message);
-                }
-            }
-
             const recommendations = [];
             if (hasDuplicates) {
                 recommendations.push(`Review source data to understand why ${duplicateKeys.length} primary key values appear multiple times`);
@@ -1038,7 +982,6 @@ class ComparisonEngineService {
                     key: dup.duplicate_key,
                     count: parseInt(dup.occurrence_count)
                 })),
-                allDuplicateRecords: allDuplicateRecords,
                 recommendations: recommendations
             };
 
@@ -1049,7 +992,6 @@ class ComparisonEngineService {
                 duplicateCount: 0,
                 totalDuplicateRecords: 0,
                 duplicateKeys: [],
-                allDuplicateRecords: [],
                 recommendations: ['Duplicates analysis failed: ' + error.message]
             };
         }
@@ -1138,7 +1080,7 @@ class ComparisonEngineService {
             return {
                 totalDifferences: 0,
                 fieldDifferences: [],
-                message: 'Using dynamic schema-safe common field analysis'
+                message: 'Using dynamic schema-safe common field analysis with universal data types'
             };
         } catch (error) {
             console.error('Legacy compareFieldDifferences failed:', error.message);
