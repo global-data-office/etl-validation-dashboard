@@ -1096,6 +1096,290 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+const APIFetcherService = require('./services/api-fetcher');
+const apiFetcher = new APIFetcherService();
+// API vs BQ - NEW ENDPOINTS ONLY
+app.post('/api/test-api-connection', async (req, res) => {
+    try {
+        const { url, method, headers, username, password, authType } = req.body;
+        if (!url) return res.status(400).json({ success: false, error: 'URL required' });
+
+        const result = await apiFetcher.testAPIConnection({ url, method: method || 'GET', headers: headers || {}, username, password, authType });
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/fetch-api-data', async (req, res) => {
+    try {
+        const { url, method, headers, body, username, password, authType } = req.body;
+        if (!url) return res.status(400).json({ success: false, error: 'URL required' });
+
+        const result = await apiFetcher.fetchAPIData({ url, method: method || 'GET', headers: headers || {}, body, username, password, authType });
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/preview-api/:dataId', async (req, res) => {
+    try {
+        const result = await apiFetcher.getAPIDataPreview(req.params.dataId);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/create-temp-table-from-api', async (req, res) => {
+    try {
+        const { dataId, primaryKey } = req.body;
+        const apiDataResult = await apiFetcher.getAPIData(dataId);
+        if (!apiDataResult.success) return res.status(404).json({ success: false, error: 'API data not found' });
+
+        let jsonData = apiDataResult.data.result || apiDataResult.data;
+        if (!Array.isArray(jsonData)) jsonData = [jsonData];
+
+        const bqService = new BigQueryIntegrationService();
+        const result = await bqService.createTempTableFromJSON(jsonData, dataId, primaryKey);
+
+        res.json({ success: true, tempTableId: result.tempTableId, recordsUploaded: result.recordsInTable });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/compare-api-vs-bq', async (req, res) => {
+    try {
+        const { dataId, sourceTable, primaryKey } = req.body;
+
+        const apiDataResult = await apiFetcher.getAPIData(dataId);
+        let jsonData = apiDataResult.data.result || apiDataResult.data;
+        if (!Array.isArray(jsonData)) jsonData = [jsonData];
+
+        const bqService = new BigQueryIntegrationService();
+        const tempTableResult = await bqService.createTempTableFromJSON(jsonData, dataId, primaryKey);
+
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+        const results = await comparisonEngine.compareJSONvsBigQuery(tempTableResult.tempTableId, sourceTable, primaryKey, []);
+
+        results.metadata.dataSource = 'API';
+        res.json(results);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// server.js - ADD THESE MISSING ENDPOINTS (add after existing API endpoints, before app.listen)
+
+// MISSING ENDPOINT 1: Enhanced API vs BQ comprehensive comparison
+app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
+    try {
+        const {
+            dataId,
+            sourceTable,
+            primaryKey,
+            comparisonFields = [],
+            includeFieldAnalysis = true,
+            includeDuplicateAnalysis = true,
+            includeSchemaAnalysis = true
+        } = req.body;
+
+        console.log(`COMPREHENSIVE API vs BQ comparison starting...`);
+        console.log(`DataId: ${dataId}`);
+        console.log(`Source table: ${sourceTable}`);
+        console.log(`Primary key: ${primaryKey}`);
+
+        if (!dataId || !sourceTable || !primaryKey) {
+            return res.status(400).json({
+                success: false,
+                error: 'dataId, sourceTable, and primaryKey are required for comprehensive comparison'
+            });
+        }
+
+        // Get API data
+        const apiDataResult = await apiFetcher.getAPIData(dataId);
+        if (!apiDataResult.success) {
+            return res.status(404).json({
+                success: false,
+                error: 'API data not found or expired',
+                details: apiDataResult.error
+            });
+        }
+
+        let jsonData = apiDataResult.data.result || apiDataResult.data;
+        if (!Array.isArray(jsonData)) {
+            jsonData = [jsonData];
+        }
+
+        console.log(`API data retrieved: ${jsonData.length} records`);
+
+        // Flatten the data same as JSON processing
+        const flattenedData = jsonData.map((record) => {
+            const flattened = {};
+
+            function flattenObject(obj, prefix = '') {
+                for (const [key, value] of Object.entries(obj)) {
+                    const newKey = prefix ? `${prefix}_${key}` : key;
+
+                    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+                        if (value.display_value || value.link || value.value) {
+                            if (value.display_value) {
+                                flattened[`${newKey}_display_value`] = String(value.display_value);
+                            }
+                            if (value.link) {
+                                flattened[`${newKey}_link`] = String(value.link);
+                            }
+                            if (value.value) {
+                                flattened[`${newKey}_value`] = String(value.value);
+                            }
+                        } else {
+                            if (prefix.split('_').length < 3) {
+                                flattenObject(value, newKey);
+                            } else {
+                                flattened[newKey] = JSON.stringify(value);
+                            }
+                        }
+                    } else if (Array.isArray(value)) {
+                        flattened[newKey] = JSON.stringify(value);
+                    } else {
+                        if (value === null || value === undefined) {
+                            flattened[newKey] = null;
+                        } else {
+                            flattened[newKey] = String(value);
+                        }
+                    }
+                }
+            }
+
+            flattenObject(record);
+            return flattened;
+        });
+
+        console.log(`Data flattened for BigQuery compatibility`);
+
+        // Create temp table from API data
+        const bqService = new BigQueryIntegrationService();
+        const tempTableResult = await bqService.createTempTableFromJSON(flattenedData, dataId, primaryKey);
+
+        if (!tempTableResult.success) {
+            throw new Error(`Failed to create temp table from API data: ${tempTableResult.error}`);
+        }
+
+        console.log(`Temp table created: ${tempTableResult.tempTableId}`);
+
+        // Run comprehensive comparison using the same engine as JSON vs BQ
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+
+        console.log(`Running comprehensive comparison...`);
+        const results = await comparisonEngine.compareJSONvsBigQuery(
+            tempTableResult.tempTableId,
+            sourceTable,
+            primaryKey,
+            comparisonFields,
+            'enhanced'
+        );
+
+        console.log(`API vs BQ comprehensive comparison completed successfully`);
+
+        // Add API-specific metadata
+        results.metadata = {
+            ...results.metadata,
+            dataSource: 'API',
+            apiUrl: apiDataResult.metadata?.url || 'unknown',
+            authType: apiDataResult.metadata?.authenticationUsed || 'unknown',
+            responseTime: apiDataResult.metadata?.duration || 0,
+            authenticationStatus: 'success'
+        };
+
+        // Update schema analysis to reflect API source
+        if (results.schemaAnalysis) {
+            results.schemaAnalysis.apiOnlyFields = results.schemaAnalysis.jsonOnlyFields;
+            delete results.schemaAnalysis.jsonOnlyFields;
+            results.schemaAnalysis.totalApiFields = results.schemaAnalysis.totalJsonFields;
+            delete results.schemaAnalysis.totalJsonFields;
+        }
+
+        // Update duplicates analysis to reflect API source
+        if (results.duplicatesAnalysis) {
+            results.duplicatesAnalysis.apiDuplicates = results.duplicatesAnalysis.jsonDuplicates;
+            delete results.duplicatesAnalysis.jsonDuplicates;
+        }
+
+        // Update record counts to reflect API source
+        if (results.recordCounts) {
+            results.recordCounts.apiDetails = results.recordCounts.jsonDetails;
+            delete results.recordCounts.jsonDetails;
+        }
+
+        results.success = true;
+        results.primaryKeyUsed = primaryKey;
+
+        res.json(results);
+
+    } catch (error) {
+        console.error('Comprehensive API vs BQ comparison failed:', error.message);
+
+        let errorMessage = error.message;
+        let suggestions = [
+            'Check that the primary key field exists in both API data and BigQuery table',
+            'Verify BigQuery table is accessible',
+            'Try using a different field that exists in both systems'
+        ];
+
+        if (error.message.includes('not available in both tables')) {
+            suggestions = [
+                'Choose a field that exists in both your API data and BigQuery table',
+                'Check the Column Names tab to see available common fields',
+                'API supports any data type - the issue is field name mismatch'
+            ];
+        }
+
+        res.status(500).json({
+            success: false,
+            error: errorMessage,
+            details: 'Comprehensive API vs BQ comparison failed',
+            suggestions: suggestions
+        });
+    }
+});
+
+// MISSING ENDPOINT 3: Create temp table from API data (simplified version)
+app.post('/api/create-temp-table-from-api', async (req, res) => {
+    try {
+        const { dataId, primaryKey } = req.body;
+
+        console.log(`Creating temp table from API data: ${dataId}`);
+
+        const apiDataResult = await apiFetcher.getAPIData(dataId);
+        if (!apiDataResult.success) {
+            return res.status(404).json({ success: false, error: 'API data not found' });
+        }
+
+        let jsonData = apiDataResult.data.result || apiDataResult.data;
+        if (!Array.isArray(jsonData)) jsonData = [jsonData];
+
+        const bqService = new BigQueryIntegrationService();
+        const result = await bqService.createTempTableFromJSON(jsonData, dataId, primaryKey);
+
+        res.json({
+            success: true,
+            tempTableId: result.tempTableId,
+            recordsUploaded: result.recordsInTable,
+            message: result.message
+        });
+
+    } catch (error) {
+        console.error('Create temp table from API failed:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 // Start server
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
