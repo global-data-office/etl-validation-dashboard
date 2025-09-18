@@ -1340,7 +1340,6 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
         });
     }
 });
-});
 app.post('/api/test-rdbms-connection', async (req, res) => {
     try {
         const { Client } = require('pg');
