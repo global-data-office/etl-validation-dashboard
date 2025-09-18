@@ -2042,39 +2042,37 @@
                 alert('File uploaded successfully (' + fileName + ') but preview failed. You can still proceed with comparison.');
             }
         }
-// ROBUST FIX: Display File Preview Function with Debugging
+// ENHANCED FILE PREVIEW FUNCTION - Replace the existing displayFilePreview function with this
 function displayFilePreview(preview, fileName) {
     try {
-        console.log('=== DEBUGGING PREVIEW OBJECT ===');
-        console.log('Full preview object:', preview);
-        console.log('Available fields:', preview.availableFields);
-        console.log('All fields list:', preview.allFieldsList);
-        console.log('ID fields:', preview.idFields);
-        console.log('Important fields:', preview.importantFields);
-        console.log('Sample records:', preview.sampleRecords);
+        console.log('=== DISPLAYING ENHANCED FILE PREVIEW ===');
+        console.log('Preview data:', preview);
+        console.log('File name:', fileName);
 
+        // Set file name in header
         const fileNameElement = document.getElementById('fileName');
         if (fileNameElement) {
             fileNameElement.textContent = fileName;
         }
 
+        // Enhanced file stats with better layout matching screenshot
         const fileStats = document.getElementById('file-stats');
         if (fileStats) {
             fileStats.innerHTML = `
                 <div class="stat-card">
-                    <div class="stat-number">${preview.totalRecords.toLocaleString()}</div>
+                    <div class="stat-number">${(preview.totalRecords || 0).toLocaleString()}</div>
                     <div class="stat-label">Total Records</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${preview.fieldsDetected}</div>
+                    <div class="stat-number">${preview.fieldsDetected || 0}</div>
                     <div class="stat-label">Fields Detected</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${formatFileSize(preview.fileSize)}</div>
+                    <div class="stat-number">${formatFileSize(preview.fileSize || 0)}</div>
                     <div class="stat-label">File Size</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${preview.format}</div>
+                    <div class="stat-number">${(preview.format || 'JSON').toUpperCase()}</div>
                     <div class="stat-label">Format</div>
                 </div>
             `;
@@ -2110,107 +2108,87 @@ function displayFilePreview(preview, fileName) {
             console.log('Strategy 4: Extracted from originalSample:', allFields);
         }
 
-        // Strategy 5: Manual extraction if fieldsDetected > 0 but no fields array
-        if (allFields.length === 0 && preview.fieldsDetected > 0) {
-            console.log('Strategy 5: Fields detected but no field arrays - this indicates a backend issue');
+        console.log(`Final extracted fields (${allFields.length}):`, allFields);
 
-            // Show helpful message for manual entry
-            const fieldSuggestions = document.getElementById('field-suggestions');
-            if (fieldSuggestions) {
+        // Enhanced field suggestions display matching screenshot
+        const fieldSuggestions = document.getElementById('field-suggestions');
+        if (fieldSuggestions) {
+            if (allFields.length === 0) {
+                // Fallback when no fields found
                 fieldSuggestions.innerHTML = `
                     <div style="color: #f39c12; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #f39c12;">
                         <h4 style="margin-bottom: 10px;">⚠️ Field Detection Issue</h4>
-                        <p><strong>Status:</strong> ${preview.fieldsDetected} fields detected but field list not available</p>
+                        <p><strong>Status:</strong> ${preview.fieldsDetected || 0} fields detected but field list not available</p>
                         <p><strong>Solution:</strong> Manually type your primary key field name in the input box above</p>
                         <p><strong>Example:</strong> If your JSON has an "id" or "account_id" field, type that exact field name</p>
-                        <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 4px;">
-                            <strong>Debug Info:</strong> Backend API needs to populate the availableFields array properly
-                        </div>
                     </div>
                 `;
-            }
+            } else {
+                // Extract ID fields and important fields with enhanced categorization
+                const idFields = preview.idFields || extractIdFields(allFields);
+                const importantFields = preview.importantFields || extractImportantFields(allFields, idFields);
 
-            const filePreview = document.getElementById('file-preview');
-            if (filePreview) {
-                filePreview.style.display = 'block';
-            }
+                let suggestionsHTML = '';
 
-            const startButton = document.getElementById('startComparison');
-            if (startButton) {
-                startButton.disabled = false;
-            }
-
-            return; // Exit early since we handled this case
-        }
-
-        console.log(`Final extracted fields (${allFields.length}):`, allFields);
-
-        // Use the existing categorization logic if we have fields
-        const idFields = preview.idFields || [];
-        const importantFields = preview.importantFields || [];
-
-        const fieldSuggestions = document.getElementById('field-suggestions');
-        if (fieldSuggestions) {
-            let suggestionsHTML = '';
-
-            if (idFields.length > 0) {
-                suggestionsHTML += '<div class="field-category-header first">🔑 ID/Key Fields (Recommended - Click to Use):</div>';
-                suggestionsHTML += '<div style="margin-bottom: 15px;">';
-                idFields.forEach(field => {
-                    suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
-                });
-                suggestionsHTML += '</div>';
-            }
-
-            if (importantFields.length > 0) {
-                suggestionsHTML += '<div class="field-category-header">📋 Other Important Fields (Click to Use):</div>';
-                suggestionsHTML += '<div style="margin-bottom: 15px;">';
-                importantFields.forEach(field => {
-                    suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
-                });
-                suggestionsHTML += '</div>';
-            }
-
-            // CRITICAL FIX: Always show all extracted fields if no categorization worked
-            if (idFields.length === 0 && importantFields.length === 0 && allFields.length > 0) {
-                suggestionsHTML += '<div class="field-category-header first">📋 All Available Fields (Click to Use):</div>';
-                suggestionsHTML += '<div>';
-                allFields.forEach(field => {
-                    suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
-                });
-                suggestionsHTML += '</div>';
-            }
-
-            // Final fallback for when no fields are found anywhere
-            if (suggestionsHTML === '') {
-                suggestionsHTML = `
-                    <div style="color: #e74c3c; padding: 15px; background: #fef2f2; border-radius: 8px; border-left: 4px solid #e74c3c;">
-                        <h4 style="margin-bottom: 10px;">❌ No Fields Available</h4>
-                        <p><strong>Issue:</strong> Cannot extract field names from JSON file</p>
-                        <p><strong>Fields Detected:</strong> ${preview.fieldsDetected}</p>
-                        <p><strong>Solution:</strong> Manually type your primary key field name in the input box above</p>
-                        <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
-                            Debug: availableFields=${preview.availableFields ? 'exists' : 'missing'},
-                            allFieldsList=${preview.allFieldsList ? 'exists' : 'missing'},
-                            sampleRecords=${preview.sampleRecords ? 'exists' : 'missing'}
+                // ID/Key Fields Section (matching screenshot style)
+                if (idFields.length > 0) {
+                    suggestionsHTML += `
+                        <div class="field-category-header first">
+                            🔑 ID/Key Fields (Recommended - Click to Use):
                         </div>
-                    </div>
-                `;
-            }
+                        <div style="margin-bottom: 15px;">
+                    `;
+                    idFields.forEach(field => {
+                        suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                    });
+                    suggestionsHTML += '</div>';
+                }
 
-            console.log('Field suggestions HTML generated successfully');
-            fieldSuggestions.innerHTML = suggestionsHTML;
+                // Other Important Fields Section (matching screenshot style)
+                if (importantFields.length > 0) {
+                    suggestionsHTML += `
+                        <div class="field-category-header">
+                            📋 Other Important Fields (Click to Use):
+                        </div>
+                        <div>
+                    `;
+                    importantFields.forEach(field => {
+                        suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                    });
+                    suggestionsHTML += '</div>';
+                }
+
+                // Show all fields as fallback if no categorization worked
+                if (suggestionsHTML === '') {
+                    suggestionsHTML = `
+                        <div class="field-category-header first">
+                            📋 All Available Fields (Click to Use):
+                        </div>
+                        <div>
+                    `;
+                    allFields.forEach(field => {
+                        suggestionsHTML += `<span class="clickable-field" onclick="setAsPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                    });
+                    suggestionsHTML += '</div>';
+                }
+
+                fieldSuggestions.innerHTML = suggestionsHTML;
+            }
         }
 
+        // Show the preview section
         const filePreview = document.getElementById('file-preview');
         if (filePreview) {
             filePreview.style.display = 'block';
         }
 
+        // Enable the start comparison button
         const startButton = document.getElementById('startComparison');
         if (startButton) {
             startButton.disabled = false;
         }
+
+        console.log('Enhanced file preview displayed successfully');
 
     } catch (error) {
         console.error('Error in displayFilePreview:', error);
@@ -2229,6 +2207,20 @@ function displayFilePreview(preview, fileName) {
 
         alert('File uploaded successfully (' + fileName + ') but preview display failed. You can still proceed with comparison.');
     }
+}
+
+// HELPER FUNCTIONS FOR ENHANCED FIELD CATEGORIZATION
+function extractIdFields(allFields) {
+    const idPatterns = /^(id|_id|sys_id|account_id|user_id|customer_id|record_id|unique_id|guid|uuid|pk|primary_key)$/i;
+    return allFields.filter(field => idPatterns.test(field));
+}
+
+function extractImportantFields(allFields, idFields) {
+    const importantPatterns = /^(name|title|email|username|code|number|status|type|category|description|settings\.|legacy_|active|enabled).*$/i;
+    return allFields.filter(field =>
+        !idFields.includes(field) &&
+        (importantPatterns.test(field) || field.includes('.') || field.includes('_'))
+    ).slice(0, 10); // Limit to top 10 important fields
 }
 
         function formatFileSize(bytes) {
@@ -3091,8 +3083,7 @@ function displayFilePreview(preview, fileName) {
             }
         }
 
-
-// Enhanced API field analysis with sample records
+// DIRECT API FIELD ANALYSIS DISPLAY - Replace populateApiFieldWiseTab function
 function populateApiFieldWiseTab(fieldWiseAnalysis, summary) {
     if (!fieldWiseAnalysis || !fieldWiseAnalysis.fieldComparison) {
         const fieldWiseSummary = document.getElementById('api-field-wise-summary');
@@ -3145,7 +3136,7 @@ function populateApiFieldWiseTab(fieldWiseAnalysis, summary) {
         let detailHTML = `
             <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
                 <h4 style="color: #2c3e50; margin-bottom: 10px;">🔬 API Field-by-Field Analysis with Sample Records</h4>
-                <p>Detailed comparison of ${totalFields} common columns for ${recordsAnalyzed} matched records from API data. Click "View Sample Records" to see actual data matches and mismatches.</p>
+                <p>Detailed comparison of ${totalFields} common columns for ${recordsAnalyzed} matched records. Sample data matches and mismatches are displayed directly below each field.</p>
             </div>
             <div class="field-comparison-grid">
         `;
@@ -3180,7 +3171,7 @@ function populateApiFieldWiseTab(fieldWiseAnalysis, summary) {
                         </div>
                     </div>
 
-                    ${generateSampleRecordsDisplay(field, 'API')}
+                    ${generateDirectSampleRecordsDisplay(field, 'API')}
                 </div>
             `;
         });
@@ -3190,6 +3181,7 @@ function populateApiFieldWiseTab(fieldWiseAnalysis, summary) {
     }
 }
 
+// ENHANCED SAMPLE RECORDS DISPLAY - Replace the existing generateSampleRecordsDisplay function
 function generateSampleRecordsDisplay(field, sourceType) {
     if (!field.allComparisons || field.allComparisons.length === 0) {
         return `
@@ -3199,8 +3191,8 @@ function generateSampleRecordsDisplay(field, sourceType) {
         `;
     }
 
-    const matches = field.allComparisons.filter(r => r.comparison_result === 'MATCH').slice(0, 3);
-    const differs = field.allComparisons.filter(r => r.comparison_result === 'DIFFER').slice(0, 3);
+    const matches = field.allComparisons.filter(r => r.comparison_result === 'MATCH').slice(0, 5);
+    const differs = field.allComparisons.filter(r => r.comparison_result === 'DIFFER').slice(0, 5);
     const fieldId = field.fieldName.replace(/[^a-zA-Z0-9]/g, '_');
 
     let sampleHTML = `
@@ -3213,38 +3205,49 @@ function generateSampleRecordsDisplay(field, sourceType) {
                 📊 View Sample Records (${field.allComparisons.length})
             </button>
 
-            <div id="samples_${fieldId}" style="display: none; margin-top: 10px;">
+            <div id="samples_${fieldId}" style="display: none; margin-top: 15px;">
     `;
 
-    // Show matched records
-    if (matches.length > 0) {
+    // Enhanced Sample Data Comparison Table (matching screenshot)
+    if (matches.length > 0 || differs.length > 0) {
+        const allSamples = [...matches, ...differs].slice(0, 8); // Show up to 8 total records
+
         sampleHTML += `
-            <div style="margin-bottom: 15px; background: #f8fff8; border-radius: 8px; padding: 15px; border-left: 4px solid #27ae60;">
-                <h6 style="color: #27ae60; margin-bottom: 12px; font-size: 0.9rem; font-weight: 600;">✅ Perfect Matches (${matches.length} of ${field.perfectMatches})</h6>
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; font-size: 0.75rem; border-collapse: collapse; background: white; border-radius: 6px; overflow: hidden;">
+            <div style="background: #f8fff8; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                <h4 style="color: #2c3e50; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    📊 Sample Data Comparison
+                </h4>
+                <div style="overflow-x: auto; background: white; border-radius: 8px; border: 1px solid #e9ecef;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
                         <thead>
-                            <tr style="background: #c3e6cb;">
-                                <th style="padding: 10px; font-weight: 600; color: #155724; border-bottom: 1px solid #b8dacc;">Primary Key</th>
-                                <th style="padding: 10px; font-weight: 600; color: #155724; border-bottom: 1px solid #b8dacc;">${sourceType} Value</th>
-                                <th style="padding: 10px; font-weight: 600; color: #155724; border-bottom: 1px solid #b8dacc;">BigQuery Value</th>
-                                <th style="padding: 10px; font-weight: 600; color: #155724; border-bottom: 1px solid #b8dacc; text-align: center;">Status</th>
+                            <tr style="background: #f8f9fa;">
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6;">RECORD KEY</th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6;">${sourceType.toUpperCase()} VALUE</th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6;">BIGQUERY VALUE</th>
+                                <th style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6;">STATUS</th>
                             </tr>
                         </thead>
                         <tbody>
         `;
 
-        matches.forEach((record, index) => {
+        allSamples.forEach((record, index) => {
             const jsonValue = record.json_value || 'NULL';
             const bqValue = record.bq_value || 'NULL';
             const keyValue = record.record_key || 'Unknown';
+            const isMatch = record.comparison_result === 'MATCH';
+            const rowColor = index % 2 === 0 ? '#ffffff' : '#f8f9fa';
 
             sampleHTML += `
-                <tr style="background: ${index % 2 === 0 ? '#f8fff8' : 'white'};">
-                    <td style="padding: 8px; font-family: monospace; font-size: 0.7rem; color: #2c3e50; font-weight: 600;">${keyValue}</td>
-                    <td style="padding: 8px; font-family: monospace; color: #155724; background: #d4edda;">${jsonValue}</td>
-                    <td style="padding: 8px; font-family: monospace; color: #155724; background: #d4edda;">${bqValue}</td>
-                    <td style="padding: 8px; text-align: center;"><span style="color: #27ae60; font-weight: 600; background: #d4edda; padding: 4px 8px; border-radius: 12px; font-size: 0.7rem;">✓ MATCH</span></td>
+                <tr style="background: ${rowColor};">
+                    <td style="padding: 10px 12px; font-family: monospace; font-size: 0.8rem; color: #2c3e50; font-weight: 600; border-bottom: 1px solid #e9ecef;">${keyValue}</td>
+                    <td style="padding: 10px 12px; font-family: monospace; font-size: 0.8rem; color: ${isMatch ? '#155724' : '#721c24'}; border-bottom: 1px solid #e9ecef;">${jsonValue}</td>
+                    <td style="padding: 10px 12px; font-family: monospace; font-size: 0.8rem; color: ${isMatch ? '#155724' : '#721c24'}; border-bottom: 1px solid #e9ecef;">${bqValue}</td>
+                    <td style="padding: 10px 12px; text-align: center; border-bottom: 1px solid #e9ecef;">
+                        ${isMatch ?
+                            '<span style="color: #27ae60; font-weight: 600; background: #d4edda; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem;">✅ MATCH</span>' :
+                            '<span style="color: #e74c3c; font-weight: 600; background: #f8d7da; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem;">❌ DIFFER</span>'
+                        }
+                    </td>
                 </tr>
             `;
         });
@@ -3257,53 +3260,38 @@ function generateSampleRecordsDisplay(field, sourceType) {
         `;
     }
 
-    // Show mismatched records
+    // Enhanced Sample Differences Found Section (matching screenshot)
     if (differs.length > 0) {
         sampleHTML += `
-            <div style="margin-bottom: 15px; background: #fff8f8; border-radius: 8px; padding: 15px; border-left: 4px solid #e74c3c;">
-                <h6 style="color: #e74c3c; margin-bottom: 12px; font-size: 0.9rem; font-weight: 600;">❌ Data Mismatches (${differs.length} of ${field.differences})</h6>
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; font-size: 0.75rem; border-collapse: collapse; background: white; border-radius: 6px; overflow: hidden;">
-                        <thead>
-                            <tr style="background: #f5c6cb;">
-                                <th style="padding: 10px; font-weight: 600; color: #721c24; border-bottom: 1px solid #f1b0b7;">Primary Key</th>
-                                <th style="padding: 10px; font-weight: 600; color: #721c24; border-bottom: 1px solid #f1b0b7;">${sourceType} Value</th>
-                                <th style="padding: 10px; font-weight: 600; color: #721c24; border-bottom: 1px solid #f1b0b7;">BigQuery Value</th>
-                                <th style="padding: 10px; font-weight: 600; color: #721c24; border-bottom: 1px solid #f1b0b7; text-align: center;">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+            <div style="background: #fff8e1; border-radius: 12px; padding: 20px; margin-bottom: 15px; border-left: 4px solid #ff9800;">
+                <h4 style="color: #e65100; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    ⚠️ Sample Differences Found
+                </h4>
         `;
 
-        differs.forEach((record, index) => {
+        differs.slice(0, 3).forEach((record, index) => {
             const jsonValue = record.json_value || 'NULL';
             const bqValue = record.bq_value || 'NULL';
             const keyValue = record.record_key || 'Unknown';
 
             sampleHTML += `
-                <tr style="background: ${index % 2 === 0 ? '#fff8f8' : 'white'};">
-                    <td style="padding: 8px; font-family: monospace; font-size: 0.7rem; color: #2c3e50; font-weight: 600;">${keyValue}</td>
-                    <td style="padding: 8px; font-family: monospace; color: #721c24; background: #f8d7da; font-weight: 600;">${jsonValue}</td>
-                    <td style="padding: 8px; font-family: monospace; color: #721c24; background: #f8d7da; font-weight: 600;">${bqValue}</td>
-                    <td style="padding: 8px; text-align: center;"><span style="color: #e74c3c; font-weight: 600; background: #f8d7da; padding: 4px 8px; border-radius: 12px; font-size: 0.7rem;">✗ DIFFER</span></td>
-                </tr>
+                <div style="background: #fff3e0; border: 1px solid #ffcc02; border-radius: 8px; padding: 15px; margin-bottom: ${index < differs.slice(0, 3).length - 1 ? '12px' : '0'}; font-family: monospace; font-size: 0.85rem;">
+                    <div style="margin-bottom: 8px;"><strong style="color: #e65100;">Key:</strong> <span style="color: #2c3e50;">${keyValue}</span></div>
+                    <div style="margin-bottom: 8px;"><strong style="color: #e65100;">${sourceType}:</strong> <span style="color: #d84315;">${jsonValue}</span></div>
+                    <div><strong style="color: #e65100;">BigQuery:</strong> <span style="color: #d84315;">${bqValue}</span></div>
+                </div>
             `;
         });
 
-        sampleHTML += `
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
+        sampleHTML += `</div>`;
     }
 
     // Perfect field celebration
     if (field.differences === 0 && field.perfectMatches > 0) {
         sampleHTML += `
-            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-radius: 8px; color: #155724; font-weight: 600; margin: 10px 0; border: 2px solid #27ae60;">
+            <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-radius: 12px; color: #1b5e20; font-weight: 600; margin: 15px 0; border: 2px solid #4caf50;">
                 🎉 Perfect Field Quality - All ${field.totalRecords} records match exactly!
-                <div style="font-size: 0.8rem; margin-top: 5px; font-weight: normal; opacity: 0.9;">100% data integrity between ${sourceType} and BigQuery</div>
+                <div style="font-size: 0.85rem; margin-top: 8px; font-weight: normal; opacity: 0.9;">100% data integrity between ${sourceType} and BigQuery</div>
             </div>
         `;
     }
@@ -3315,7 +3303,6 @@ function generateSampleRecordsDisplay(field, sourceType) {
 
     return sampleHTML;
 }
-
 // FIXED Toggle function for sample records
 function toggleSampleRecords(fieldId, buttonElement) {
     const samplesDiv = document.getElementById(`samples_${fieldId}`);
@@ -3759,8 +3746,7 @@ function toggleSampleRecords(fieldId, buttonElement) {
                 `;
             }
         }
-
-       function populateFieldWiseTabComplete(fieldWiseAnalysis, summary) {
+function populateFieldWiseTabComplete(fieldWiseAnalysis, summary) {
     if (!fieldWiseAnalysis || !fieldWiseAnalysis.fieldComparison) {
         const fieldWiseSummary = document.getElementById('field-wise-summary');
         if (fieldWiseSummary) {
@@ -3812,7 +3798,7 @@ function toggleSampleRecords(fieldId, buttonElement) {
         let detailHTML = `
             <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
                 <h4 style="color: #2c3e50; margin-bottom: 10px;">🔬 JSON Field-by-Field Analysis with Sample Records</h4>
-                <p>Detailed comparison of ${totalFields} common columns for ${recordsAnalyzed} matched records. Click "View Sample Records" to see actual data matches and mismatches.</p>
+                <p>Detailed comparison of ${totalFields} common columns for ${recordsAnalyzed} matched records. Sample data matches and mismatches are displayed directly below each field.</p>
             </div>
             <div class="field-comparison-grid">
         `;
@@ -3847,7 +3833,7 @@ function toggleSampleRecords(fieldId, buttonElement) {
                         </div>
                     </div>
 
-                    ${generateSampleRecordsDisplay(field, 'JSON')}
+                    ${generateDirectSampleRecordsDisplay(field, 'JSON')}
                 </div>
             `;
         });
@@ -3856,7 +3842,111 @@ function toggleSampleRecords(fieldId, buttonElement) {
         fieldWiseDetails.innerHTML = detailHTML;
     }
 }
+function generateDirectSampleRecordsDisplay(field, sourceType) {
+    if (!field.allComparisons || field.allComparisons.length === 0) {
+        return `
+            <div style="margin-top: 15px; padding: 12px; background: #f8f9fa; border-radius: 6px; text-align: center; color: #6c757d; font-style: italic; border: 2px dashed #dee2e6;">
+                📋 No sample records available for this field
+            </div>
+        `;
+    }
 
+    const matches = field.allComparisons.filter(r => r.comparison_result === 'MATCH').slice(0, 5);
+    const differs = field.allComparisons.filter(r => r.comparison_result === 'DIFFER').slice(0, 5);
+
+    let sampleHTML = `<div style="margin-top: 15px;">`;
+
+    // Always show Sample Data Comparison Table
+    if (matches.length > 0 || differs.length > 0) {
+        const allSamples = [...matches, ...differs].slice(0, 10); // Show up to 10 total records
+
+        sampleHTML += `
+            <div style="background: #f8fff8; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                <h4 style="color: #2c3e50; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    📊 Sample Data Comparison
+                </h4>
+                <div style="overflow-x: auto; background: white; border-radius: 8px; border: 1px solid #e9ecef;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                        <thead>
+                            <tr style="background: #f8f9fa;">
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6;">RECORD KEY</th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6;">${sourceType.toUpperCase()} VALUE</th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6;">BIGQUERY VALUE</th>
+                                <th style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6;">STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+
+        allSamples.forEach((record, index) => {
+            const jsonValue = record.json_value || 'NULL';
+            const bqValue = record.bq_value || 'NULL';
+            const keyValue = record.record_key || 'Unknown';
+            const isMatch = record.comparison_result === 'MATCH';
+            const rowColor = index % 2 === 0 ? '#ffffff' : '#f8f9fa';
+
+            sampleHTML += `
+                <tr style="background: ${rowColor};">
+                    <td style="padding: 10px 12px; font-family: monospace; font-size: 0.8rem; color: #2c3e50; font-weight: 600; border-bottom: 1px solid #e9ecef;">${keyValue}</td>
+                    <td style="padding: 10px 12px; font-family: monospace; font-size: 0.8rem; color: ${isMatch ? '#155724' : '#721c24'}; border-bottom: 1px solid #e9ecef;">${jsonValue}</td>
+                    <td style="padding: 10px 12px; font-family: monospace; font-size: 0.8rem; color: ${isMatch ? '#155724' : '#721c24'}; border-bottom: 1px solid #e9ecef;">${bqValue}</td>
+                    <td style="padding: 10px 12px; text-align: center; border-bottom: 1px solid #e9ecef;">
+                        ${isMatch ?
+                            '<span style="color: #27ae60; font-weight: 600; background: #d4edda; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem;">✅ MATCH</span>' :
+                            '<span style="color: #e74c3c; font-weight: 600; background: #f8d7da; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem;">❌ DIFFER</span>'
+                        }
+                    </td>
+                </tr>
+            `;
+        });
+
+        sampleHTML += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    // Always show Sample Differences Found section if there are differences
+    if (differs.length > 0) {
+        sampleHTML += `
+            <div style="background: #fff8e1; border-radius: 12px; padding: 20px; margin-bottom: 15px; border-left: 4px solid #ff9800;">
+                <h4 style="color: #e65100; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    ⚠️ Sample Differences Found
+                </h4>
+        `;
+
+        differs.slice(0, 3).forEach((record, index) => {
+            const jsonValue = record.json_value || 'NULL';
+            const bqValue = record.bq_value || 'NULL';
+            const keyValue = record.record_key || 'Unknown';
+
+            sampleHTML += `
+                <div style="background: #fff3e0; border: 1px solid #ffcc02; border-radius: 8px; padding: 15px; margin-bottom: ${index < differs.slice(0, 3).length - 1 ? '12px' : '0'}; font-family: monospace; font-size: 0.85rem;">
+                    <div style="margin-bottom: 8px;"><strong style="color: #e65100;">Key:</strong> <span style="color: #2c3e50;">${keyValue}</span></div>
+                    <div style="margin-bottom: 8px;"><strong style="color: #e65100;">${sourceType}:</strong> <span style="color: #d84315;">${jsonValue}</span></div>
+                    <div><strong style="color: #e65100;">BigQuery:</strong> <span style="color: #d84315;">${bqValue}</span></div>
+                </div>
+            `;
+        });
+
+        sampleHTML += `</div>`;
+    }
+
+    // Perfect field celebration
+    if (field.differences === 0 && field.perfectMatches > 0) {
+        sampleHTML += `
+            <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-radius: 12px; color: #1b5e20; font-weight: 600; margin: 15px 0; border: 2px solid #4caf50;">
+                🎉 Perfect Field Quality - All ${field.totalRecords} records match exactly!
+                <div style="font-size: 0.85rem; margin-top: 8px; font-weight: normal; opacity: 0.9;">100% data integrity between ${sourceType} and BigQuery</div>
+            </div>
+        `;
+    }
+
+    sampleHTML += `</div>`;
+    return sampleHTML;
+}
         function populateDuplicatesTabEnhanced(duplicatesAnalysis, summary) {
             if (!duplicatesAnalysis) {
                 const duplicatesSummary = document.getElementById('duplicates-summary');
