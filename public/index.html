@@ -1715,7 +1715,7 @@
                     <small class="field-notice info">Enter the MySQL table to validate</small>
                 </div>
                 
-                <button class="btn-secondary" id="testMySQLConnection" onclick="testDatabaseConnection('mysql')" style="width: 100%; margin-bottom: 15px;">
+                <button class="btn-secondary" id="testMysqlConnection" onclick="testDatabaseConnection('mysql')" style="width: 100%; margin-bottom: 15px;">
                     🔍 Test MySQL Connection
                 </button>
                 
@@ -1881,7 +1881,7 @@
                     <small class="field-notice info">Enter the SQL Server table to validate (include schema)</small>
                 </div>
                 
-                <button class="btn-secondary" id="testSQLServerConnection" onclick="testDatabaseConnection('sqlserver')" style="width: 100%; margin-bottom: 15px;">
+                <button class="btn-secondary" id="testSqlserverConnection" onclick="testDatabaseConnection('sqlserver')" style="width: 100%; margin-bottom: 15px;">
                     🔍 Test SQL Server Connection
                 </button>
                 
@@ -3473,7 +3473,17 @@ function showRDBMSTab(dbType) {
 async function testDatabaseConnection(dbType) {
     const button = document.getElementById(`test${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Connection`);
     const statusDiv = document.getElementById(`${dbType}-connection-status`);
-    const originalText = button.innerHTML;
+    console.log('Button:', button);
+console.log('StatusDiv:', statusDiv);
+if (!button) {
+    console.error('Button not found for dbType:', dbType);
+    return;
+}
+if (!statusDiv) {
+    console.error('StatusDiv not found for dbType:', dbType);
+    return;
+}
+const originalText = button.innerHTML;
     
     try {
         button.disabled = true;
