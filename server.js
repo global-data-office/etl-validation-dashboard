@@ -1290,7 +1290,6 @@ app.post('/api/compare-rdbms-vs-bq', async (req, res) => {
         });
     }
 });
-
 app.post('/api/get-rdbms-schema', async (req, res) => {
     try {
         const { dbType, host, port, database, username, password, serviceName, table } = req.body;
@@ -1302,9 +1301,7 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
                 details: 'dbType, host, username, password, and table are required'
             });
         }
-
         console.log(`Getting schema for ${dbType} table: ${table}`);
-
         const rdbmsService = new RDBMSIntegrationService();
         
         const config = {
@@ -1315,7 +1312,6 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
             password,
             serviceName
         };
-
         const tableInfo = await rdbmsService.getTableInfo(dbType, config, table);
         
         res.json({
@@ -1323,7 +1319,6 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
             tableInfo: tableInfo,
             message: `Schema retrieved for ${dbType} table: ${table}`
         });
-
     } catch (error) {
         console.error('RDBMS schema retrieval failed:', error.message);
         
@@ -1339,50 +1334,11 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
             ]
         });
     }
-});
-app.post('/api/test-rdbms-connection', async (req, res) => {
-    try {
-        const { Client } = require('pg');
-        const { host, port, database, username, password } = req.body;
-        
-        const client = new Client({
-            host: host,
-            port: parseInt(port) || 5432,
-            database: database,
-            user: username,
-            password: password,
-            connectionTimeoutMillis: 10000,
-            ssl: { rejectUnauthorized: false }
-        });
-        
-        await client.connect();
-        
-        // Test with a simple query
-        const result = await client.query('SELECT 1 as connection_test');
-        
-        await client.end();
-        
-        res.json({ 
-            success: true, 
-            message: 'PostgreSQL connection successful',
-            data: result.rows 
-        });
-        
-    } catch (error) {
-        console.error('PostgreSQL connection error:', error);
-        res.json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-// Serve the dashboard HTML file (this is line 1095 in your file)
-app.get('/', (req, res) => {
-// Serve the dashboard HTML file (this is line 1095 in your file)
+})
+// Serve the dashboard HTML file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
 // Start server
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
