@@ -1995,10 +1995,13 @@
         statusDiv.style.border = '1px solid #ffeaa7';
         
         // Make API call to test connection
-        const response = await fetch('/api/test-postgres-connection', {
+        const response = await fetch('/api/test-rdbms-connection', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(connectionData)
+            body: JSON.stringify({
+        dbType: 'postgresql',
+        ...connectionData
+		})
         });
         
         const result = await response.json();
@@ -2031,6 +2034,104 @@
         button.innerHTML = originalText;
     }
 }
+async function testDatabaseConnection(dbType) {
+    const button = document.getElementById(`test${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Connection`);
+    const statusDiv = document.getElementById(`${dbType}-connection-status`);
+    const originalText = button.innerHTML;
+    
+    // Get connection data based on database type
+    let connectionData = {};
+    
+    switch(dbType) {
+        case 'mysql':
+            connectionData = {
+                host: document.getElementById('mysql-host').value.trim(),
+                port: document.getElementById('mysql-port').value.trim(),
+                database: document.getElementById('mysql-database').value.trim(),
+                username: document.getElementById('mysql-username').value.trim(),
+                password: document.getElementById('mysql-password').value.trim()
+            };
+            break;
+        case 'oracle':
+            connectionData = {
+                host: document.getElementById('oracle-host').value.trim(),
+                port: document.getElementById('oracle-port').value.trim(),
+                serviceName: document.getElementById('oracle-service').value.trim(),
+                username: document.getElementById('oracle-username').value.trim(),
+                password: document.getElementById('oracle-password').value.trim()
+            };
+            break;
+        case 'sqlserver':
+            connectionData = {
+                host: document.getElementById('sqlserver-host').value.trim(),
+                port: document.getElementById('sqlserver-port').value.trim(),
+                database: document.getElementById('sqlserver-database').value.trim(),
+                username: document.getElementById('sqlserver-username').value.trim(),
+                password: document.getElementById('sqlserver-password').value.trim()
+            };
+            break;
+    }
+    
+    try {
+        button.disabled = true;
+        button.innerHTML = '🔄 Testing Connection...';
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = `Testing ${dbType} connection...`;
+        statusDiv.style.background = '#fff3cd';
+        statusDiv.style.color = '#856404';
+        
+        const response = await fetch('/api/test-rdbms-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dbType: dbType,
+                ...connectionData
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `✅ ${dbType.toUpperCase()} connection successful!`;
+            statusDiv.style.background = '#d4edda';
+            statusDiv.style.color = '#155724';
+        } else {
+            throw new Error(result.error || 'Connection failed');
+        }
+        
+    } catch (error) {
+        statusDiv.innerHTML = `❌ Connection failed: ${error.message}`;
+        statusDiv.style.background = '#f8d7da';
+        statusDiv.style.color = '#721c24';
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+function showRDBMSTab(dbType) {
+    // Hide all RDBMS tabs
+    const rdbmsTabs = document.querySelectorAll('[id$="-rdbms-tab"]');
+    rdbmsTabs.forEach(tab => tab.classList.remove('active'));
+
+    // Remove active class from all tab buttons
+    const tabButtons = document.querySelectorAll('#rdbms-comparison-page .results-tab-button');
+    tabButtons.forEach(button => button.classList.remove('active'));
+
+    // Show selected tab
+    const selectedTab = document.getElementById(dbType + '-rdbms-tab');
+    if (selectedTab) selectedTab.classList.add('active');
+
+    // Mark active button
+    const activeButton = event?.target?.closest('.results-tab-button');
+    if (activeButton) activeButton.classList.add('active');
+}
+
+function startRDBMSComparison(dbType) {
+    alert(`${dbType.toUpperCase()} vs BigQuery comparison will be available after deployment`);
+}
+        // Original PostgreSQL connection code continues here...
+        const { Client } = require('pg');
+        // ... rest of your existing code
         // Excel Export with 6 Professional Sheets
         function exportResultsToExcel() {
             if (!globalComparisonResults) {
