@@ -1549,18 +1549,313 @@
                 <h2><span class="tab-icon">🔗</span> API vs BigQuery Comparison</h2>
                 <p>Real-time API data validation and synchronization with BigQuery tables</p>
             </div>
+<!-- Replace the coming-soon-section with this API configuration interface -->
+<div class="upload-section">
+    <div class="upload-container">
+        <div class="comparison-options">
+            <h3 style="margin-bottom: 20px; color: #2c3e50;">🔗 API Configuration</h3>
 
-            <div class="coming-soon-section">
-                <div class="coming-soon-icon">🔗</div>
-                <div class="coming-soon-title">API vs BigQuery Comparison</div>
-                <div class="coming-soon-description">
-                    Compare live API responses with your BigQuery tables to ensure data pipeline integrity.
+            <!-- API Connection Settings -->
+            <div class="form-group">
+                <label for="api-url">API URL *</label>
+                <input type="url" id="api-url" placeholder="https://api.example.com/data" required>
+                <small class="help-text">Enter the complete API endpoint URL</small>
+            </div>
+
+            <!-- Authentication Method -->
+            <div class="form-group">
+                <label for="auth-type">Authentication Type</label>
+                <select id="auth-type" onchange="toggleAuthFields()">
+                    <option value="none">None</option>
+                    <option value="basic">Basic Auth</option>
+                    <option value="bearer">Bearer Token</option>
+                    <option value="api-key">API Key</option>
+                </select>
+            </div>
+
+            <!-- Authentication Fields (shown/hidden based on selection) -->
+            <div id="basic-auth-fields" class="auth-fields" style="display: none;">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter username">
                 </div>
-                <button class="btn-primary" style="margin-top: 30px;" onclick="alert('API vs BQ comparison feature is currently under development.')">
-                    🔔 Notify Me When Available
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter password">
+                </div>
+            </div>
+
+            <div id="bearer-auth-fields" class="auth-fields" style="display: none;">
+                <div class="form-group">
+                    <label for="bearer-token">Bearer Token</label>
+                    <input type="password" id="bearer-token" placeholder="Enter bearer token">
+                </div>
+            </div>
+
+            <div id="api-key-fields" class="auth-fields" style="display: none;">
+                <div class="form-group">
+                    <label for="api-key-header">API Key Header Name</label>
+                    <input type="text" id="api-key-header" placeholder="X-API-Key" value="X-API-Key">
+                </div>
+                <div class="form-group">
+                    <label for="api-key-value">API Key Value</label>
+                    <input type="password" id="api-key-value" placeholder="Enter API key">
+                </div>
+            </div>
+
+            <!-- HTTP Method -->
+            <div class="form-group">
+                <label for="http-method">HTTP Method</label>
+                <select id="http-method">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                </select>
+            </div>
+
+            <!-- Custom Headers -->
+            <div class="form-group">
+                <label for="custom-headers">Custom Headers (JSON format)</label>
+                <textarea id="custom-headers" placeholder='{"Content-Type": "application/json"}'></textarea>
+                <small class="help-text">Optional: Enter custom headers in JSON format</small>
+            </div>
+
+            <!-- Test API Connection -->
+            <div class="form-group">
+                <button type="button" class="btn-secondary" onclick="testAPIConnection()">
+                    🔍 Test API Connection
+                </button>
+            </div>
+
+            <!-- API Connection Status -->
+            <div id="api-connection-status" class="status-message" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- BigQuery Configuration -->
+    <div class="upload-container" style="margin-top: 20px;">
+        <div class="comparison-options">
+            <h3 style="margin-bottom: 20px; color: #2c3e50;">📊 BigQuery Configuration</h3>
+
+            <div class="form-group">
+                <label for="api-bq-table">BigQuery Table *</label>
+                <input type="text" id="api-bq-table" placeholder="project.dataset.table_name" required>
+                <small class="help-text">Format: project.dataset.table</small>
+            </div>
+
+            <div class="form-group">
+                <label for="api-primary-key">Primary Key Field *</label>
+                <input type="text" id="api-primary-key" placeholder="id" required>
+                <small class="help-text">Field name that exists in both API response and BigQuery table</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="upload-container" style="margin-top: 20px;">
+        <div class="comparison-options">
+            <h3 style="margin-bottom: 20px; color: #2c3e50;">⚡ Actions</h3>
+
+            <div class="button-group">
+                <button type="button" class="btn-primary" onclick="fetchAPIData()">
+                    📥 Fetch API Data
+                </button>
+                <button type="button" class="btn-primary" onclick="runAPIComparison()" disabled id="compare-btn">
+                    🔄 Compare API vs BigQuery
                 </button>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Processing Status -->
+<div id="api-processing" class="processing-status" style="display: none;">
+    <div class="spinner"></div>
+    <div class="processing-text">Processing API comparison...</div>
+    <div class="processing-subtext">This may take a few moments</div>
+</div>
+
+<!-- Results Section -->
+<div id="api-results" class="results-section" style="display: none;">
+    <div class="results-header">
+        <h3>API vs BigQuery Comparison Results</h3>
+    </div>
+    <div id="api-results-content"></div>
+</div>
+
+<script>
+// Toggle authentication fields based on selected type
+function toggleAuthFields() {
+    const authType = document.getElementById('auth-type').value;
+    const authFields = document.querySelectorAll('.auth-fields');
+
+    // Hide all auth fields first
+    authFields.forEach(field => field.style.display = 'none');
+
+    // Show relevant auth fields
+    if (authType === 'basic') {
+        document.getElementById('basic-auth-fields').style.display = 'block';
+    } else if (authType === 'bearer') {
+        document.getElementById('bearer-auth-fields').style.display = 'block';
+    } else if (authType === 'api-key') {
+        document.getElementById('api-key-fields').style.display = 'block';
+    }
+}
+
+// Test API connection
+async function testAPIConnection() {
+    const statusDiv = document.getElementById('api-connection-status');
+    const url = document.getElementById('api-url').value;
+    const authType = document.getElementById('auth-type').value;
+
+    if (!url) {
+        showStatus(statusDiv, 'Please enter an API URL', 'error');
+        return;
+    }
+
+    showStatus(statusDiv, 'Testing connection...', 'info');
+
+    try {
+        const response = await fetch('/api/test-api-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: url,
+                method: document.getElementById('http-method').value,
+                authType: authType,
+                username: document.getElementById('username')?.value,
+                password: document.getElementById('password')?.value,
+                headers: parseHeaders()
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showStatus(statusDiv, 'Connection successful!', 'success');
+        } else {
+            showStatus(statusDiv, `Connection failed: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        showStatus(statusDiv, `Error: ${error.message}`, 'error');
+    }
+}
+
+// Fetch API data
+async function fetchAPIData() {
+    const url = document.getElementById('api-url').value;
+    const authType = document.getElementById('auth-type').value;
+
+    if (!url) {
+        alert('Please enter an API URL');
+        return;
+    }
+
+    const processingDiv = document.getElementById('api-processing');
+    processingDiv.style.display = 'block';
+
+    try {
+        const response = await fetch('/api/fetch-api-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: url,
+                method: document.getElementById('http-method').value,
+                authType: authType,
+                username: document.getElementById('username')?.value,
+                password: document.getElementById('password')?.value,
+                headers: parseHeaders()
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            document.getElementById('compare-btn').disabled = false;
+            alert('API data fetched successfully! You can now run the comparison.');
+        } else {
+            alert(`Failed to fetch API data: ${result.error}`);
+        }
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    } finally {
+        processingDiv.style.display = 'none';
+    }
+}
+
+// Run API vs BigQuery comparison
+async function runAPIComparison() {
+    const bqTable = document.getElementById('api-bq-table').value;
+    const primaryKey = document.getElementById('api-primary-key').value;
+
+    if (!bqTable || !primaryKey) {
+        alert('Please enter BigQuery table and primary key');
+        return;
+    }
+
+    const processingDiv = document.getElementById('api-processing');
+    const resultsDiv = document.getElementById('api-results');
+
+    processingDiv.style.display = 'block';
+    resultsDiv.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/compare-api-vs-bq', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dataId: 'current', // You may need to track the actual dataId from fetch
+                sourceTable: bqTable,
+                primaryKey: primaryKey
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            displayAPIResults(result);
+            resultsDiv.style.display = 'block';
+        } else {
+            alert(`Comparison failed: ${result.error}`);
+        }
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    } finally {
+        processingDiv.style.display = 'none';
+    }
+}
+
+// Helper functions
+function parseHeaders() {
+    const headersText = document.getElementById('custom-headers').value.trim();
+    if (!headersText) return {};
+
+    try {
+        return JSON.parse(headersText);
+    } catch (error) {
+        console.warn('Invalid JSON in headers, using empty object');
+        return {};
+    }
+}
+
+function showStatus(element, message, type) {
+    element.textContent = message;
+    element.className = `status-message ${type}`;
+    element.style.display = 'block';
+}
+
+function displayAPIResults(result) {
+    const contentDiv = document.getElementById('api-results-content');
+    // Display results similar to your JSON vs BQ results display
+    contentDiv.innerHTML = `
+        <div class="comparison-summary">
+            <h4>Comparison Summary</h4>
+            <p>Records matched: ${result.summary?.recordsReachedTarget || 0}</p>
+            <p>Data source: API</p>
+        </div>
+    `;
+}
+</script>
+
 
         <!-- Page 4: RDBMS vs BigQuery -->
 <div id="rdbms-comparison-page" class="page-content">
