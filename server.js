@@ -13,7 +13,7 @@ const port = process.env.PORT || 8080;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // JSON Upload Routes
 app.use('/api', jsonUploadRouter);
@@ -1380,7 +1380,22 @@ app.post('/api/create-temp-table-from-api', async (req, res) => {
         });
     }
 });
-// Start server
+// Start serv// Add this debug route right before app.listen()
+app.get('/debug-structure', (req, res) => {
+    const fs = require('fs');
+    const publicPath = path.join(__dirname, 'public');
+    const htmlPath = path.join(__dirname, 'public', 'index.html');
+
+    res.json({
+        __dirname: __dirname,
+        publicPath: publicPath,
+        htmlPath: htmlPath,
+        publicExists: fs.existsSync(publicPath),
+        htmlExists: fs.existsSync(htmlPath),
+        publicFiles: fs.existsSync(publicPath) ? fs.readdirSync(publicPath) : [],
+        rootFiles: fs.readdirSync(__dirname).slice(0, 20)
+    });
+});
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
     console.log(`🚀 Server running on port ${port}`);
