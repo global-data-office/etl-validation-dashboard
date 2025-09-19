@@ -13,11 +13,11 @@ RUN npm ci --only=production
 # Copy application code
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p /app/config /app/uploads /app/temp-files /app/routes /app/services
+# Create config directory
+RUN mkdir -p /app/config
 
-# Expose port
+# Expose port (Cloud Run uses PORT env variable)
 EXPOSE 8080
 
-# Start the application directly with node
-CMD ["node", "server.js"]
+# Start the application
+CMD ["npm", "start"]
