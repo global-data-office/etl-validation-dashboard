@@ -8,7 +8,7 @@ const BigQueryIntegrationService = require('./services/bq-integration');
 require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 5001;
+const port = process.env.PORT || 8080;
 
 // Middleware
 app.use(cors());
@@ -1395,7 +1395,7 @@ app.get('/debug-structure', (req, res) => {
         publicFiles: fs.existsSync(publicPath) ? fs.readdirSync(publicPath) : [],
         rootFiles: fs.readdirSync(__dirname).slice(0, 20)
     });
-});
+});r
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
     console.log(`🚀 Server running on port ${port}`);
