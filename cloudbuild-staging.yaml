@@ -1,0 +1,43 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t',
+      'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-staging:$COMMIT_SHA',
+      '-t',
+      'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-staging:latest',
+      '.'
+    ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-staging:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-staging:latest']
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'etl-automation-staging'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-staging:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8080'
+      - '--memory'
+      - '1Gi'
+      - '--cpu'
+      - '1'
+      - '--max-instances'
+      - '10'
+      - '--set-env-vars'
+      - 'GOOGLE_CLOUD_PROJECT_ID=rax-staging-qa,BIGQUERY_DATASET=stage_three_dw,NODE_ENV=staging'
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-staging:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-staging:latest'
