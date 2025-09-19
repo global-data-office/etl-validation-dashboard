@@ -1,0 +1,15 @@
+{
+  "id": "d60451a1-5f53-4403-bf9f-c69c4e20978e",
+  "url": "https://rackspace.service-now.com/api/now/table/domain",
+  "method": "GET",
+  "status": 200,
+  "statusText": "OK",
+  "contentType": "application/json;charset=UTF-8",
+  "fetchedAt": "2025-09-17T10:45:03.577Z",
+  "responseSize": 7027,
+  "duration": 1488,
+  "dataType": "ServiceNow Response (10 records)",
+  "authenticationUsed": "Basic Authentication",
+  "authenticationStatus": "success",
+  "connectionSuccessful": true
+}
