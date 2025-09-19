@@ -28,15 +28,15 @@ function parseJsonContent(fileContent, fileName = 'unknown') {
     let jsonData = [];
     let detectedFormat = 'Unknown';
     let parseMethod = 'None';
-    
+
     console.log(`Parsing JSON content for: ${fileName}`);
     console.log(`Content preview: ${fileContent.substring(0, 100)}...`);
-    
+
     // Strategy 1: Try standard JSON parsing first (handles arrays and objects)
     try {
         console.log('Strategy 1: Attempting standard JSON.parse()...');
         const parsed = JSON.parse(fileContent);
-        
+
         if (Array.isArray(parsed)) {
             jsonData = parsed;
             detectedFormat = 'JSON Array';
@@ -50,16 +50,16 @@ function parseJsonContent(fileContent, fileName = 'unknown') {
         } else {
             throw new Error('Parsed content is not an object or array');
         }
-        
+
     } catch (standardJsonError) {
         console.log(`Strategy 1 FAILED: ${standardJsonError.message}`);
-        
+
         // Strategy 2: Try JSONL parsing (line-delimited JSON)
         try {
             console.log('Strategy 2: Attempting JSONL parsing...');
             const lines = fileContent.trim().split('\n');
             console.log(`Found ${lines.length} lines to process`);
-            
+
             let validLines = 0;
             for (const line of lines) {
                 const trimmedLine = line.trim();
@@ -73,7 +73,7 @@ function parseJsonContent(fileContent, fileName = 'unknown') {
                     }
                 }
             }
-            
+
             if (jsonData.length > 0) {
                 detectedFormat = 'JSONL';
                 parseMethod = 'Line-by-line parsing';
@@ -81,13 +81,13 @@ function parseJsonContent(fileContent, fileName = 'unknown') {
             } else {
                 throw new Error('No valid JSON records found in JSONL format');
             }
-            
+
         } catch (jsonlError) {
             console.log(`Strategy 2 FAILED: ${jsonlError.message}`);
             throw new Error(`All parsing strategies failed. JSON error: ${standardJsonError.message}. JSONL error: ${jsonlError.message}`);
         }
     }
-    
+
     return {
         jsonData: jsonData,
         detectedFormat: detectedFormat,
@@ -99,29 +99,29 @@ function parseJsonContent(fileContent, fileName = 'unknown') {
 app.post('/api/analyze-schemas', async (req, res) => {
     try {
         const { tempTableId, sourceTable } = req.body;
-        
+
         if (!tempTableId || !sourceTable) {
             return res.status(400).json({
                 success: false,
                 error: 'tempTableId and sourceTable are required'
             });
         }
-        
+
         console.log('Analyzing schemas for comprehensive comparison...');
         console.log(`Using USER-SPECIFIED source table: ${sourceTable}`);
-        
+
         const ComparisonEngineService = require('./services/comparison-engine');
         const comparisonEngine = new ComparisonEngineService();
-        
+
         const schemaAnalysis = await comparisonEngine.getCommonFields(tempTableId, sourceTable);
-        
+
         console.log(`Schema analysis complete: ${schemaAnalysis.commonFields.length} common fields found`);
-        
+
         res.json({
             success: true,
             ...schemaAnalysis
         });
-        
+
     } catch (error) {
         console.error('Schema analysis failed:', error.message);
         res.status(500).json({
@@ -136,20 +136,20 @@ app.post('/api/analyze-schemas', async (req, res) => {
 app.post('/api/create-temp-table', async (req, res) => {
     try {
         const { fileId, primaryKey } = req.body;
-        
+
         if (!fileId) {
             return res.status(400).json({
                 success: false,
                 error: 'File ID is required'
             });
         }
-        
+
         console.log(`Creating temp table for file: ${fileId}`);
         console.log(`Using primary key for verification: ${primaryKey || 'none specified'}`);
-        
+
         const fs = require('fs');
         const path = require('path');
-        
+
         const possiblePaths = [
             path.join(__dirname, 'uploads', `${fileId}.json`),
             path.join(__dirname, 'uploads', `${fileId}.jsonl`),
@@ -157,7 +157,7 @@ app.post('/api/create-temp-table', async (req, res) => {
             path.join(__dirname, 'temp-files', `${fileId}.json`),
             path.join(__dirname, 'temp-files', `${fileId}.jsonl`)
         ];
-        
+
         let filePath = null;
         for (const possiblePath of possiblePaths) {
             if (fs.existsSync(possiblePath)) {
@@ -166,7 +166,7 @@ app.post('/api/create-temp-table', async (req, res) => {
                 break;
             }
         }
-        
+
         if (!filePath) {
             console.log('File not found in any expected location');
             return res.status(404).json({
@@ -175,10 +175,10 @@ app.post('/api/create-temp-table', async (req, res) => {
                 details: `File ${fileId} not found`
             });
         }
-        
+
         console.log(`Reading file: ${filePath}`);
         const fileContent = fs.readFileSync(filePath, 'utf8');
-        
+
         // CONSISTENT: Use the same parsing logic as preview
         let parseResult;
         try {
@@ -191,28 +191,28 @@ app.post('/api/create-temp-table', async (req, res) => {
                 details: parseError.message
             });
         }
-        
+
         const jsonData = parseResult.jsonData;
         console.log(`Parsed ${jsonData.length} records using ${parseResult.parseMethod}`);
-        
+
         if (jsonData.length === 0) {
             return res.status(400).json({
                 success: false,
                 error: 'No valid JSON data found in file'
             });
         }
-        
+
         // Log available fields for debugging
         console.log('Available fields in JSON data:', Object.keys(jsonData[0] || {}));
-        
+
         // Flatten nested objects for BigQuery compatibility
         const flattenedData = jsonData.map((record) => {
             const flattened = {};
-            
+
             function flattenObject(obj, prefix = '') {
                 for (const [key, value] of Object.entries(obj)) {
                     const newKey = prefix ? `${prefix}_${key}` : key;
-                    
+
                     if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
                         // Handle nested objects (ServiceNow references, AWS structures, etc.)
                         if (value.display_value || value.link || value.value) {
@@ -244,21 +244,21 @@ app.post('/api/create-temp-table', async (req, res) => {
                     }
                 }
             }
-            
+
             flattenObject(record);
             return flattened;
         });
-        
+
         console.log(`Flattened data ready for BigQuery`);
-        
+
         // Create temp table with dynamic primary key for verification + batch processing
         const bqService = new BigQueryIntegrationService();
         const result = await bqService.createTempTableFromJSON(flattenedData, fileId, primaryKey);
-        
+
         console.log('Temp table creation completed');
         console.log(`Records in table: ${result.recordsInTable}`);
         console.log(`Actual temp table ID: ${result.tempTableId}`);
-        
+
         res.json({
             success: true,
             message: result.message,
@@ -278,17 +278,17 @@ app.post('/api/create-temp-table', async (req, res) => {
             },
             fixes: result.fixes || ['Universal data type support', 'Dynamic primary key support', 'Batch processing for large files']
         });
-        
+
     } catch (error) {
         console.error('Temp table creation failed:', error.message);
-        
+
         let errorMessage = error.message;
         let suggestions = [
             'Check your file format and structure',
             'Verify you have proper BigQuery permissions',
             'Try with a smaller file first to test functionality'
         ];
-        
+
         if (error.message.includes('Request Entity Too Large') || error.message.includes('413')) {
             suggestions = [
                 'File is too large for single batch processing',
@@ -297,7 +297,7 @@ app.post('/api/create-temp-table', async (req, res) => {
                 'If issue persists, try breaking the file into smaller chunks'
             ];
         }
-        
+
         res.status(500).json({
             success: false,
             error: errorMessage,
@@ -500,17 +500,17 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
         console.log(`  - Format: ${preview.format}`);
         console.log(`  - ID Fields: ${preview.idFields.length}`);
         console.log(`  - Important Fields: ${preview.importantFields.length}`);
-        
+
         res.json({
             success: true,
             preview: preview
         });
-        
+
     } catch (error) {
         console.error('=== PREVIEW GENERATION FAILED ===');
         console.error(`Error: ${error.message}`);
         console.error(`Stack: ${error.stack}`);
-        
+
         res.status(500).json({
             success: false,
             error: 'Preview generation failed',
@@ -528,18 +528,18 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
 // ENHANCED: JSON vs BigQuery Comparison - Now with UNIVERSAL DATA TYPES + DUAL DUPLICATES ANALYSIS
 app.post('/api/compare-json-vs-bq', async (req, res) => {
     try {
-        const { 
-            fileId, 
+        const {
+            fileId,
             sourceTable,  // USER-SPECIFIED BigQuery table
             primaryKey,   // USER-SPECIFIED primary key (ANY DATA TYPE)
             comparisonFields = [],
-            strategy = 'enhanced' 
+            strategy = 'enhanced'
         } = req.body;
-        
+
         console.log(`ENHANCED: Starting UNIVERSAL DATA TYPE comparison for file: ${fileId}`);
         console.log(`User-specified BigQuery table: ${sourceTable}`);
         console.log(`User-specified primary key: ${primaryKey} (supports ANY data type)`);
-        
+
         if (!fileId || !sourceTable) {
             return res.status(400).json({
                 success: false,
@@ -562,11 +562,11 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
                 ]
             });
         }
-        
+
         // Find and parse the JSON file
         const fs = require('fs');
         const path = require('path');
-        
+
         const possiblePaths = [
             path.join(__dirname, 'uploads', `${fileId}.json`),
             path.join(__dirname, 'uploads', `${fileId}.jsonl`),
@@ -574,7 +574,7 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
             path.join(__dirname, 'temp-files', `${fileId}.json`),
             path.join(__dirname, 'temp-files', `${fileId}.jsonl`)
         ];
-        
+
         let filePath = null;
         for (const possiblePath of possiblePaths) {
             if (fs.existsSync(possiblePath)) {
@@ -582,17 +582,17 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
                 break;
             }
         }
-        
+
         if (!filePath) {
             return res.status(404).json({
                 success: false,
                 error: 'File not found for comparison'
             });
         }
-        
+
         // Parse the JSON data with CONSISTENT parsing logic
         const fileContent = fs.readFileSync(filePath, 'utf8');
-        
+
         let parseResult;
         try {
             parseResult = parseJsonContent(fileContent, path.basename(filePath));
@@ -603,18 +603,18 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
                 details: parseError.message
             });
         }
-        
+
         const jsonData = parseResult.jsonData;
         console.log(`Re-parsed ${jsonData.length} records for comparison using ${parseResult.parseMethod}`);
-        
+
         // Flatten the data (same as create-temp-table)
         const flattenedData = jsonData.map((record) => {
             const flattened = {};
-            
+
             function flattenObject(obj, prefix = '') {
                 for (const [key, value] of Object.entries(obj)) {
                     const newKey = prefix ? `${prefix}_${key}` : key;
-                    
+
                     if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
                         if (value.display_value || value.link || value.value) {
                             if (value.display_value) {
@@ -644,30 +644,30 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
                     }
                 }
             }
-            
+
             flattenObject(record);
             return flattened;
         });
-        
+
         // Create temp table with user's primary key for verification + batch processing
         const bqService = new BigQueryIntegrationService();
         const tempTableResult = await bqService.createTempTableFromJSON(flattenedData, fileId, primaryKey);
-        
+
         console.log(`Temp table created successfully`);
         console.log(`ACTUAL temp table ID: ${tempTableResult.tempTableId}`);
-        
+
         // Use the actual temp table ID returned from creation
         const actualTempTableId = tempTableResult.tempTableId;
-        
+
         console.log(`ENHANCED: Comparing using actual table: ${actualTempTableId} vs ${sourceTable}`);
         console.log(`Using UNIVERSAL DATA TYPE support for primary key: ${primaryKey}`);
-        
+
         // Pre-comparison verification
         try {
             const [preCheckResult] = await bigquery.query(`SELECT COUNT(*) as count FROM \`${actualTempTableId}\``);
             const tempTableCount = preCheckResult[0].count;
             console.log(`Pre-comparison check: ${tempTableCount} records in temp table`);
-            
+
             if (tempTableCount === 0) {
                 console.error(`CRITICAL: Temp table is empty!`);
                 return res.status(400).json({
@@ -684,16 +684,16 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
                 details: preCheckError.message
             });
         }
-        
+
         // Run ENHANCED comparison with UNIVERSAL DATA TYPE SUPPORT + DUAL DUPLICATES ANALYSIS
         const ComparisonEngineService = require('./services/comparison-engine');
         const comparisonEngine = new ComparisonEngineService();
-        
+
         console.log(`ENHANCED: Running UNIVERSAL data type comparison...`);
         console.log(`Using user's BigQuery table: ${sourceTable}`);
         console.log(`Using user's primary key with universal casting: ${primaryKey}`);
         console.log(`Supports: STRING, INT64, FLOAT64, BOOLEAN, DATE, DATETIME, TIMESTAMP, NUMERIC, TIME, GEOGRAPHY, JSON`);
-        
+
         const results = await comparisonEngine.compareJSONvsBigQuery(
             actualTempTableId, // Use actual table ID
             sourceTable,      // Use user-specified table
@@ -701,12 +701,12 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
             comparisonFields,
             strategy
         );
-        
+
         console.log(`ENHANCED comparison completed successfully`);
         console.log(`Results summary: ${results.summary?.recordsReachedTarget || 0} matches found using '${primaryKey}' with universal data type support`);
         console.log(`Data types detected: JSON ${results.comparisonResults?.dataTypes?.tempType || 'STRING'} ↔ BQ ${results.comparisonResults?.dataTypes?.sourceType || 'STRING'}`);
         console.log(`Duplicates analysis: JSON has ${results.duplicatesAnalysis?.jsonDuplicates?.duplicateCount || 0}, BQ has ${results.duplicatesAnalysis?.bqDuplicates?.duplicateCount || 0} duplicate keys`);
-        
+
         // Include enhanced temp table info in response
         results.tempTableInfo = {
             actualTableId: actualTempTableId,
@@ -718,7 +718,7 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
                 method: parseResult.parseMethod
             }
         };
-        
+
         // Add enhanced capabilities info
         results.enhancedCapabilities = {
             universalDataTypeSupport: true,
@@ -727,12 +727,12 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
             excelExportReady: true,
             dataTypesDetected: results.comparisonResults?.dataTypes || { tempType: 'STRING', sourceType: 'STRING' }
         };
-        
+
         res.json(results);
-        
+
     } catch (error) {
         console.error('Enhanced comparison API failed:', error.message);
-        
+
         // Enhanced error handling for schema and data type issues
         let errorMessage = error.message;
         let suggestions = [
@@ -741,7 +741,7 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
             'Try using a different field that exists in both tables',
             'Verify BigQuery table is accessible'
         ];
-        
+
         if (error.message.includes('not available in both tables')) {
             suggestions = [
                 'Choose a field that exists in both your JSON file and BigQuery table',
@@ -774,7 +774,7 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
                 'Batch processing was successful, comparison should work normally'
             ];
         }
-        
+
         res.status(500).json({
             success: false,
             error: errorMessage,
@@ -813,7 +813,7 @@ app.get('/api/test-source-table', async (req, res) => {
         const { sourceTable } = req.query;
         console.log('Testing source table access via API...');
         console.log(`Testing table: ${sourceTable || 'default'}`);
-        
+
         const bqService = new BigQueryIntegrationService();
         const result = await bqService.testSourceTableAccess(sourceTable);
         res.json(result);
@@ -832,20 +832,20 @@ app.delete('/api/cleanup-temp-table/:fileId', async (req, res) => {
     try {
         const { fileId } = req.params;
         console.log(`Manual cleanup for file: ${fileId}`);
-        
+
         const dataset = bigquery.dataset('temp_validation_tables');
-        
+
         let deletedTables = [];
         let errors = [];
-        
+
         try {
             const [tables] = await dataset.getTables();
-            const relevantTables = tables.filter(table => 
+            const relevantTables = tables.filter(table =>
                 table.id.startsWith(`json_temp_${fileId}`)
             );
-            
+
             console.log(`Found ${relevantTables.length} relevant tables to clean up`);
-            
+
             for (const table of relevantTables) {
                 try {
                     await table.delete();
@@ -856,19 +856,19 @@ app.delete('/api/cleanup-temp-table/:fileId', async (req, res) => {
                     console.error(`Failed to delete ${table.id}:`, deleteError.message);
                 }
             }
-            
+
         } catch (listError) {
             console.error(`Failed to list tables:`, listError.message);
             errors.push(`Failed to list tables: ${listError.message}`);
         }
-        
+
         res.json({
             success: deletedTables.length > 0 || errors.length === 0,
             deletedTables: deletedTables,
             errors: errors,
             message: `Cleanup completed: ${deletedTables.length} tables deleted, ${errors.length} errors`
         });
-        
+
     } catch (error) {
         console.error('Manual cleanup failed:', error.message);
         res.status(500).json({
@@ -1004,8 +1004,8 @@ app.post('/api/validate', async (req, res) => {
                     'Use BigQuery console to view table schema'
                 ]
             };
-        } else if (error.message.includes('permission') || 
-                   error.message.includes('Permission') || 
+        } else if (error.message.includes('permission') ||
+                   error.message.includes('Permission') ||
                    error.message.includes('Access Denied')) {
             errorResponse.error = {
                 type: 'PERMISSION_DENIED',
@@ -1038,26 +1038,26 @@ app.get('/api/health', (req, res) => {
             zeroRecordDuplication: true,
             enhancedPreviewEndpoint: true,
             consistentJSONParsing: true,
-            
+
             // NEW: Universal Data Type Support
             universalDataTypeSupport: true,
             supportedDataTypes: [
-                'STRING', 'INT64', 'FLOAT64', 'BOOLEAN', 
-                'DATE', 'DATETIME', 'TIMESTAMP', 'NUMERIC', 
+                'STRING', 'INT64', 'FLOAT64', 'BOOLEAN',
+                'DATE', 'DATETIME', 'TIMESTAMP', 'NUMERIC',
                 'BIGNUMERIC', 'TIME', 'BYTES', 'GEOGRAPHY', 'JSON'
             ],
             automaticTypeCasting: true,
-            
+
             // NEW: Dual-System Duplicates Analysis
             dualDuplicatesAnalysis: true,
             duplicateSystemsCovered: ['JSON Source', 'BigQuery Target'],
             crossSystemDuplicateDetection: true,
-            
+
             // NEW: Excel Export Ready
             excelExportSupport: true,
             excelSheetCount: 6,
             professionalReporting: true,
-            
+
             // Updated Features
             sanityTestRebranding: true,
             maxFileSize: '100MB',
@@ -1380,7 +1380,22 @@ app.post('/api/create-temp-table-from-api', async (req, res) => {
         });
     }
 });
-// Start server
+// Start serv// Add this debug route right before app.listen()
+app.get('/debug-structure', (req, res) => {
+    const fs = require('fs');
+    const publicPath = path.join(__dirname, 'public');
+    const htmlPath = path.join(__dirname, 'public', 'index.html');
+
+    res.json({
+        __dirname: __dirname,
+        publicPath: publicPath,
+        htmlPath: htmlPath,
+        publicExists: fs.existsSync(publicPath),
+        htmlExists: fs.existsSync(htmlPath),
+        publicFiles: fs.existsSync(publicPath) ? fs.readdirSync(publicPath) : [],
+        rootFiles: fs.readdirSync(__dirname).slice(0, 20)
+    });
+});
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
     console.log(`🚀 Server running on port ${port}`);
