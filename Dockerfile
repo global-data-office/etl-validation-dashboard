@@ -1,14 +1,23 @@
+# Use official Node.js runtime
 FROM node:18-alpine
+
+# Set working directory
 WORKDIR /app
+
+# Copy package files first (for better caching)
 COPY package*.json ./
+
+# Install dependencies
 RUN npm ci --only=production
+
+# Copy application code
 COPY . .
 
-# Make sure the public directory exists
-RUN mkdir -p /app/public /app/uploads /app/temp-files
+# Create config directory
+RUN mkdir -p /app/config
 
-# List files to debug (remove this line after fixing)
-RUN ls -la /app && ls -la /app/public || echo "public directory not found"
-
+# Expose port (Cloud Run uses PORT env variable)
 EXPOSE 8080
-CMD ["node", "server.js"]
+
+# Start the application
+CMD ["npm", "start"]
