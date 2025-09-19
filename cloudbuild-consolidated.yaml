@@ -1,0 +1,40 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '-t',
+    'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:$COMMIT_SHA',
+    '-t',
+    'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:latest',
+    '.'
+  ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:$COMMIT_SHA']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:latest']
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+  - 'run'
+  - 'deploy'
+  - 'etl-automation-consolidated'
+  - '--image'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:$COMMIT_SHA'
+  - '--region'
+  - 'us-central1'
+  - '--platform'
+  - 'managed'
+  - '--allow-unauthenticated'
+  - '--port'
+  - '8080'
+  - '--memory'
+  - '1Gi'
+  - '--cpu'
+  - '1'
+  - '--max-instances'
+  - '10'
+  - '--set-env-vars'
+  - 'GOOGLE_CLOUD_PROJECT_ID=rax-cloud-composer-qa,BIGQUERY_DATASET=consolidated_dw,NODE_ENV=consolidated'
+
+images:
+- 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:$COMMIT_SHA'
+- 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:latest'
