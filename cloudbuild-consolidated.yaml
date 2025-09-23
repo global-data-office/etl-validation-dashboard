@@ -2,7 +2,7 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: [
     'build',
-    '-t',
+    '-t', 
     'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:$COMMIT_SHA',
     '-t',
     'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:latest',
@@ -35,6 +35,4 @@ steps:
   - '--set-env-vars'
   - 'GOOGLE_CLOUD_PROJECT_ID=rax-cloud-composer-qa,BIGQUERY_DATASET=consolidated_dw,NODE_ENV=consolidated'
 
-images:
-- 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:$COMMIT_SHA'
-- 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-consolidated:latest'
+# Remove the duplicate images section entirely
