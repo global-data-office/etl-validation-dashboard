@@ -1310,6 +1310,89 @@
                 grid-template-columns: 1fr;
             }
         }
+        /* RDBMS Tab Styles - ADD HERE */
+        .results-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+            flex-wrap: wrap;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .results-tabs .results-tab-button {
+            padding: 12px 20px;
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .results-tabs .results-tab-button.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+        }
+
+        .results-tabs .results-tab-button:hover:not(.active) {
+            background: #e9ecef;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .config-item label {
+            display: block;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .config-item input,
+        .config-item select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .status-message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -1585,25 +1668,384 @@
         </div>
 
         <!-- Page 4: RDBMS vs BigQuery -->
-        <div id="rdbms-comparison-page" class="page-content">
-            <div class="page-header">
-                <h2><span class="tab-icon">🗄️</span> RDBMS vs BigQuery Comparison</h2>
-                <p>Cross-platform database validation between RDBMS and BigQuery tables</p>
+<div id="rdbms-comparison-page" class="page-content">
+    <div class="page-header">
+        <h2><span class="tab-icon">🗄️</span> RDBMS vs BigQuery Comparison</h2>
+        <p>Cross-platform database validation between RDBMS and BigQuery tables</p>
+    </div>
+
+    <!-- RDBMS Database Type Selection Tabs -->
+    <div class="results-tabs">
+        <button class="results-tab-button active" onclick="showRDBMSTab('postgresql')">🐘 PostgreSQL to BQ</button>
+        <button class="results-tab-button" onclick="showRDBMSTab('mysql')">🐬 MySQL to BQ</button>
+        <button class="results-tab-button" onclick="showRDBMSTab('oracle')">🔴 Oracle to BQ</button>
+        <button class="results-tab-button" onclick="showRDBMSTab('sqlserver')">🟦 SQL Server to BQ</button>
+    </div>
+
+    <!-- PostgreSQL Configuration Tab -->
+    <div id="postgresql-rdbms-tab" class="results-tab-content active">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
+            <!-- Left Side: PostgreSQL Configuration -->
+            <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
+                <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    🐘 PostgreSQL Configuration
+                </h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">PostgreSQL Host</label>
+                    <input type="text" id="pg-host" placeholder="localhost" value="localhost" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Port</label>
+                        <input type="number" id="pg-port" value="5432" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Database Name</label>
+                        <input type="text" id="pg-database" placeholder="your_database" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Username</label>
+                        <input type="text" id="pg-username" placeholder="postgres" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Password</label>
+                        <input type="password" id="pg-password" placeholder="your_password" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">PostgreSQL Table</label>
+                    <input type="text" id="pg-table" placeholder="table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e8f4fd; border-radius: 4px;">
+                        Enter the PostgreSQL table to validate
+                    </small>
+                </div>
+
+                <button class="btn-secondary" onclick="testDatabaseConnection('postgresql')"
+                        style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
+                    🔍 Test PostgreSQL Connection
+                </button>
+                <div id="postgresql-connection-status" class="status-message"></div>
             </div>
 
-            <div class="coming-soon-section">
-                <div class="coming-soon-icon">🗄️</div>
-                <div class="coming-soon-title">RDBMS vs BigQuery Comparison</div>
-                <div class="coming-soon-description">
-                    Validate data migration between traditional databases and BigQuery.
+            <!-- Right Side: BigQuery Configuration -->
+            <div style="background: #e8f4fd; padding: 25px; border-radius: 12px; border: 1px solid #bee5eb;">
+                <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    🗄️ BigQuery Target Configuration
+                </h3>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Table</label>
+                    <input type="text" id="pg-bq-table" placeholder="project.dataset.table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                 </div>
-                <button class="btn-primary" style="margin-top: 30px;" onclick="alert('RDBMS vs BQ comparison feature is currently under development.')">
-                    🔔 Notify Me When Available
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key Field</label>
+                    <input type="text" id="pg-primary-key" placeholder="id, user_id, etc" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
+                    <textarea id="pg-comparison-fields" placeholder="field1, field2, field3" 
+                              style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; resize: vertical; font-family: monospace;"></textarea>
+                </div>
+
+                <button class="btn-primary" onclick="startRDBMSComparison('postgresql')"
+                        style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
+                    🚀 Start PostgreSQL vs BigQuery Validation
                 </button>
             </div>
         </div>
     </div>
 
+    <!-- MySQL Configuration Tab -->
+    <div id="mysql-rdbms-tab" class="results-tab-content">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
+            <!-- Left Side: MySQL Configuration -->
+            <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
+                <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    🐬 MySQL Configuration
+                </h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">MySQL Host</label>
+                    <input type="text" id="mysql-host" placeholder="localhost" value="localhost" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Port</label>
+                        <input type="number" id="mysql-port" value="3306" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Database Name</label>
+                        <input type="text" id="mysql-database" placeholder="your_database" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Username</label>
+                        <input type="text" id="mysql-username" placeholder="root" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Password</label>
+                        <input type="password" id="mysql-password" placeholder="your_password" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">MySQL Table</label>
+                    <input type="text" id="mysql-table" placeholder="table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e8f4fd; border-radius: 4px;">
+                        Enter the MySQL table to validate
+                    </small>
+                </div>
+
+                <button class="btn-secondary" onclick="testDatabaseConnection('mysql')"
+                        style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
+                    🔍 Test MySQL Connection
+                </button>
+                <div id="mysql-connection-status" class="status-message"></div>
+            </div>
+
+            <!-- Right Side: BigQuery Configuration -->
+            <div style="background: #e8f4fd; padding: 25px; border-radius: 12px; border: 1px solid #bee5eb;">
+                <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    🗄️ BigQuery Target Configuration
+                </h3>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Table</label>
+                    <input type="text" id="mysql-bq-table" placeholder="project.dataset.table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key Field</label>
+                    <input type="text" id="mysql-primary-key" placeholder="id, user_id, etc" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
+                    <textarea id="mysql-comparison-fields" placeholder="field1, field2, field3" 
+                              style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; resize: vertical; font-family: monospace;"></textarea>
+                </div>
+
+                <button class="btn-primary" onclick="startRDBMSComparison('mysql')"
+                        style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
+                    🚀 Start MySQL vs BigQuery Validation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Oracle Configuration Tab -->
+    <div id="oracle-rdbms-tab" class="results-tab-content">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
+            <!-- Left Side: Oracle Configuration -->
+            <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
+                <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    🔴 Oracle Configuration
+                </h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Oracle Host</label>
+                    <input type="text" id="oracle-host" placeholder="localhost" value="localhost" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Port</label>
+                        <input type="number" id="oracle-port" value="1521" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Service Name</label>
+                        <input type="text" id="oracle-service" placeholder="ORCL" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Username</label>
+                        <input type="text" id="oracle-username" placeholder="hr" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Password</label>
+                        <input type="password" id="oracle-password" placeholder="your_password" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Oracle Table</label>
+                    <input type="text" id="oracle-table" placeholder="table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e8f4fd; border-radius: 4px;">
+                        Enter the Oracle table to validate
+                    </small>
+                </div>
+
+                <button class="btn-secondary" onclick="testDatabaseConnection('oracle')"
+                        style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
+                    🔍 Test Oracle Connection
+                </button>
+                <div id="oracle-connection-status" class="status-message"></div>
+            </div>
+
+            <!-- Right Side: BigQuery Configuration -->
+            <div style="background: #e8f4fd; padding: 25px; border-radius: 12px; border: 1px solid #bee5eb;">
+                <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    🗄️ BigQuery Target Configuration
+                </h3>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Table</label>
+                    <input type="text" id="oracle-bq-table" placeholder="project.dataset.table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key Field</label>
+                    <input type="text" id="oracle-primary-key" placeholder="id, user_id, etc" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
+                    <textarea id="oracle-comparison-fields" placeholder="field1, field2, field3" 
+                              style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; resize: vertical; font-family: monospace;"></textarea>
+                </div>
+
+                <button class="btn-primary" onclick="startRDBMSComparison('oracle')"
+                        style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
+                    🚀 Start Oracle vs BigQuery Validation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SQL Server Configuration Tab -->
+    <div id="sqlserver-rdbms-tab" class="results-tab-content">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
+            <!-- Left Side: SQL Server Configuration -->
+            <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
+                <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    🟦 SQL Server Configuration
+                </h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">SQL Server Host</label>
+                    <input type="text" id="sqlserver-host" placeholder="localhost" value="localhost" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Port</label>
+                        <input type="number" id="sqlserver-port" value="1433" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Database Name</label>
+                        <input type="text" id="sqlserver-database" placeholder="your_database" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Username</label>
+                        <input type="text" id="sqlserver-username" placeholder="sa" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Password</label>
+                        <input type="password" id="sqlserver-password" placeholder="your_password" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">SQL Server Table</label>
+                    <input type="text" id="sqlserver-table" placeholder="table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e8f4fd; border-radius: 4px;">
+                        Enter the SQL Server table to validate
+                    </small>
+                </div>
+
+                <button class="btn-secondary" onclick="testDatabaseConnection('sqlserver')"
+                        style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
+                    🔍 Test SQL Server Connection
+                </button>
+                <div id="sqlserver-connection-status" class="status-message"></div>
+            </div>
+
+            <!-- Right Side: BigQuery Configuration -->
+            <div style="background: #e8f4fd; padding: 25px; border-radius: 12px; border: 1px solid #bee5eb;">
+                <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    🗄️ BigQuery Target Configuration
+                </h3>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Table</label>
+                    <input type="text" id="sqlserver-bq-table" placeholder="project.dataset.table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key Field</label>
+                    <input type="text" id="sqlserver-primary-key" placeholder="id, user_id, etc" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
+                    <textarea id="sqlserver-comparison-fields" placeholder="field1, field2, field3" 
+                              style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; resize: vertical; font-family: monospace;"></textarea>
+                </div>
+
+                <button class="btn-primary" onclick="startRDBMSComparison('sqlserver')"
+                        style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
+                    🚀 Start SQL Server vs BigQuery Validation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="rdbms-results" class="results-section" style="display: none;">
+        <h3 style="color: #495057; margin-bottom: 20px;">📊 RDBMS vs BigQuery Validation Results</h3>
+        <div class="results-content">
+            <div id="rdbms-comparison-results"></div>
+        </div>
+    </div>
+</div>
     <script>
         let globalComparisonResults = null;
         let currentFileId = null;
@@ -3004,6 +3446,327 @@
                 });
             }
         });
+		// RDBMS Tab Management - BUG FIXED VERSION
+function showRDBMSTab(dbType) {
+    // Hide all RDBMS tabs
+    const rdbmsTabs = document.querySelectorAll('[id$="-rdbms-tab"]');
+    rdbmsTabs.forEach(tab => tab.classList.remove('active'));
+
+    // Remove active class from all tab buttons
+    const tabButtons = document.querySelectorAll('#rdbms-comparison-page .results-tab-button');
+    tabButtons.forEach(button => button.classList.remove('active'));
+
+    // Show selected tab
+    const selectedTab = document.getElementById(dbType + '-rdbms-tab');
+    if (selectedTab) selectedTab.classList.add('active');
+
+    // Activate clicked button
+    const activeButton = event?.target?.closest('.results-tab-button');
+    if (activeButton) activeButton.classList.add('active');
+}
+
+// Get Connection Data - ENHANCED VERSION
+function getConnectionData(dbType) {
+    const data = {};
+
+    switch (dbType.toLowerCase()) {
+        case 'postgresql':
+            data.host = document.getElementById('pg-host')?.value?.trim() || '';
+            data.port = document.getElementById('pg-port')?.value || 5432;
+            data.database = document.getElementById('pg-database')?.value?.trim() || '';
+            data.username = document.getElementById('pg-username')?.value?.trim() || '';
+            data.password = document.getElementById('pg-password')?.value || '';
+            data.schema = document.getElementById('pg-schema')?.value?.trim() || 'public';
+            break;
+            
+        case 'mysql':
+            data.host = document.getElementById('mysql-host')?.value?.trim() || '';
+            data.port = document.getElementById('mysql-port')?.value || 3306;
+            data.database = document.getElementById('mysql-database')?.value?.trim() || '';
+            data.username = document.getElementById('mysql-username')?.value?.trim() || '';
+            data.password = document.getElementById('mysql-password')?.value || '';
+            break;
+            
+        case 'oracle':
+            data.host = document.getElementById('oracle-host')?.value?.trim() || '';
+            data.port = document.getElementById('oracle-port')?.value || 1521;
+            data.service = document.getElementById('oracle-service')?.value?.trim() || '';
+            data.username = document.getElementById('oracle-username')?.value?.trim() || '';
+            data.password = document.getElementById('oracle-password')?.value || '';
+            break;
+            
+        case 'sqlserver':
+            data.server = document.getElementById('sqlserver-host')?.value?.trim() || '';
+            data.port = document.getElementById('sqlserver-port')?.value || 1433;
+            data.database = document.getElementById('sqlserver-database')?.value?.trim() || '';
+            data.username = document.getElementById('sqlserver-username')?.value?.trim() || '';
+            data.password = document.getElementById('sqlserver-password')?.value || '';
+            data.encrypt = document.getElementById('sqlserver-encrypt')?.value === 'true';
+            break;
+    }
+    
+    return data;
+}
+
+// Test Database Connection - PRODUCTION READY
+async function testDatabaseConnection(dbType) {
+    const button = document.getElementById(`test${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Connection`);
+    const statusDiv = document.getElementById(`${dbType}-connection-status`);
+    
+    if (!button || !statusDiv) {
+        console.error(`Missing UI elements for ${dbType}`);
+        return;
+    }
+    
+    const originalText = button.innerHTML;
+    const originalDisabled = button.disabled;
+    
+    try {
+        // Update button state
+        button.disabled = true;
+        button.innerHTML = '🔄 Testing Connection...';
+        
+        // Clear previous status
+        statusDiv.innerHTML = '';
+        statusDiv.className = 'status-message';
+        statusDiv.style.display = 'none';
+        
+        const connectionData = getConnectionData(dbType);
+        
+        // Client-side validation
+        const requiredFields = {
+            postgresql: ['host', 'port', 'database', 'username', 'password'],
+            mysql: ['host', 'port', 'database', 'username', 'password'],
+            oracle: ['host', 'port', 'service', 'username', 'password'],
+            sqlserver: ['server', 'port', 'database', 'username', 'password']
+        };
+        
+        const required = requiredFields[dbType] || [];
+        const missing = required.filter(field => !connectionData[field] || connectionData[field].toString().trim() === '');
+        
+        if (missing.length > 0) {
+            throw new Error(`Please fill in all ${dbType.toUpperCase()} connection fields: ${missing.join(', ')}`);
+        }
+        
+        // Test connection via API
+        const response = await fetch('/api/test-rdbms-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dbType: dbType, ...connectionData })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div style="color: #155724; background: #d4edda; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                    ✅ <strong>${result.message}</strong><br>
+                    ${result.details ? `
+                        <small>
+                            Database: ${result.details.database || 'N/A'}<br>
+                            User: ${result.details.user || 'N/A'}<br>
+                            Version: ${result.details.version ? result.details.version.substring(0, 50) + '...' : 'N/A'}
+                        </small>
+                    ` : ''}
+                </div>
+            `;
+        } else {
+            let errorHTML = `
+                <div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                    ❌ <strong>Connection Failed</strong><br>
+                    ${result.error}
+            `;
+            
+            if (result.suggestions && result.suggestions.length > 0) {
+                errorHTML += '<br><br><strong>Suggestions:</strong><ul style="margin: 5px 0; padding-left: 20px;">';
+                result.suggestions.forEach(suggestion => {
+                    errorHTML += `<li style="margin: 2px 0;">${suggestion}</li>`;
+                });
+                errorHTML += '</ul>';
+            }
+            
+            errorHTML += '</div>';
+            statusDiv.innerHTML = errorHTML;
+        }
+        
+        statusDiv.style.display = 'block';
+        
+    } catch (error) {
+        console.error(`${dbType} connection test error:`, error);
+        statusDiv.innerHTML = `
+            <div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                ❌ <strong>Connection Test Failed</strong><br>
+                ${error.message}
+            </div>
+        `;
+        statusDiv.style.display = 'block';
+    } finally {
+        // Restore button state
+        button.disabled = originalDisabled;
+        button.innerHTML = originalText;
+    }
+}
+
+// Start RDBMS Comparison - DEMO READY
+async function startRDBMSComparison(dbType) {
+    const resultsSection = document.getElementById('rdbms-results');
+    const resultsDiv = document.getElementById('rdbms-comparison-results');
+    
+    if (!resultsSection || !resultsDiv) {
+        alert('Results section not found. Please check the HTML structure.');
+        return;
+    }
+    
+    try {
+        resultsDiv.innerHTML = '<div class="loading" style="text-align: center; padding: 20px;">🔄 Starting validation process...</div>';
+        resultsSection.style.display = 'block';
+        resultsSection.scrollIntoView({ behavior: 'smooth' });
+        
+        const connectionData = getConnectionData(dbType);
+        
+        // Get table and BigQuery configuration
+        const prefix = dbType === 'postgresql' ? 'pg' : dbType;
+        const tableConfig = {
+            sourceTable: document.getElementById(`${prefix}-table`)?.value?.trim() || '',
+            bqProject: document.getElementById(`${prefix}-bq-project`)?.value?.trim() || '',
+            bqDataset: document.getElementById(`${prefix}-bq-dataset`)?.value?.trim() || '',
+            bqTable: document.getElementById(`${prefix}-bq-table`)?.value?.trim() || ''
+        };
+        
+        // Validate configuration
+        const missingConfig = Object.keys(tableConfig).filter(key => !tableConfig[key]);
+        if (missingConfig.length > 0) {
+            resultsDiv.innerHTML = `
+                <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px;">
+                    ❌ <strong>Missing Configuration</strong><br>
+                    Please fill in: ${missingConfig.join(', ')}
+                </div>
+            `;
+            return;
+        }
+        
+        const response = await fetch('/api/compare-rdbms-bq', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dbType: dbType,
+                connection: connectionData,
+                config: tableConfig
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            displayRDBMSResults(result.data);
+        } else {
+            resultsDiv.innerHTML = `
+                <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px;">
+                    ❌ <strong>Validation Failed</strong><br>
+                    ${result.error}
+                </div>
+            `;
+        }
+        
+    } catch (error) {
+        console.error(`${dbType} validation error:`, error);
+        resultsDiv.innerHTML = `
+            <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px;">
+                ❌ <strong>Validation Error</strong><br>
+                ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Display Results - ENHANCED VERSION
+function displayRDBMSResults(data) {
+    const resultsDiv = document.getElementById('rdbms-comparison-results');
+    
+    if (!resultsDiv) {
+        console.error('Results div not found');
+        return;
+    }
+    
+    let html = `
+        <div class="validation-summary" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 10px 0;">
+            <h4 style="color: #495057; margin-bottom: 15px;">📊 ${data.sourceType} vs BigQuery Validation Results</h4>
+            <div class="summary-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff;">
+                    <strong style="color: #007bff;">Source Records:</strong><br>
+                    <span style="font-size: 1.5em; font-weight: bold;">${data.sourceCount.toLocaleString()}</span>
+                </div>
+                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">
+                    <strong style="color: #28a745;">BigQuery Records:</strong><br>
+                    <span style="font-size: 1.5em; font-weight: bold;">${data.bqCount.toLocaleString()}</span>
+                </div>
+                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${data.recordsMatch ? '#28a745' : '#dc3545'};">
+                    <strong style="color: ${data.recordsMatch ? '#28a745' : '#dc3545'};">Record Count Match:</strong><br>
+                    <span style="font-size: 1.2em; font-weight: bold;">${data.recordsMatch ? '✅ Match' : '❌ Mismatch'}</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    if (data.sampleComparison && data.sampleComparison.length > 0) {
+        html += `
+            <div class="sample-comparison" style="background: white; padding: 20px; border-radius: 8px; margin: 10px 0; border: 1px solid #dee2e6;">
+                <h5 style="color: #495057; margin-bottom: 15px;">🔍 Sample Data Comparison</h5>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                        <thead style="background: #f8f9fa;">
+                            <tr>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Field</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Source Value</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">BigQuery Value</th>
+                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">Match</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+        
+        data.sampleComparison.forEach((item, index) => {
+            html += `
+                <tr style="border-bottom: 1px solid #dee2e6; ${!item.match ? 'background: #fff5f5;' : ''}">
+                    <td style="padding: 10px; font-weight: 500;">${item.field}</td>
+                    <td style="padding: 10px; font-family: monospace;">${item.sourceValue}</td>
+                    <td style="padding: 10px; font-family: monospace;">${item.bqValue}</td>
+                    <td style="padding: 10px; text-align: center;">
+                        <span style="padding: 4px 8px; border-radius: 12px; font-weight: bold; color: white; background: ${item.match ? '#28a745' : '#dc3545'};">
+                            ${item.match ? '✅' : '❌'}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (data.summary && data.summary.recommendations) {
+        html += `
+            <div class="recommendations" style="background: #d1ecf1; padding: 20px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #bee5eb;">
+                <h5 style="color: #0c5460; margin-bottom: 15px;">💡 Recommendations</h5>
+                <ul style="margin: 0; padding-left: 20px; color: #0c5460;">
+        `;
+        
+        data.summary.recommendations.forEach(rec => {
+            html += `<li style="margin: 5px 0;">${rec}</li>`;
+        });
+        
+        html += `
+                </ul>
+            </div>
+        `;
+    }
+    
+    resultsDiv.innerHTML = html;
+}
     </script>
 </body>
 </html>

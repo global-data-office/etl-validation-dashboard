@@ -5,6 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const jsonUploadRouter = require('./routes/json-upload');
 const BigQueryIntegrationService = require('./services/bq-integration');
+const RDBMSIntegrationService = require('./services/rdbms-integration');
 require('dotenv').config();
 
 const app = express();
@@ -1095,7 +1096,136 @@ app.get('/api/health', (req, res) => {
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+// RDBMS Connection Testing
+app.post('/api/test-rdbms-connection', async (req, res) => {
+    try {
+        const { dbType, ...connectionConfig } = req.body;
+        
+        console.log(`Testing ${dbType} connection:`, {
+            host: connectionConfig.host || connectionConfig.server,
+            port: connectionConfig.port,
+            database: connectionConfig.database || connectionConfig.service,
+            user: connectionConfig.username
+        });
 
+        if (!dbType) {
+            return res.status(400).json({
+                success: false,
+                error: 'Database type is required',
+                suggestions: ['Specify dbType as postgresql, mysql, oracle, or sqlserver']
+            });
+        }
+
+        const result = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
+        
+        res.json({
+            success: result.success,
+            message: result.message,
+            details: result.details,
+            error: result.error,
+            suggestions: result.suggestions
+        });
+
+    } catch (error) {
+        console.error('RDBMS connection test error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Connection test failed: ' + error.message,
+            suggestions: [
+                'Check your connection parameters',
+                'Ensure the database server is accessible',
+                'Verify network connectivity'
+            ]
+        });
+    }
+});
+
+// RDBMS Schema Analysis
+app.post('/api/get-rdbms-schema', async (req, res) => {
+    try {
+        const { dbType, connectionConfig, tableName } = req.body;
+        
+        if (!dbType || !connectionConfig || !tableName) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required parameters: dbType, connectionConfig, and tableName are required'
+            });
+        }
+
+        console.log(`Getting ${dbType} schema for table: ${tableName}`);
+
+        const result = await RDBMSIntegrationService.getSchemaInfo(dbType, connectionConfig, tableName);
+        
+        res.json({
+            success: true,
+            data: result
+        });
+
+    } catch (error) {
+        console.error('RDBMS schema analysis error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Schema analysis failed: ' + error.message,
+            suggestions: [
+                'Verify the table name exists',
+                'Check if the user has SELECT privileges on the table',
+                'Ensure the database connection is valid'
+            ]
+        });
+    }
+});
+
+// RDBMS vs BigQuery Comparison
+app.post('/api/compare-rdbms-bq', async (req, res) => {
+    try {
+        const { dbType, connection, config } = req.body;
+        
+        if (!dbType || !connection || !config) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required parameters: dbType, connection, and config are required'
+            });
+        }
+
+        if (!config.sourceTable || !config.bqProject || !config.bqDataset || !config.bqTable) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing configuration: sourceTable, bqProject, bqDataset, and bqTable are required'
+            });
+        }
+
+        console.log(`Starting ${dbType} vs BigQuery comparison:`, {
+            sourceTable: config.sourceTable,
+            bqProject: config.bqProject,
+            bqDataset: config.bqDataset,
+            bqTable: config.bqTable
+        });
+
+        const comparisonConfig = {
+            sourceTable: config.sourceTable,
+            bqProject: config.bqProject,
+            bqDataset: config.bqDataset,
+            bqTable: config.bqTable,
+            keyFile: config.keyFile
+        };
+
+        const result = await RDBMSIntegrationService.compareWithBigQuery(dbType, connection, comparisonConfig);
+        
+        res.json(result);
+
+    } catch (error) {
+        console.error('RDBMS vs BigQuery comparison error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Comparison failed: ' + error.message,
+            suggestions: [
+                'Verify both source and BigQuery tables exist',
+                'Check BigQuery authentication and permissions',
+                'Ensure network connectivity to both systems'
+            ]
+        });
+    }
+});
 // Start server
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
