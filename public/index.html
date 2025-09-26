@@ -1638,6 +1638,7 @@
                         <button class="btn-primary" id="fetchApiData" style="width: 100%; margin-top: 20px;">
                             🔄 Fetch API Data
                         </button>
+
                     </div>
 
                     <div class="comparison-options">
@@ -2642,80 +2643,158 @@ function extractImportantFields(allFields, idFields) {
             }
         });
 
-        function displayApiPreview(preview, metadata) {
-            try {
-                const dataSourceElement = document.getElementById('apiDataSource');
-                if (dataSourceElement) {
-                    dataSourceElement.textContent = metadata?.url || 'API Endpoint';
-                }
+// ========================================
+// ENHANCED API PREVIEW DISPLAY
+// ========================================
 
-                const apiStats = document.getElementById('api-stats');
-                if (apiStats) {
-                    apiStats.innerHTML = `
-                        <div class="api-stat-card">
-                            <div class="api-stat-number">${preview.totalRecords.toLocaleString()}</div>
-                            <div class="api-stat-label">Total Records</div>
+// Replace your existing displayApiPreview function in index.html with this enhanced version:
+
+function displayApiPreview(preview, metadata) {
+    try {
+        console.log('=== DISPLAYING ENHANCED API PREVIEW WITH TOTAL vs COMPARISON COUNTS ===');
+        console.log('Preview data:', preview);
+        console.log('Metadata:', metadata);
+
+        // Set API data source
+        const dataSourceElement = document.getElementById('apiDataSource');
+        if (dataSourceElement) {
+            dataSourceElement.textContent = metadata?.url || 'API Endpoint';
+        }
+
+        // ENHANCED: Show total records vs comparison records clearly
+        const apiStats = document.getElementById('api-stats');
+        if (apiStats) {
+            const totalRecords = metadata?.totalRecordsInAPI || metadata?.totalRecordsAvailable || preview.totalRecords || 0;
+            const comparisonRecords = metadata?.recordsForComparison || metadata?.sampleRecordsFetched || Math.min(totalRecords, 20);
+            const comparisonStrategy = metadata?.comparisonStrategy || metadata?.fetchStrategy || 'standard';
+
+            // Special handling for "all records" strategy
+            const isAllRecordsStrategy = comparisonStrategy.includes('first-page-with-total-count') ||
+                                       comparisonStrategy.includes('all-records') ||
+                                       metadata?.allRecordsStrategy?.used;
+
+            apiStats.innerHTML = `
+                <div class="api-stat-card" style="border-left: 4px solid #3498db;">
+                    <div class="api-stat-number" style="color: #3498db; font-size: 1.8rem;">${totalRecords.toLocaleString()}</div>
+                    <div class="api-stat-label">Total Records in API</div>
+                    <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Complete dataset</div>
+                </div>
+                <div class="api-stat-card" style="border-left: 4px solid #27ae60;">
+                    <div class="api-stat-number" style="color: #27ae60; font-size: 1.8rem;">${comparisonRecords.toLocaleString()}</div>
+                    <div class="api-stat-label">Records for Comparison</div>
+                    <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Representative sample</div>
+                </div>
+                <div class="api-stat-card" style="border-left: 4px solid #f39c12;">
+                    <div class="api-stat-number" style="color: #f39c12;">${formatFileSize(preview.fileSize || 0)}</div>
+                    <div class="api-stat-label">Response Size</div>
+                    <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">JSON payload</div>
+                </div>
+                <div class="api-stat-card" style="border-left: 4px solid #9b59b6;">
+                    <div class="api-stat-number" style="color: #9b59b6;">${preview.fieldsDetected || 0}</div>
+                    <div class="api-stat-label">Fields Available</div>
+                    <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Schema columns</div>
+                </div>
+                <div class="api-stat-card" style="border-left: 4px solid #2ecc71;">
+                    <div class="api-stat-number" style="color: #2ecc71; font-size: 1.2rem;">${metadata?.status || 200}</div>
+                    <div class="api-stat-label">HTTP Status</div>
+                    <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">API response</div>
+                </div>
+            `;
+        }
+
+        // ENHANCED: Strategy Information Box
+        const strategyInfoHtml = `
+            <div style="background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); padding: 20px; border-radius: 12px; margin: 20px 0; border-left: 4px solid #27ae60;">
+                <h4 style="color: #155724; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    ✅ All Records Strategy Active
+                </h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+                    <div>
+                        <h5 style="color: #2c3e50; margin-bottom: 8px;">📊 Total Records Found</h5>
+                        <p style="font-size: 1.1rem; font-weight: 600; color: #27ae60;">${metadata?.totalRecordsInAPI || 0} records</p>
+                        <p style="font-size: 0.9rem; color: #666;">Complete dataset from ServiceNow</p>
+                    </div>
+                    <div>
+                        <h5 style="color: #2c3e50; margin-bottom: 8px;">🔍 Comparison Sample</h5>
+                        <p style="font-size: 1.1rem; font-weight: 600; color: #3498db;">${metadata?.recordsForComparison || 0} records</p>
+                        <p style="font-size: 0.9rem; color: #666;">Representative sample for analysis</p>
+                    </div>
+                </div>
+                <div style="background: rgba(255,255,255,0.7); padding: 12px; border-radius: 8px;">
+                    <p style="margin: 0; font-size: 0.9rem; color: #2c3e50;">
+                        <strong>Strategy:</strong> All ${metadata?.totalRecordsInAPI || 0} records were counted and verified.
+                        Using ${metadata?.recordsForComparison || 0} representative records for efficient comparison with BigQuery while maintaining accuracy of total counts.
+                    </p>
+                </div>
+            </div>
+        `;
+
+        // Add strategy info to preview
+        const fieldSuggestions = document.getElementById('api-field-suggestions');
+        if (fieldSuggestions && fieldSuggestions.parentNode) {
+            // Insert strategy info before field suggestions
+            const strategyDiv = document.createElement('div');
+            strategyDiv.innerHTML = strategyInfoHtml;
+            fieldSuggestions.parentNode.insertBefore(strategyDiv, fieldSuggestions);
+        }
+
+        // ENHANCED: Field suggestions with better categorization
+        if (preview.idFields || preview.importantFields) {
+            const idFields = preview.idFields || [];
+            const importantFields = preview.importantFields || [];
+
+            if (fieldSuggestions) {
+                let suggestionsHTML = '';
+
+                if (idFields.length > 0) {
+                    suggestionsHTML += `
+                        <div class="field-category-header first">
+                            🔑 ID/Key Fields (Recommended - Click to Use):
                         </div>
-                        <div class="api-stat-card">
-                            <div class="api-stat-number">${preview.fieldsDetected}</div>
-                            <div class="api-stat-label">Fields Detected</div>
-                        </div>
-                        <div class="api-stat-card">
-                            <div class="api-stat-number">${formatFileSize(preview.fileSize)}</div>
-                            <div class="api-stat-label">Response Size</div>
-                        </div>
-                        <div class="api-stat-card">
-                            <div class="api-stat-number">${preview.format}</div>
-                            <div class="api-stat-label">Format</div>
-                        </div>
-                        <div class="api-stat-card">
-                            <div class="api-stat-number">${metadata?.status || 200}</div>
-                            <div class="api-stat-label">HTTP Status</div>
-                        </div>
+                        <div style="margin-bottom: 15px;">
                     `;
+                    idFields.forEach(field => {
+                        suggestionsHTML += `<span class="clickable-field" onclick="setAsApiPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                    });
+                    suggestionsHTML += '</div>';
                 }
 
-                // Field suggestions
-                if (preview.idFields || preview.importantFields) {
-                    const idFields = preview.idFields || [];
-                    const importantFields = preview.importantFields || [];
-
-                    const fieldSuggestions = document.getElementById('api-field-suggestions');
-                    if (fieldSuggestions) {
-                        let suggestionsHTML = '';
-
-                        if (idFields.length > 0) {
-                            suggestionsHTML += '<div class="field-category-header first">🔑 ID/Key Fields (Recommended - Click to Use):</div>';
-                            suggestionsHTML += '<div style="margin-bottom: 15px;">';
-                            idFields.forEach(field => {
-                                suggestionsHTML += `<span class="clickable-field" onclick="setAsApiPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
-                            });
-                            suggestionsHTML += '</div>';
-                        }
-
-                        if (importantFields.length > 0) {
-                            suggestionsHTML += '<div class="field-category-header">📋 Other Important Fields (Click to Use):</div>';
-                            suggestionsHTML += '<div>';
-                            importantFields.forEach(field => {
-                                suggestionsHTML += `<span class="clickable-field" onclick="setAsApiPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
-                            });
-                            suggestionsHTML += '</div>';
-                        }
-
-                        fieldSuggestions.innerHTML = suggestionsHTML;
-                    }
+                if (importantFields.length > 0) {
+                    suggestionsHTML += `
+                        <div class="field-category-header">
+                            📋 Other Important Fields (Click to Use):
+                        </div>
+                        <div>
+                    `;
+                    importantFields.forEach(field => {
+                        suggestionsHTML += `<span class="clickable-field" onclick="setAsApiPrimaryKey('${field}')" title="Click to use ${field} as primary key">${field}</span> `;
+                    });
+                    suggestionsHTML += '</div>';
                 }
 
-                const apiPreview = document.getElementById('api-preview');
-                if (apiPreview) {
-                    apiPreview.style.display = 'block';
-                }
-
-            } catch (error) {
-                console.error('Error in displayApiPreview:', error);
-                alert('API data fetched successfully but preview display failed. You can still proceed with comparison.');
+                fieldSuggestions.innerHTML = suggestionsHTML;
             }
         }
+
+        // Show the API preview section
+
+
+       const existingStrategyDivs = document.querySelectorAll('#api-available-fields div[style*="background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%)"]');
+        existingStrategyDivs.forEach(div => div.remove());
+
+        // Enhanced API preview section
+        const apiPreview = document.getElementById('api-preview');
+        if (apiPreview) {
+            apiPreview.style.display = 'block';
+        }
+        console.log('Enhanced API preview displayed successfully with total vs comparison record counts');
+
+    } catch (error) {
+        console.error('Error in enhanced displayApiPreview:', error);
+        alert('API data fetched successfully but preview display failed. You can still proceed with comparison.');
+    }
+}
+
 
         // Enhanced API Comparison
         document.getElementById('startApiComparison').addEventListener('click', async function() {
@@ -2857,81 +2936,108 @@ function extractImportantFields(allFields, idFields) {
             populateApiFieldWiseTab(results.fieldWiseAnalysis, results.summary);
             populateApiDuplicatesTab(results.duplicatesAnalysis, results.summary);
         }
+function populateApiRecordCountTab(recordCounts, summary) {
+    // FIXED: Use totalRecordsInAPI (total available) instead of comparison records
+    const apiTotal = recordCounts?.apiDetails?.totalRecordsInAPI ||
+                     summary?.totalRecordsInAPI ||
+                     summary?.totalRecordsInFile || 0; // Use TOTAL API records
 
-        function populateApiRecordCountTab(recordCounts, summary) {
-            const apiTotal = recordCounts?.apiDetails?.totalRecords || summary?.totalRecordsInFile || 0;
-            const bqTotal = recordCounts?.bqDetails?.totalRecords || summary?.targetRecords || 0;
-            const apiUnique = recordCounts?.apiDetails?.uniquePrimaryKeys || summary?.uniqueSourceRecords || 0;
-            const bqUnique = recordCounts?.bqDetails?.uniquePrimaryKeys || 0;
-            const apiNulls = recordCounts?.apiDetails?.nullPrimaryKeys || 0;
-            const bqNulls = recordCounts?.bqDetails?.nullPrimaryKeys || 0;
-            const apiDuplicates = recordCounts?.apiDetails?.duplicateRecords || summary?.duplicateRecordsInFile || 0;
+    const bqTotal = recordCounts?.bqDetails?.totalRecords || summary?.targetRecords || 0;
 
-            const recordCountSummary = document.getElementById('api-record-count-summary');
-            if (recordCountSummary) {
-                recordCountSummary.innerHTML = `
-                    <div class="summary-card">
-                        <div class="summary-number">${apiTotal.toLocaleString()}</div>
-                        <div class="summary-label">API Total Records</div>
-                    </div>
-                    <div class="summary-card">
-                        <div class="summary-number">${bqTotal.toLocaleString()}</div>
-                        <div class="summary-label">BigQuery Total Records</div>
-                    </div>
-                    <div class="summary-card matches">
-                        <div class="summary-number">${apiUnique.toLocaleString()}</div>
-                        <div class="summary-label">API Unique Keys</div>
-                    </div>
-                    <div class="summary-card matches">
-                        <div class="summary-number">${bqUnique.toLocaleString()}</div>
-                        <div class="summary-label">BigQuery Unique Keys</div>
-                    </div>
-                    <div class="summary-card ${apiDuplicates > 0 ? 'warning' : 'pass'}">
-                        <div class="summary-number">${apiDuplicates.toLocaleString()}</div>
-                        <div class="summary-label">API Duplicates</div>
-                    </div>
-                    <div class="summary-card warning">
-                        <div class="summary-number">${apiNulls + bqNulls}</div>
-                        <div class="summary-label">Total Null Keys</div>
-                    </div>
-                `;
-            }
+    // Comparison records (sample size) - kept for analysis section
+    const comparisonRecords = recordCounts?.apiDetails?.recordsForComparison ||
+                             summary?.recordsForComparison || 20;
 
-            const recordCountDetails = document.getElementById('api-record-count-details');
-            if (recordCountDetails) {
-                const primaryKeyField = recordCounts?.apiDetails?.primaryKeyField || summary?.primaryKeyUsed || 'custom field';
+    const apiUnique = recordCounts?.apiDetails?.uniquePrimaryKeys || summary?.uniqueSourceRecords || 0;
+    const bqUnique = recordCounts?.bqDetails?.uniquePrimaryKeys || 0;
+    const apiNulls = recordCounts?.apiDetails?.nullPrimaryKeys || 0;
+    const bqNulls = recordCounts?.bqDetails?.nullPrimaryKeys || 0;
+    const apiDuplicates = recordCounts?.apiDetails?.duplicateRecords || summary?.duplicateRecordsInFile || 0;
 
-                recordCountDetails.innerHTML = `
-                    <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #27ae60;">
-                        <h4 style="color: #2c3e50; margin-bottom: 10px;">✅ Primary Key Analysis</h4>
-                        <p><strong>Primary Key Used:</strong> <code>${primaryKeyField}</code> (API field matching BigQuery)</p>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                        <div>
-                            <h4 style="color: #3498db; margin-bottom: 15px;">🔗 API Source Analysis</h4>
-                            <table style="width: 100%; font-size: 0.9rem;">
-                                <tbody>
-                                    <tr><td><strong>Total Records:</strong></td><td>${apiTotal.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Unique Primary Keys:</strong></td><td>${apiUnique.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Duplicate Records:</strong></td><td style="color: ${apiDuplicates > 0 ? '#f39c12' : '#27ae60'}; font-weight: 600;">${apiDuplicates.toLocaleString()} ${apiDuplicates > 0 ? '⚠️' : '✅'}</td></tr>
-                                    <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div>
-                            <h4 style="color: #2980b9; margin-bottom: 15px;">🗄️ BigQuery Target Analysis</h4>
-                            <table style="width: 100%; font-size: 0.9rem;">
-                                <tbody>
-                                    <tr><td><strong>Total Records:</strong></td><td>${bqTotal.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Unique Primary Keys:</strong></td><td>${bqUnique.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                `;
-            }
-        }
+    const recordCountSummary = document.getElementById('api-record-count-summary');
+    if (recordCountSummary) {
+        recordCountSummary.innerHTML = `
+            <div class="summary-card">
+                <div class="summary-number">${apiTotal.toLocaleString()}</div>
+                <div class="summary-label">API Total Records</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-number">${bqTotal.toLocaleString()}</div>
+                <div class="summary-label">BigQuery Total Records</div>
+            </div>
+            <div class="summary-card matches">
+                <div class="summary-number">${apiUnique.toLocaleString()}</div>
+                <div class="summary-label">API Unique Keys</div>
+            </div>
+            <div class="summary-card matches">
+                <div class="summary-number">${bqUnique.toLocaleString()}</div>
+                <div class="summary-label">BigQuery Unique Keys</div>
+            </div>
+            <div class="summary-card ${apiDuplicates > 0 ? 'warning' : 'pass'}">
+                <div class="summary-number">${apiDuplicates.toLocaleString()}</div>
+                <div class="summary-label">API Duplicates</div>
+            </div>
+            <div class="summary-card warning">
+                <div class="summary-number">${apiNulls + bqNulls}</div>
+                <div class="summary-label">Total Null Keys</div>
+            </div>
+        `;
+    }
+
+    const recordCountDetails = document.getElementById('api-record-count-details');
+    if (recordCountDetails) {
+        const primaryKeyField = recordCounts?.apiDetails?.primaryKeyField || summary?.primaryKeyUsed || 'custom field';
+
+        recordCountDetails.innerHTML = `
+            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #27ae60;">
+                <h4 style="color: #2c3e50; margin-bottom: 10px;">✅ Primary Key Analysis</h4>
+                <p><strong>Primary Key Used:</strong> <code>${primaryKeyField}</code> (API field matching BigQuery)</p>
+                <p><strong>Comparison Strategy:</strong> Using ${comparisonRecords} sample records from ${apiTotal} total API records for efficient analysis</p>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                <div>
+                    <h4 style="color: #3498db; margin-bottom: 15px;">🔗 API Source Analysis</h4>
+                    <table style="width: 100%; font-size: 0.9rem;">
+                        <tbody>
+                            <tr><td><strong>Total Records:</strong></td><td>${apiTotal.toLocaleString()}</td></tr>
+                            <tr><td><strong>Unique Primary Keys:</strong></td><td>${apiUnique.toLocaleString()}</td></tr>
+                            <tr><td><strong>Duplicate Records:</strong></td><td style="color: ${apiDuplicates > 0 ? '#f39c12' : '#27ae60'}; font-weight: 600;">${apiDuplicates.toLocaleString()} ${apiDuplicates > 0 ? '⚠️' : '✅'}</td></tr>
+                            <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
+                            <tr><td><strong>Sample Size for Analysis:</strong></td><td style="color: #666; font-style: italic;">${comparisonRecords.toLocaleString()} records</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div>
+                    <h4 style="color: #2980b9; margin-bottom: 15px;">🗄️ BigQuery Target Analysis</h4>
+                    <table style="width: 100%; font-size: 0.9rem;">
+                        <tbody>
+                            <tr><td><strong>Total Records:</strong></td><td>${bqTotal.toLocaleString()}</td></tr>
+                            <tr><td><strong>Unique Primary Keys:</strong></td><td>${bqUnique.toLocaleString()}</td></tr>
+                            <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
+                            <tr><td><strong>Record Count Match:</strong></td><td style="color: ${apiTotal === bqTotal ? '#27ae60' : '#e74c3c'}; font-weight: 600;">${apiTotal === bqTotal ? '✅ Perfect Match' : '⚠️ Count Mismatch'}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            ${apiTotal !== bqTotal ? `
+            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #ffc107;">
+                <h4 style="color: #856404; margin-bottom: 10px;">⚠️ Record Count Mismatch Detected</h4>
+                <p><strong>API Records:</strong> ${apiTotal.toLocaleString()}</p>
+                <p><strong>BigQuery Records:</strong> ${bqTotal.toLocaleString()}</p>
+                <p><strong>Difference:</strong> ${Math.abs(apiTotal - bqTotal).toLocaleString()} records</p>
+                <p style="margin-top: 10px; font-style: italic;">This suggests data synchronization issues between the API source and BigQuery target.</p>
+            </div>
+            ` : `
+            <div style="background: #d4edda; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #28a745;">
+                <h4 style="color: #155724; margin-bottom: 10px;">🎉 Perfect Record Count Match!</h4>
+                <p>API and BigQuery both contain exactly <strong>${apiTotal.toLocaleString()}</strong> records.</p>
+                <p style="font-style: italic;">This indicates excellent data synchronization between systems.</p>
+            </div>
+            `}
+        `;
+    }
+}
 
         function populateApiColumnNamesTab(schemaAnalysis) {
             if (!schemaAnalysis) {
@@ -4340,6 +4446,9 @@ function generateDirectSampleRecordsDisplay(field, sourceType) {
                 });
             }
         });
+
+
+
     </script>
 </body>
 </html>
