@@ -3772,19 +3772,42 @@ async function testDatabaseConnection(dbType) {
     console.log(`Testing ${dbType} connection...`);
     
     // Get connection data based on database type
-    const getConnectionData = (type) => {
-        if (type === 'postgresql') {
-            return {
-                host: document.getElementById('pg-host')?.value?.trim() || '',
-                port: document.getElementById('pg-port')?.value || '5432',
-                database: document.getElementById('pg-database')?.value?.trim() || '',
-                username: document.getElementById('pg-username')?.value?.trim() || '',
-                password: document.getElementById('pg-password')?.value || ''
-            };
-        }
-        // Add other database types as needed
-        return {};
-    };
+  const getConnectionData = (type) => {
+    if (type === 'postgresql') {
+        return {
+            host: document.getElementById('pg-host')?.value?.trim() || '',
+            port: document.getElementById('pg-port')?.value || '5432',
+            database: document.getElementById('pg-database')?.value?.trim() || '',
+            username: document.getElementById('pg-username')?.value?.trim() || '',
+            password: document.getElementById('pg-password')?.value || ''
+        };
+    } else if (type === 'mysql') {
+        return {
+            host: document.getElementById('mysql-host')?.value?.trim() || '',
+            port: document.getElementById('mysql-port')?.value || '3306',
+            database: document.getElementById('mysql-database')?.value?.trim() || '',
+            username: document.getElementById('mysql-username')?.value?.trim() || '',
+            password: document.getElementById('mysql-password')?.value || ''
+        };
+    } else if (type === 'oracle') {
+        return {
+            host: document.getElementById('oracle-host')?.value?.trim() || '',
+            port: document.getElementById('oracle-port')?.value || '1521',
+            service: document.getElementById('oracle-service')?.value?.trim() || '',
+            username: document.getElementById('oracle-username')?.value?.trim() || '',
+            password: document.getElementById('oracle-password')?.value || ''
+        };
+    } else if (type === 'sqlserver') {
+        return {
+            server: document.getElementById('sqlserver-host')?.value?.trim() || '',
+            port: document.getElementById('sqlserver-port')?.value || '1433',
+            database: document.getElementById('sqlserver-database')?.value?.trim() || '',
+            username: document.getElementById('sqlserver-username')?.value?.trim() || '',
+            password: document.getElementById('sqlserver-password')?.value || ''
+        };
+    }
+    return {};
+};
     
     const connectionData = getConnectionData(dbType);
     const statusDiv = document.getElementById(`${dbType}-connection-status`);
