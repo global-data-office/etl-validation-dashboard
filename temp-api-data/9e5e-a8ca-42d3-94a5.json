@@ -1,0 +1,514 @@
+{
+  "result": [
+    {
+      "id": "1710d4a2621b3e9f739ee6b39e7cfeff",
+      "name": "1001211-1156596 The Nexxus Group",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 2,
+          "available": 0
+        }
+      },
+      "created_on": "2020-11-18T04:16:42.428009Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "84f32ed62feebcbaca638ead4c67707a",
+      "name": "1036483-1212577 Glanbia Management Serviced Ltd",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": true,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 4,
+          "current": 3,
+          "available": 1
+        }
+      },
+      "created_on": "2021-07-12T12:44:45.639489Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "aef2a70f00de19cc16a647a1f24cc3fb",
+      "name": "1576580-1226823 Soberlink Healthcare LLC",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 10,
+          "available": 0
+        }
+      },
+      "created_on": "2022-01-12T17:29:50.761460Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "e2843e52c4ba154c6dfdeec389e469e2",
+      "name": "1613528-1313146 James Blake Solutions",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 2,
+          "available": 0
+        }
+      },
+      "created_on": "2023-10-27T13:15:16.834100Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "dd496240dda6c58c5d43b70d46095116",
+      "name": "1643323-1228441 Federal Farm Credit Banks Funding Corporation",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": true,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 2,
+          "current": 2,
+          "available": 0
+        }
+      },
+      "created_on": "2022-01-28T23:02:33.582363Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "0dc36507598f63c4777f831f7caec48b",
+      "name": "1687839-1169277 Go Beyond MCH",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 2,
+          "available": 0
+        }
+      },
+      "created_on": "2021-01-27T03:39:06.134131Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "37ff57f98e24cf77a1217d2ec576a499",
+      "name": "1759121-1206383 BVG Airflo Group Ltd",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 2,
+          "available": 0
+        }
+      },
+      "created_on": "2021-05-21T20:04:44.404455Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "5d0b2b9ec17f4bd0498f5a46c75e5b2f",
+      "name": "1809278-1219291 Product Operations (INTERNAL)",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 0,
+          "available": 0
+        }
+      },
+      "created_on": "2022-01-07T18:09:28.581559Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "f8278a13a20cd13d17a0191866b42808",
+      "name": "1809278-1227005 Product Operations (INTERNAL)",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 0,
+          "available": 0
+        }
+      },
+      "created_on": "2022-01-07T18:19:10.802158Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "a2e6d8100e44f86c5fc0d35a6e71e3bf",
+      "name": "1809278-1227014 Product Operations (INTERNAL)",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 0,
+          "available": 0
+        }
+      },
+      "created_on": "2022-01-07T20:02:51.340517Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "443f4b4e236886d217683cc59eabdfa5",
+      "name": "1858830-1155527 Live Help Now",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 0,
+          "available": 0
+        }
+      },
+      "created_on": "2020-12-24T22:51:36.766145Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "7e0f672f53e48d443c0091672e8c3efa",
+      "name": "1923127-1326353 Oshkosh Corporation",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 70,
+          "current": 53,
+          "available": 17
+        }
+      },
+      "created_on": "2024-01-04T15:48:54.221311Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "53e2f7c2dd31600665f80f6a43ba8031",
+      "name": "193139-1195356 Boardwalktech, Inc",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 3,
+          "current": 1,
+          "available": 2
+        }
+      },
+      "created_on": "2021-04-09T16:42:03.336955Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "0d4925eaa74b0a598e93c9197a5b0453",
+      "name": "1941164-1187905 PEG Test Devices",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 0,
+          "available": 0
+        }
+      },
+      "created_on": "2021-05-24T13:45:11.839717Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "14392293b1603a026e21f8d1bc2d49fa",
+      "name": "1941164-1187905 PEG Test Devices DJ-TEST",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 2,
+          "available": 0
+        }
+      },
+      "created_on": "2021-05-27T12:43:26.013623Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "1cd23428745fc3a42a6f8b38f0549739",
+      "name": "1943039-1238803 Mitchells & Butlers Leisure Retail Ltd",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": "3000-01-01T00:00:00.000Z",
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 0,
+          "available": 0
+        }
+      },
+      "created_on": "2022-06-09T08:50:34.345502Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "4cff2a68ac51c938ceeda683260fc228",
+      "name": "194551-1246318 Rolls Royce PLC",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 6,
+          "current": 6,
+          "available": 0
+        }
+      },
+      "created_on": "2022-09-30T16:00:28.655353Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "351298058c5dbf1934b9900d0d8c1ab4",
+      "name": "245919-1362100 Vertical Alliance Group",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 0,
+          "available": 0
+        }
+      },
+      "created_on": "2025-04-30T07:30:13.861228Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "5937a55ab52ac2568344b744a23a4d16",
+      "name": "25466-1240926 ClearHealth Strategies, LLC",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": false,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 0,
+          "current": 1,
+          "available": 0
+        }
+      },
+      "created_on": "2022-07-13T17:30:41.980534Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    },
+    {
+      "id": "8fb83f1ce8236b33d1f74d883e7e37de",
+      "name": "26132-1231330 Multi-Health Systems",
+      "type": "enterprise",
+      "settings": {
+        "enforce_twofactor": true,
+        "api_access_enabled": null,
+        "access_approval_expiry": null,
+        "abuse_contact_email": null,
+        "user_groups_ui_beta": false
+      },
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "maximum": 5,
+          "current": 6,
+          "available": 0
+        }
+      },
+      "created_on": "2020-02-05T04:21:30.943338Z",
+      "managed_by": {
+        "root_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_id": "0685e049ad5c7990898b0add18b2c382",
+        "parent_org_name": "Rackspace MS Tenant Account"
+      }
+    }
+  ],
+  "result_info": {
+    "page": 1,
+    "per_page": 20,
+    "total_pages": 5,
+    "count": 20,
+    "total_count": 94
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

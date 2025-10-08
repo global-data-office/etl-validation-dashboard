@@ -297,22 +297,39 @@ class APIFetcherService {
                     suggestions: this.getResponseErrorSuggestions(validationResult.reason, response.status)
                 };
             }
+// FIXED: Connection test success logic in api-fetcher.js (around line 183)
+// Replace the existing return statement with this corrected version:
 
-            const connectionSuccessful = response.status >= 200 && response.status < 300;
-            const authenticationSuccessful = response.status !== 401 && response.status !== 403;
+const connectionSuccessful = response.status >= 200 && response.status < 300;
+const authenticationSuccessful = response.status !== 401 && response.status !== 403;
 
-            return {
-                success: true,
-                connectionSuccessful: connectionSuccessful,
-                authenticationSuccessful: authenticationSuccessful,
-                status: response.status,
-                statusText: response.statusText,
-                duration: duration,
-                authType: this.getAuthType(config),
-                contentType: response.headers['content-type'] || 'unknown',
-                message: connectionSuccessful ? 'Connection successful' : `API returned ${response.status}`,
-                authMessage: authenticationSuccessful ? 'Authentication successful' : 'Authentication failed'
-            };
+// FIX: Don't report overall success if we get 4xx errors (except auth errors)
+const overallSuccess = connectionSuccessful || (response.status === 401 || response.status === 403);
+
+return {
+    success: overallSuccess, // FIXED: Was hardcoded to true
+    connectionSuccessful: connectionSuccessful,
+    authenticationSuccessful: authenticationSuccessful,
+    status: response.status,
+    statusText: response.statusText,
+    duration: duration,
+    authType: this.getAuthType(config),
+    contentType: response.headers['content-type'] || 'unknown',
+    message: connectionSuccessful ? 'Connection successful' : `API returned ${response.status} - ${response.statusText}`,
+    authMessage: authenticationSuccessful ? 'Authentication successful' : 'Authentication failed',
+
+    // ENHANCED: Add specific guidance for 400 errors
+    ...(response.status === 400 && {
+        error: 'Bad Request - API endpoint or parameters may be incorrect',
+        suggestions: [
+            'Check if the API endpoint URL is complete and correct',
+            'Verify if this endpoint requires specific query parameters',
+            'Some APIs require POST requests instead of GET for authentication',
+            'Try a different endpoint like /client/v4/user/tokens/verify for testing'
+        ]
+    })
+};
+
 
         } catch (error) {
             console.error('Connection test failed:', error.message);

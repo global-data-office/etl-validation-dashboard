@@ -1,0 +1,21 @@
+{
+  "id": "9e5e-a8ca-42d3-94a5",
+  "url": "https://api.cloudflare.com/client/v4/accounts/",
+  "method": "GET",
+  "status": 200,
+  "statusText": "OK",
+  "contentType": "application/json",
+  "fetchedAt": "2025-10-08T10:41:53.087Z",
+  "responseSize": 11122,
+  "duration": 1441,
+  "dataType": "API Response (20 records)",
+  "authenticationUsed": "Custom Headers",
+  "authenticationStatus": "success",
+  "connectionSuccessful": true,
+  "totalRecords": 20,
+  "totalRecordsAvailable": 94,
+  "totalRecordsInAPI": 94,
+  "recordsForComparison": 20,
+  "fetchStrategy": "smart-sample-with-count",
+  "userPaginationRespected": false
+}
