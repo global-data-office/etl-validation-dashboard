@@ -1111,17 +1111,88 @@ app.post('/api/test-api-connection', async (req, res) => {
     }
 });
 
+// In your server.js file, REPLACE the existing /api/fetch-api-data endpoint with this enhanced version:
+
 app.post('/api/fetch-api-data', async (req, res) => {
     try {
         const { url, method, headers, body, username, password, authType } = req.body;
-        if (!url) return res.status(400).json({ success: false, error: 'URL required' });
 
-        const result = await apiFetcher.fetchAPIData({ url, method: method || 'GET', headers: headers || {}, body, username, password, authType });
+        console.log('=== ENHANCED API DATA FETCH (RESPECTS USER PAGINATION) ===');
+        console.log(`URL: ${url}`);
+        console.log(`Method: ${method || 'GET'}`);
+
+        if (!url) {
+            return res.status(400).json({
+                success: false,
+                error: 'URL required for API fetch'
+            });
+        }
+
+        // Check if URL has user-specified pagination parameters
+        const urlObj = new URL(url);
+        const hasUserPagination = urlObj.searchParams.has('per_page') ||
+                                  urlObj.searchParams.has('limit') ||
+                                  urlObj.searchParams.has('page_size') ||
+                                  urlObj.searchParams.has('page') ||
+                                  urlObj.searchParams.has('offset');
+
+        if (hasUserPagination) {
+            console.log('USER PAGINATION DETECTED in URL:', url);
+            console.log('User parameters:', Object.fromEntries(urlObj.searchParams.entries()));
+            console.log('Will respect user pagination exactly');
+        }
+
+        // Build configuration
+        const config = {
+            url,
+            method: method || 'GET',
+            headers: headers || {},
+            body,
+            username,
+            password,
+            authType,
+            respectUserPagination: hasUserPagination // Flag for the service
+        };
+
+        console.log('Calling APIFetcherService with enhanced pagination respect...');
+
+        const APIFetcherService = require('./services/api-fetcher');
+        const apiFetcher = new APIFetcherService();
+
+        // Use the updated fetchAPIData method
+        const result = await apiFetcher.fetchAPIData(config);
+
+        if (result.success) {
+            console.log('API FETCH SUCCESS:');
+            console.log(`- Records fetched: ${result.metadata?.totalRecords || 'unknown'}`);
+            console.log(`- Strategy used: ${result.metadata?.fetchStrategy || 'standard'}`);
+            console.log(`- User pagination respected: ${result.userPaginationRespected || false}`);
+
+            // Add debugging info for user pagination
+            if (hasUserPagination) {
+                result.debugInfo = {
+                    userPaginationDetected: true,
+                    userParameters: Object.fromEntries(urlObj.searchParams.entries()),
+                    strategyUsed: result.metadata?.fetchStrategy || 'direct-user-request'
+                };
+            }
+        }
+
         res.json(result);
+
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        console.error('Enhanced API fetch failed:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            details: 'Enhanced API fetch with user pagination respect failed'
+        });
     }
 });
+// REMOVE THIS ENTIRE BROKEN SECTION:
+// server.js - ADD THIS NEW ENDPOINT (insert after the existing /api/fetch-api-data endpoint)
+
+
 
 app.get('/api/preview-api/:dataId', async (req, res) => {
     try {
@@ -1215,6 +1286,11 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
         }
 
         console.log(`API data retrieved: ${jsonData.length} records`);
+          if (apiDataResult.metadata?.comparisonStrategy === 'first-page-with-total-count') {
+            console.log('DETECTED: All records strategy was used');
+            console.log(`Total API records: ${apiDataResult.metadata.totalRecordsInAPI}`);
+            console.log(`Records for comparison: ${apiDataResult.metadata.recordsForComparison}`);
+        }
 
         // Flatten the data same as JSON processing
         const flattenedData = jsonData.map((record) => {
@@ -1284,7 +1360,29 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
         );
 
         console.log(`API vs BQ comprehensive comparison completed successfully`);
+  results.metadata = {
+            ...results.metadata,
+            dataSource: 'API',
+            apiUrl: apiDataResult.metadata?.url || 'unknown',
+            authType: apiDataResult.metadata?.authenticationUsed || 'unknown',
+            responseTime: apiDataResult.metadata?.duration || 0,
+            authenticationStatus: 'success',
 
+            // NEW: All records strategy metadata
+            allRecordsStrategy: {
+                used: apiDataResult.metadata?.comparisonStrategy === 'first-page-with-total-count',
+                totalRecordsInAPI: apiDataResult.metadata?.totalRecordsInAPI,
+                recordsForComparison: apiDataResult.metadata?.recordsForComparison,
+                strategy: apiDataResult.metadata?.comparisonStrategy || 'standard'
+            }
+        };
+
+        // Update summary to include total records information
+        if (results.summary && apiDataResult.metadata?.totalRecordsInAPI) {
+            results.summary.totalRecordsInAPI = apiDataResult.metadata.totalRecordsInAPI;
+            results.summary.recordsUsedForComparison = apiDataResult.metadata.recordsForComparison;
+            results.summary.allRecordsStrategy = 'enabled';
+        }
         // Add API-specific metadata
         results.metadata = {
             ...results.metadata,
