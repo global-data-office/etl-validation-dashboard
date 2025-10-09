@@ -1,0 +1,28 @@
+{
+  "id": "f9ccdbd1-d1a2-483a-bcaa-c431ac168b3b",
+  "url": "https://rackspace.peakon.com/api/v1/answers/export?per_page=5000",
+  "method": "GET",
+  "status": 200,
+  "statusText": "OK",
+  "contentType": "application/json; charset=utf-8",
+  "fetchedAt": "2025-10-08T17:08:45.715Z",
+  "responseSize": 4049553,
+  "duration": 1985,
+  "dataType": "Object (2 properties)",
+  "authenticationUsed": "Bearer Token Authentication",
+  "authenticationStatus": "success",
+  "connectionSuccessful": true,
+  "totalRecords": 4925,
+  "totalRecordsInAPI": 4925,
+  "totalRecordsAvailable": 4925,
+  "recordsForComparison": 4925,
+  "fetchStrategy": "direct-user-request",
+  "userPaginationRespected": true,
+  "userPaginationParams": {
+    "per_page": "5000"
+  },
+  "detectedPaginationParams": [
+    "per_page"
+  ],
+  "isPartialResult": false
+}
