@@ -622,19 +622,31 @@ class APIFetcherService {
         }
 
         // Count records in response
-        let recordCount = 0;
-        if (Array.isArray(response.data)) {
-            recordCount = response.data.length;
-        } else if (response.data.result && Array.isArray(response.data.result)) {
-            recordCount = response.data.result.length;
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-            recordCount = response.data.data.length;
-        } else if (response.data.answers && Array.isArray(response.data.answers)) {
-            recordCount = response.data.answers.length;
-        } else {
-            recordCount = 1;
-        }
+      let recordCount = 0;
+if (Array.isArray(response.data)) {
+    recordCount = response.data.length;
+} else if (response.data.result && Array.isArray(response.data.result)) {
+    recordCount = response.data.result.length;
+} else if (response.data.data && Array.isArray(response.data.data)) {
+    recordCount = response.data.data.length;
+} else if (response.data.answers && Array.isArray(response.data.answers)) {
+    recordCount = response.data.answers.length;
+} else if (response.data.issues && Array.isArray(response.data.issues)) {
+    recordCount = response.data.issues.length;  // JIRA API support
+} else if (response.data.items && Array.isArray(response.data.items)) {
+    recordCount = response.data.items.length;   // Common API pattern
+} else if (response.data.records && Array.isArray(response.data.records)) {
+    recordCount = response.data.records.length; // Common API pattern
+} else if (response.data.entries && Array.isArray(response.data.entries)) {
+    recordCount = response.data.entries.length; // Common API pattern
+} else {
+    recordCount = 1;
+}
 
+console.log(`RECORD COUNT DETECTION: Found ${recordCount} records`);
+if (response.data.issues) {
+    console.log(`JIRA API: issues array contains ${response.data.issues.length} items`);
+}
         // Try to determine total available
         let totalAvailableEstimate = recordCount;
         let isPartialResult = false;
