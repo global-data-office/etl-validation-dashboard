@@ -1,0 +1,27 @@
+{
+  "result": [
+    {
+      "id": "e8c75b0c3ab14d18924fb59b839b1b80",
+      "name": "ip_allow_list",
+      "description": "IP list for SST and their clients IPs",
+      "kind": "ip",
+      "num_items": 13,
+      "num_referencing_filters": 0,
+      "created_on": "2023-05-02T14:58:14Z",
+      "modified_on": "2023-05-02T14:59:05Z"
+    },
+    {
+      "id": "1d1ff64e2e424e4995e311130f6e3362",
+      "name": "ip_allow_list_fems_demo",
+      "description": "This lists are for FEMS_DEMO VPNs",
+      "kind": "ip",
+      "num_items": 4,
+      "num_referencing_filters": 0,
+      "created_on": "2024-02-14T07:34:29Z",
+      "modified_on": "2025-08-01T16:05:39Z"
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": []
+}

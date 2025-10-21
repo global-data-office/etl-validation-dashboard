@@ -1255,19 +1255,40 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
             comparisonFields = [],
             includeFieldAnalysis = true,
             includeDuplicateAnalysis = true,
-            includeSchemaAnalysis = true
+            includeSchemaAnalysis = true,
+            bqFilter = null // NEW: Optional BigQuery filter condition
         } = req.body;
 
-        console.log(`COMPREHENSIVE API vs BQ comparison starting...`);
+        console.log(`COMPREHENSIVE API vs BQ comparison with BigQuery filtering starting...`);
         console.log(`DataId: ${dataId}`);
         console.log(`Source table: ${sourceTable}`);
         console.log(`Primary key: ${primaryKey}`);
+        console.log(`BigQuery filter: ${bqFilter || 'None (compare all records)'}`); // NEW: Log filter
 
         if (!dataId || !sourceTable || !primaryKey) {
             return res.status(400).json({
                 success: false,
                 error: 'dataId, sourceTable, and primaryKey are required for comprehensive comparison'
             });
+        }
+
+        // NEW: Validate BigQuery filter syntax if provided
+        if (bqFilter && bqFilter.trim()) {
+            const filterValidation = validateBigQueryFilter(bqFilter.trim());
+            if (!filterValidation.isValid) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid filter condition',
+                    details: filterValidation.error,
+                    suggestions: [
+                        'Use standard SQL WHERE clause syntax',
+                        'Example: account_id = \'4ad8c07d3053ca49828dbd7d626b66cf\'',
+                        'Example: status IN (\'active\', \'enabled\')',
+                        'Example: created_date >= \'2024-01-01\'',
+                        'Ensure field names exist in your BigQuery table'
+                    ]
+                });
+            }
         }
 
         // Get API data
@@ -1286,7 +1307,7 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
         }
 
         console.log(`API data retrieved: ${jsonData.length} records`);
-          if (apiDataResult.metadata?.comparisonStrategy === 'first-page-with-total-count') {
+        if (apiDataResult.metadata?.comparisonStrategy === 'first-page-with-total-count') {
             console.log('DETECTED: All records strategy was used');
             console.log(`Total API records: ${apiDataResult.metadata.totalRecordsInAPI}`);
             console.log(`Records for comparison: ${apiDataResult.metadata.recordsForComparison}`);
@@ -1346,21 +1367,26 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
 
         console.log(`Temp table created: ${tempTableResult.tempTableId}`);
 
-        // Run comprehensive comparison using the same engine as JSON vs BQ
+        // NEW: Enhanced comparison engine call with BigQuery filter
         const ComparisonEngineService = require('./services/comparison-engine');
         const comparisonEngine = new ComparisonEngineService();
 
-        console.log(`Running comprehensive comparison...`);
-        const results = await comparisonEngine.compareJSONvsBigQuery(
+        console.log(`Running comprehensive comparison with BigQuery filtering...`);
+
+        // Pass the BigQuery filter to the comparison engine
+        const results = await comparisonEngine.compareJSONvsBigQueryWithFilter(
             tempTableResult.tempTableId,
             sourceTable,
             primaryKey,
             comparisonFields,
-            'enhanced'
+            'enhanced',
+            bqFilter // NEW: Pass BigQuery filter condition
         );
 
-        console.log(`API vs BQ comprehensive comparison completed successfully`);
-  results.metadata = {
+        console.log(`API vs BQ comprehensive comparison with filtering completed successfully`);
+
+        // Enhanced metadata with filter information
+        results.metadata = {
             ...results.metadata,
             dataSource: 'API',
             apiUrl: apiDataResult.metadata?.url || 'unknown',
@@ -1368,7 +1394,16 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
             responseTime: apiDataResult.metadata?.duration || 0,
             authenticationStatus: 'success',
 
-            // NEW: All records strategy metadata
+            // NEW: BigQuery filter information
+            bigQueryFilter: {
+                applied: !!(bqFilter && bqFilter.trim()),
+                condition: bqFilter && bqFilter.trim() ? bqFilter.trim() : null,
+                description: bqFilter && bqFilter.trim()
+                    ? `Filtered BigQuery data using: ${bqFilter.trim()}`
+                    : 'No BigQuery filtering applied - comparing all records'
+            },
+
+            // All records strategy metadata
             allRecordsStrategy: {
                 used: apiDataResult.metadata?.comparisonStrategy === 'first-page-with-total-count',
                 totalRecordsInAPI: apiDataResult.metadata?.totalRecordsInAPI,
@@ -1377,21 +1412,18 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
             }
         };
 
-        // Update summary to include total records information
-        if (results.summary && apiDataResult.metadata?.totalRecordsInAPI) {
-            results.summary.totalRecordsInAPI = apiDataResult.metadata.totalRecordsInAPI;
-            results.summary.recordsUsedForComparison = apiDataResult.metadata.recordsForComparison;
-            results.summary.allRecordsStrategy = 'enabled';
+        // Update summary to include filter information and total records
+        if (results.summary) {
+            if (apiDataResult.metadata?.totalRecordsInAPI) {
+                results.summary.totalRecordsInAPI = apiDataResult.metadata.totalRecordsInAPI;
+                results.summary.recordsUsedForComparison = apiDataResult.metadata.recordsForComparison;
+                results.summary.allRecordsStrategy = 'enabled';
+            }
+
+            // NEW: Add filter information to summary
+            results.summary.bigQueryFilterApplied = !!(bqFilter && bqFilter.trim());
+            results.summary.bigQueryFilterCondition = bqFilter && bqFilter.trim() ? bqFilter.trim() : null;
         }
-        // Add API-specific metadata
-        results.metadata = {
-            ...results.metadata,
-            dataSource: 'API',
-            apiUrl: apiDataResult.metadata?.url || 'unknown',
-            authType: apiDataResult.metadata?.authenticationUsed || 'unknown',
-            responseTime: apiDataResult.metadata?.duration || 0,
-            authenticationStatus: 'success'
-        };
 
         // Update schema analysis to reflect API source
         if (results.schemaAnalysis) {
@@ -1419,7 +1451,7 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
         res.json(results);
 
     } catch (error) {
-        console.error('Comprehensive API vs BQ comparison failed:', error.message);
+        console.error('Comprehensive API vs BQ comparison with filtering failed:', error.message);
 
         let errorMessage = error.message;
         let suggestions = [
@@ -1428,19 +1460,45 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
             'Try using a different field that exists in both systems'
         ];
 
-        if (error.message.includes('not available in both tables')) {
+        // NEW: Enhanced error handling for filter-related issues
+        if (error.message.includes('Invalid filter condition')) {
+            suggestions = [
+                'Check your BigQuery filter syntax - use standard SQL WHERE clause format',
+                'Example: account_id = \'4ad8c07d3053ca49828dbd7d626b66cf\'',
+                'Example: status IN (\'active\', \'enabled\') AND region = \'us-east\'',
+                'Example: created_date >= \'2024-01-01\'',
+                'Ensure all field names in the filter exist in your BigQuery table',
+                'Field names are case-sensitive'
+            ];
+        } else if (error.message.includes('Filter field not found')) {
+            suggestions = [
+                'One or more fields in your BigQuery filter do not exist in the table',
+                'Check the Column Names tab to see available BigQuery fields',
+                'Ensure field names match exactly (case-sensitive)',
+                'Remove the filter or correct the field names'
+            ];
+        } else if (error.message.includes('not available in both tables')) {
             suggestions = [
                 'Choose a field that exists in both your API data and BigQuery table',
                 'Check the Column Names tab to see available common fields',
                 'API supports any data type - the issue is field name mismatch'
+            ];
+        } else if (error.message.includes('No records match filter')) {
+            suggestions = [
+                'Your BigQuery filter condition returned no matching records',
+                'Try a less restrictive filter condition',
+                'Verify your filter values exist in the BigQuery table',
+                'Remove the filter to compare all BigQuery records'
             ];
         }
 
         res.status(500).json({
             success: false,
             error: errorMessage,
-            details: 'Comprehensive API vs BQ comparison failed',
-            suggestions: suggestions
+            details: 'Comprehensive API vs BQ comparison with BigQuery filtering failed',
+            suggestions: suggestions,
+            filterApplied: !!(req.body.bqFilter && req.body.bqFilter.trim()),
+            filterCondition: req.body.bqFilter && req.body.bqFilter.trim() ? req.body.bqFilter.trim() : null
         });
     }
 });
@@ -1494,6 +1552,58 @@ app.get('/debug-structure', (req, res) => {
         rootFiles: fs.readdirSync(__dirname).slice(0, 20)
     });
 });
+
+function validateBigQueryFilter(filterCondition) {
+    try {
+        // Basic syntax validation
+        if (!filterCondition || filterCondition.trim() === '') {
+            return { isValid: true }; // Empty filter is valid (means no filtering)
+        }
+
+        const trimmed = filterCondition.trim();
+
+        // Check for dangerous SQL injection patterns
+        const dangerousPatterns = [
+            /;\s*(DROP|DELETE|INSERT|UPDATE|CREATE|ALTER)\s/i,
+            /--/,  // SQL comments
+            /\/\*.*?\*\//,  // Block comments
+            /\bUNION\s+SELECT\b/i,
+            /\bEXEC\s*\(/i
+        ];
+
+        for (const pattern of dangerousPatterns) {
+            if (pattern.test(trimmed)) {
+                return {
+                    isValid: false,
+                    error: 'Filter contains potentially unsafe SQL patterns'
+                };
+            }
+        }
+
+        // Basic structure validation - should look like a WHERE clause
+        const validPatterns = [
+            /\w+\s*(=|!=|<>|>|<|>=|<=|LIKE|IN|NOT IN|IS|IS NOT)\s*[\w'"\(\)]/i,
+            /\w+\s+(AND|OR)\s+\w+/i
+        ];
+
+        const hasValidStructure = validPatterns.some(pattern => pattern.test(trimmed));
+
+        if (!hasValidStructure && trimmed.length > 0) {
+            return {
+                isValid: false,
+                error: 'Filter does not appear to be a valid WHERE clause condition'
+            };
+        }
+
+        return { isValid: true };
+
+    } catch (error) {
+        return {
+            isValid: false,
+            error: `Filter validation error: ${error.message}`
+        };
+    }
+}
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
     console.log(`🚀 Server running on port ${port}`);

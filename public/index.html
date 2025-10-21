@@ -1647,26 +1647,59 @@
 
                     </div>
 
-                    <div class="comparison-options">
-                        <h3 style="margin-bottom: 20px; color: #2c3e50;">BigQuery Configuration</h3>
+                     <!-- Right Side: SINGLE BigQuery Configuration -->
+        <div class="comparison-options">
+            <h3 style="margin-bottom: 20px; color: #2c3e50;">🗄️ BigQuery Target Configuration</h3>
 
-                        <div class="option-group">
-                            <label>BigQuery Table</label>
-                            <input type="text" id="apiBqTable" placeholder="rax-landing-qa.snow_ods.domain">
-                            <small class="field-notice info">Enter the BigQuery table to compare against</small>
-                        </div>
+            <div class="option-group">
+                <label>BigQuery Table</label>
+                <input type="text" id="apiBqTable" placeholder="project.dataset.table">
+                <small class="field-notice info">Enter the BigQuery table to compare against</small>
+            </div>
 
-                        <div class="option-group">
-                            <label>Primary Key Field</label>
-                            <input type="text" id="apiPrimaryKey" placeholder="sys_id">
-                            <small class="field-notice success">Field that exists in both API data and BigQuery table</small>
-                        </div>
+            <div class="option-group">
+                <label>Primary Key Field</label>
+                <input type="text" id="apiPrimaryKey" placeholder="sys_id">
+                <small class="field-notice success">Field that exists in both API data and BigQuery table</small>
+            </div>
 
-                        <button class="btn-primary" id="startApiComparison" style="width: 100%; margin-top: 20px;" disabled>
-                            🚀 Start API vs BQ Comparison
-                        </button>
-                    </div>
+            <div class="option-group">
+                <label>
+                    BigQuery Filter Condition (Optional)
+                    <span style="color: #666; font-weight: normal; margin-left: 10px;">- Filter records before comparison</span>
+                </label>
+                <textarea id="apiBqFilter" placeholder="account_id = '4ad8c07d3053ca49828dbd7d626b66cf'&#10;OR status = 'active'&#10;OR created_date > '2024-01-01'" rows="3"></textarea>
+                <small class="field-notice info">
+                    <strong>Examples:</strong><br>
+                    • <code>account_id = '4ad8c07d3053ca49828dbd7d626b66cf'</code><br>
+                    • <code>status IN ('active', 'enabled') AND region = 'us-east'</code><br>
+                    • <code>created_date >= '2024-01-01'</code>
+                </small>
+            </div>
+
+            <!-- Collapsible Filter Help -->
+            <details style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #3498db;">
+                <summary style="cursor: pointer; font-weight: 600; color: #2c3e50; margin-bottom: 10px;">
+                    🔍 Filter Guide & Examples
+                </summary>
+                <div style="font-size: 0.9rem; color: #34495e; margin-top: 10px;">
+                    <p><strong>Purpose:</strong> Filter BigQuery data to match specific criteria from your API source</p>
+                    <p><strong>Common Use Cases:</strong></p>
+                    <ul style="margin: 8px 0; padding-left: 20px;">
+                        <li><strong>Account Filtering:</strong> <code>account_id = 'abc123'</code></li>
+                        <li><strong>Status Filtering:</strong> <code>status = 'active' OR enabled = true</code></li>
+                        <li><strong>Date Range:</strong> <code>created_date >= '2024-01-01' AND created_date <= '2024-12-31'</code></li>
+                        <li><strong>Multiple Conditions:</strong> <code>region IN ('us-east', 'eu-west') AND tier = 'premium'</code></li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>💡 Tip:</strong> Use standard SQL WHERE clause syntax. Leave empty to compare all BigQuery records.</p>
                 </div>
+            </details>
+
+            <button class="btn-primary" id="startApiComparison" style="width: 100%; margin-top: 20px;" disabled>
+                🚀 Start API vs BigQuery Comparison
+            </button>
+        </div>
+    </div>
 
                 <div class="api-preview" id="api-preview">
                     <div class="preview-header">
@@ -2934,109 +2967,178 @@ function displayApiPreview(preview, metadata) {
 }
 
         // Enhanced API Comparison
-        document.getElementById('startApiComparison').addEventListener('click', async function() {
-            if (!currentApiDataId) {
-                alert('Please fetch API data first!');
-                return;
-            }
+        // Replace the existing startApiComparison event listener in index.html
+// with this enhanced version that includes BigQuery filtering
 
-            const primaryKey = document.getElementById('apiPrimaryKey').value.trim();
-            const sourceTable = document.getElementById('apiBqTable').value.trim();
+document.getElementById('startApiComparison').addEventListener('click', async function() {
+    if (!currentApiDataId) {
+        alert('Please fetch API data first!');
+        return;
+    }
 
-            if (!sourceTable) {
-                alert('Please enter a BigQuery table name!');
-                return;
-            }
+    const primaryKey = document.getElementById('apiPrimaryKey').value.trim();
+    const sourceTable = document.getElementById('apiBqTable').value.trim();
+    const bqFilter = document.getElementById('apiBqFilter').value.trim(); // NEW: Get filter condition
 
-            if (!primaryKey) {
-                alert('Please enter a primary key field name!');
-                return;
-            }
+    if (!sourceTable) {
+        alert('Please enter a BigQuery table name!');
+        return;
+    }
 
-            const button = this;
-            const originalText = button.innerHTML;
+    if (!primaryKey) {
+        alert('Please enter a primary key field name!');
+        return;
+    }
 
-            try {
-                button.disabled = true;
-                button.innerHTML = '🔄 Running Comprehensive API vs BQ Analysis...';
+    const button = this;
+    const originalText = button.innerHTML;
 
-                document.getElementById('api-upload-section').style.display = 'none';
-                document.getElementById('api-processing-section').style.display = 'block';
-                document.getElementById('api-processing-text').textContent = 'Creating BigQuery temp table from API data...';
-                document.getElementById('api-processing-subtext').textContent = 'Processing API response with authentication validation';
+    try {
+        button.disabled = true;
+        button.innerHTML = '🔄 Running Comprehensive API vs BQ Analysis with Optional Filtering...';
 
-                // Step 1: Create temp table from API data
-                const tempResponse = await fetch('/api/create-temp-table-from-api', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        dataId: currentApiDataId,
-                        primaryKey: primaryKey
-                    })
-                });
+        document.getElementById('api-upload-section').style.display = 'none';
+        document.getElementById('api-processing-section').style.display = 'block';
 
-                const tempResult = await tempResponse.json();
+        // Enhanced processing text with filter information
+        if (bqFilter) {
+            document.getElementById('api-processing-text').textContent = 'Creating BigQuery temp table from API data with filtering...';
+            document.getElementById('api-processing-subtext').textContent = `Processing API response with BigQuery filter: ${bqFilter.substring(0, 100)}${bqFilter.length > 100 ? '...' : ''}`;
+        } else {
+            document.getElementById('api-processing-text').textContent = 'Creating BigQuery temp table from API data...';
+            document.getElementById('api-processing-subtext').textContent = 'Processing API response with authentication validation';
+        }
 
-                if (!tempResult.success) {
-                    throw new Error(tempResult.error || 'Failed to create temp table from API data');
-                }
-
-                console.log('✅ API temp table created successfully');
-
-                document.getElementById('api-processing-text').textContent = 'Running comprehensive API vs BQ comparison...';
-                document.getElementById('api-processing-subtext').textContent = 'Analyzing schema, records, fields, and data quality across systems';
-
-                // Step 2: Run comprehensive comparison
-                const compResponse = await fetch('/api/compare-api-vs-bq-comprehensive', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        dataId: currentApiDataId,
-                        sourceTable: sourceTable,
-                        primaryKey: primaryKey,
-                        comparisonFields: [], // Will analyze all common fields
-                        includeFieldAnalysis: true,
-                        includeDuplicateAnalysis: true,
-                        includeSchemaAnalysis: true
-                    })
-                });
-
-                const compResult = await compResponse.json();
-
-                if (!compResult.success) {
-                    throw new Error(compResult.error || 'API comprehensive comparison failed');
-                }
-
-                console.log('✅ API comprehensive comparison completed');
-
-                displayApiComparisonResults(compResult);
-
-                document.getElementById('api-processing-section').style.display = 'none';
-                document.getElementById('api-comparison-results').style.display = 'block';
-
-            } catch (error) {
-                console.error('API comparison failed:', error);
-
-                document.getElementById('api-processing-section').style.display = 'none';
-                document.getElementById('api-upload-section').style.display = 'block';
-
-                let errorMsg = error.message;
-
-                // Handle common API-specific errors
-                if (error.message.includes('authentication')) {
-                    errorMsg += '\n\n🔒 Authentication issue detected. Please verify your API credentials and test the connection first.';
-                } else if (error.message.includes('not available in both tables')) {
-                    errorMsg += '\n\nTip: Try using a field name that exists in both your API data and BigQuery table. Check the field suggestions above.';
-                } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
-                    errorMsg += '\n\n🚫 Access denied. Your API credentials may not have permission to access this data.';
-                }
-
-                alert('API vs BQ comparison failed: ' + errorMsg);
-            } finally {
-                button.disabled = false;
-                button.innerHTML = originalText;
-            }
+        // Step 1: Create temp table from API data
+        const tempResponse = await fetch('/api/create-temp-table-from-api', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dataId: currentApiDataId,
+                primaryKey: primaryKey
+            })
         });
+
+        const tempResult = await tempResponse.json();
+
+        if (!tempResult.success) {
+            throw new Error(tempResult.error || 'Failed to create temp table from API data');
+        }
+
+        console.log('✅ API temp table created successfully');
+
+        // Enhanced processing text for comparison phase
+        if (bqFilter) {
+            document.getElementById('api-processing-text').textContent = 'Running comprehensive API vs BQ comparison with BigQuery filtering...';
+            document.getElementById('api-processing-subtext').textContent = 'Applying filter condition to BigQuery data and analyzing schema, records, fields, and data quality';
+        } else {
+            document.getElementById('api-processing-text').textContent = 'Running comprehensive API vs BQ comparison...';
+            document.getElementById('api-processing-subtext').textContent = 'Analyzing schema, records, fields, and data quality across systems';
+        }
+
+        // Step 2: Run comprehensive comparison with optional BigQuery filtering
+        const compResponse = await fetch('/api/compare-api-vs-bq-comprehensive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dataId: currentApiDataId,
+                sourceTable: sourceTable,
+                primaryKey: primaryKey,
+                comparisonFields: [], // Will analyze all common fields
+                includeFieldAnalysis: true,
+                includeDuplicateAnalysis: true,
+                includeSchemaAnalysis: true,
+                bqFilter: bqFilter // NEW: Include BigQuery filter condition
+            })
+        });
+
+        const compResult = await compResponse.json();
+
+        if (!compResult.success) {
+            throw new Error(compResult.error || 'API comprehensive comparison failed');
+        }
+
+        console.log('✅ API comprehensive comparison with optional filtering completed');
+
+        displayApiComparisonResults(compResult);
+
+        document.getElementById('api-processing-section').style.display = 'none';
+        document.getElementById('api-comparison-results').style.display = 'block';
+
+    } catch (error) {
+        console.error('API comparison failed:', error);
+
+        document.getElementById('api-processing-section').style.display = 'none';
+        document.getElementById('api-upload-section').style.display = 'block';
+
+        let errorMsg = error.message;
+
+        // Enhanced error handling for filter-related issues
+        if (error.message.includes('Invalid filter condition')) {
+            errorMsg += '\n\n🔍 Filter Syntax Help:\n• Use standard SQL WHERE clause syntax\n• Example: account_id = \'your-account-id\'\n• Example: status IN (\'active\', \'enabled\')\n• Example: created_date >= \'2024-01-01\'';
+        } else if (error.message.includes('Filter field not found')) {
+            errorMsg += '\n\n📝 Filter Field Tips:\n• Check field names exist in your BigQuery table\n• Field names are case-sensitive\n• Use the Column Names tab to see available fields';
+        } else if (error.message.includes('authentication')) {
+            errorMsg += '\n\n🔐 Authentication issue detected. Please verify your API credentials and test the connection first.';
+        } else if (error.message.includes('not available in both tables')) {
+            errorMsg += '\n\nTip: Try using a field name that exists in both your API data and BigQuery table. Check the field suggestions above.';
+        } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+            errorMsg += '\n\n🚫 Access denied. Your API credentials may not have permission to access this data.';
+        }
+
+        alert('API vs BQ comparison failed: ' + errorMsg);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+});
+
+// Enhanced function to reset API comparison form (includes filter reset)
+function startNewApiComparison() {
+    // Reset dependency states for API section
+    connectionTestPassed = false;
+    apiDataFetched = false;
+    disableFetchDataButton();
+
+    document.getElementById('api-comparison-results').style.display = 'none';
+    document.getElementById('api-upload-section').style.display = 'block';
+    document.getElementById('api-processing-section').style.display = 'none';
+    document.getElementById('startApiComparison').disabled = true;
+    document.getElementById('api-preview').style.display = 'none';
+
+    // Clear all form fields including the new filter field
+    document.getElementById('apiUrl').value = '';
+    document.getElementById('apiUsername').value = '';
+    document.getElementById('apiPassword').value = '';
+    document.getElementById('apiKeyHeader').value = 'X-API-Key';
+    document.getElementById('apiKeyValue').value = '';
+    document.getElementById('bearerToken').value = '';
+    document.getElementById('apiHeaders').value = '';
+    document.getElementById('apiBody').value = '';
+    document.getElementById('apiPrimaryKey').value = '';
+    document.getElementById('apiBqTable').value = '';
+    document.getElementById('apiBqFilter').value = ''; // NEW: Clear BigQuery filter
+
+    // Reset authentication type
+    document.getElementById('authType').value = 'none';
+    toggleAuthFields();
+
+    // Hide connection test result
+    document.getElementById('connectionTestResult').style.display = 'none';
+
+    // Reset method to GET
+    document.querySelectorAll('.method-option').forEach(opt => opt.classList.remove('selected'));
+    document.querySelector('.method-option[data-method="GET"]').classList.add('selected');
+    document.getElementById('apiBodySection').style.display = 'none';
+
+    currentApiDataId = null;
+    globalApiResults = null;
+
+    const exportButton = document.getElementById('exportApiToExcel');
+    if (exportButton) exportButton.disabled = true;
+
+    console.log('API interface reset completely with BigQuery filter clearing');
+}
 
         // API Results Tab Navigation
         function showApiResultsTab(tabId) {
@@ -3073,92 +3175,178 @@ function displayApiPreview(preview, metadata) {
             populateApiFieldWiseTab(results.fieldWiseAnalysis, results.summary);
             populateApiDuplicatesTab(results.duplicatesAnalysis, results.summary);
         }
+// Replace the populateApiRecordCountTab function in index.html with this enhanced version
+// that displays BigQuery filter information
 
-        function populateApiRecordCountTab(recordCounts, summary) {
-            // FIXED: Use totalRecordsInAPI (total available) instead of comparison records
-            const apiTotal = recordCounts?.apiDetails?.totalRecordsInAPI ||
-                             summary?.totalRecordsInAPI ||
-                             summary?.totalRecordsInFile || 0; // Use TOTAL API records
+function populateApiRecordCountTab(recordCounts, summary) {
+    // Get filter information
+    const filterApplied = summary?.bigQueryFilterApplied || false;
+    const filterCondition = summary?.bigQueryFilterCondition || null;
+    const originalBqRecords = summary?.originalBigQueryRecords || null;
+    const filterReduction = summary?.filterReduction || null;
 
-            const bqTotal = recordCounts?.bqDetails?.totalRecords || summary?.targetRecords || 0;
+    // FIXED: Use totalRecordsInAPI (total available) instead of comparison records
+    const apiTotal = recordCounts?.apiDetails?.totalRecordsInAPI ||
+                     summary?.totalRecordsInAPI ||
+                     summary?.totalRecordsInFile || 0;
 
-            // Comparison records (sample size) - kept for analysis section
-            const comparisonRecords = recordCounts?.apiDetails?.recordsForComparison ||
-                                     summary?.recordsForComparison || 20;
+    const bqTotal = recordCounts?.bqDetails?.totalRecords || summary?.targetRecords || 0;
+    const comparisonRecords = recordCounts?.apiDetails?.recordsForComparison ||
+                             summary?.recordsForComparison || 20;
 
-            const apiUnique = recordCounts?.apiDetails?.uniquePrimaryKeys || summary?.uniqueSourceRecords || 0;
-            const bqUnique = recordCounts?.bqDetails?.uniquePrimaryKeys || 0;
-            const apiNulls = recordCounts?.apiDetails?.nullPrimaryKeys || 0;
-            const bqNulls = recordCounts?.bqDetails?.nullPrimaryKeys || 0;
-            const apiDuplicates = recordCounts?.apiDetails?.duplicateRecords || summary?.duplicateRecordsInFile || 0;
+    const apiUnique = recordCounts?.apiDetails?.uniquePrimaryKeys || summary?.uniqueSourceRecords || 0;
+    const bqUnique = recordCounts?.bqDetails?.uniquePrimaryKeys || 0;
+    const apiNulls = recordCounts?.apiDetails?.nullPrimaryKeys || 0;
+    const bqNulls = recordCounts?.bqDetails?.nullPrimaryKeys || 0;
+    const apiDuplicates = recordCounts?.apiDetails?.duplicateRecords || summary?.duplicateRecordsInFile || 0;
 
-            const recordCountSummary = document.getElementById('api-record-count-summary');
-            if (recordCountSummary) {
-                recordCountSummary.innerHTML = `
-                    <div class="summary-card">
-                        <div class="summary-number">${apiTotal.toLocaleString()}</div>
-                        <div class="summary-label">API Total Records</div>
+    const recordCountSummary = document.getElementById('api-record-count-summary');
+    if (recordCountSummary) {
+        let summaryHTML = `
+            <div class="summary-card">
+                <div class="summary-number">${apiTotal.toLocaleString()}</div>
+                <div class="summary-label">API Total Records</div>
+            </div>
+            <div class="summary-card ${filterApplied ? 'warning' : ''}">
+                <div class="summary-number">${bqTotal.toLocaleString()}</div>
+                <div class="summary-label">${filterApplied ? 'BigQuery Filtered' : 'BigQuery Total Records'}</div>
+            </div>
+            <div class="summary-card matches">
+                <div class="summary-number">${apiUnique.toLocaleString()}</div>
+                <div class="summary-label">API Unique Keys</div>
+            </div>
+            <div class="summary-card matches">
+                <div class="summary-number">${bqUnique.toLocaleString()}</div>
+                <div class="summary-label">BigQuery Unique Keys</div>
+            </div>
+            <div class="summary-card ${apiDuplicates > 0 ? 'warning' : 'pass'}">
+                <div class="summary-number">${apiDuplicates.toLocaleString()}</div>
+                <div class="summary-label">API Duplicates</div>
+            </div>
+        `;
+
+        // Add filter reduction card if filter was applied
+        if (filterApplied && filterReduction) {
+            summaryHTML += `
+                <div class="summary-card differences">
+                    <div class="summary-number">${filterReduction.percentageReduced}%</div>
+                    <div class="summary-label">Filter Reduction</div>
+                </div>
+            `;
+        } else {
+            summaryHTML += `
+                <div class="summary-card warning">
+                    <div class="summary-number">${apiNulls + bqNulls}</div>
+                    <div class="summary-label">Total Null Keys</div>
+                </div>
+            `;
+        }
+
+        recordCountSummary.innerHTML = summaryHTML;
+    }
+
+    const recordCountDetails = document.getElementById('api-record-count-details');
+    if (recordCountDetails) {
+        const primaryKeyField = recordCounts?.apiDetails?.primaryKeyField || summary?.primaryKeyUsed || 'custom field';
+
+        let detailsHTML = `
+            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #27ae60;">
+                <h4 style="color: #2c3e50; margin-bottom: 10px;">✅ Primary Key Analysis</h4>
+                <p><strong>Primary Key Used:</strong> <code>${primaryKeyField}</code> (API field matching BigQuery)</p>
+                <p><strong>Comparison Strategy:</strong> Using ${comparisonRecords} sample records from ${apiTotal} total API records for efficient analysis</p>
+            </div>
+        `;
+
+        // Add BigQuery filter information if applied
+        if (filterApplied) {
+            detailsHTML += `
+                <div style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                    <h4 style="color: #2c3e50; margin-bottom: 10px;">🔍 BigQuery Filter Applied</h4>
+                    <p><strong>Filter Condition:</strong></p>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.9rem; margin: 8px 0;">
+                        ${filterCondition}
                     </div>
-                    <div class="summary-card">
-                        <div class="summary-number">${bqTotal.toLocaleString()}</div>
-                        <div class="summary-label">BigQuery Total Records</div>
+                    ${originalBqRecords ? `
+                        <p><strong>Filter Impact:</strong></p>
+                        <ul style="margin: 8px 0; padding-left: 20px;">
+                            <li>Original BigQuery records: <strong>${originalBqRecords.toLocaleString()}</strong></li>
+                            <li>After filtering: <strong>${bqTotal.toLocaleString()}</strong></li>
+                            <li>Records removed: <strong>${filterReduction?.recordsRemoved?.toLocaleString() || 0}</strong> (${filterReduction?.percentageReduced || 0}%)</li>
+                        </ul>
+                    ` : ''}
+                    <p style="font-style: italic; color: #666; margin-top: 10px;">
+                        Comparison performed against filtered BigQuery data only
+                    </p>
+                </div>
+            `;
+        }
+
+        detailsHTML += `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                <div>
+                    <h4 style="color: #3498db; margin-bottom: 15px;">🔗 API Source Analysis</h4>
+                    <table style="width: 100%; font-size: 0.9rem;">
+                        <tbody>
+                            <tr><td><strong>Total Records:</strong></td><td>${apiTotal.toLocaleString()}</td></tr>
+                            <tr><td><strong>Unique Primary Keys:</strong></td><td>${apiUnique.toLocaleString()}</td></tr>
+                            <tr><td><strong>Duplicate Records:</strong></td><td style="color: ${apiDuplicates > 0 ? '#f39c12' : '#27ae60'}; font-weight: 600;">${apiDuplicates.toLocaleString()} ${apiDuplicates > 0 ? '⚠️' : '✅'}</td></tr>
+                            <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
+                            <tr><td><strong>Sample Size for Analysis:</strong></td><td style="color: #666; font-style: italic;">${comparisonRecords.toLocaleString()} records</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div>
+                    <h4 style="color: #2980b9; margin-bottom: 15px;">🗄️ BigQuery Target Analysis</h4>
+                    <table style="width: 100%; font-size: 0.9rem;">
+                        <tbody>
+                            <tr><td><strong>${filterApplied ? 'Filtered' : 'Total'} Records:</strong></td><td>${bqTotal.toLocaleString()}</td></tr>
+                            <tr><td><strong>Unique Primary Keys:</strong></td><td>${bqUnique.toLocaleString()}</td></tr>
+                            <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
+                            <tr><td><strong>Filter Applied:</strong></td><td style="color: ${filterApplied ? '#3498db' : '#666'}; font-weight: 600;">${filterApplied ? '🔍 Yes' : '➖ None'}</td></tr>
+                            ${originalBqRecords && filterApplied ? `
+                                <tr><td><strong>Original Records:</strong></td><td style="color: #666; font-style: italic;">${originalBqRecords.toLocaleString()}</td></tr>
+                            ` : ''}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        // Add comparison result with filter context
+        if (filterApplied) {
+            if (apiTotal === bqTotal) {
+                detailsHTML += `
+                    <div style="background: #d4edda; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #28a745;">
+                        <h4 style="color: #155724; margin-bottom: 10px;">🎉 Perfect Match with Filtered Data!</h4>
+                        <p>API records (${apiTotal.toLocaleString()}) exactly match the filtered BigQuery results (${bqTotal.toLocaleString()}).</p>
+                        <p style="font-style: italic;">Filter condition: <code>${filterCondition}</code></p>
+                        <p style="font-style: italic;">This indicates excellent data synchronization for the specific filter criteria.</p>
                     </div>
-                    <div class="summary-card matches">
-                        <div class="summary-number">${apiUnique.toLocaleString()}</div>
-                        <div class="summary-label">API Unique Keys</div>
-                    </div>
-                    <div class="summary-card matches">
-                        <div class="summary-number">${bqUnique.toLocaleString()}</div>
-                        <div class="summary-label">BigQuery Unique Keys</div>
-                    </div>
-                    <div class="summary-card ${apiDuplicates > 0 ? 'warning' : 'pass'}">
-                        <div class="summary-number">${apiDuplicates.toLocaleString()}</div>
-                        <div class="summary-label">API Duplicates</div>
-                    </div>
-                    <div class="summary-card warning">
-                        <div class="summary-number">${apiNulls + bqNulls}</div>
-                        <div class="summary-label">Total Null Keys</div>
+                `;
+            } else {
+                detailsHTML += `
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #ffc107;">
+                        <h4 style="color: #856404; margin-bottom: 10px;">⚠️ Count Mismatch with Filtered BigQuery Data</h4>
+                        <p><strong>API Records:</strong> ${apiTotal.toLocaleString()}</p>
+                        <p><strong>Filtered BigQuery Records:</strong> ${bqTotal.toLocaleString()}</p>
+                        <p><strong>Difference:</strong> ${Math.abs(apiTotal - bqTotal).toLocaleString()} records</p>
+                        <p><strong>Filter Applied:</strong> <code>${filterCondition}</code></p>
+                        <p style="margin-top: 10px; font-style: italic;">This suggests the API data may not fully match the filtered BigQuery criteria, or there may be data synchronization gaps.</p>
                     </div>
                 `;
             }
-
-            const recordCountDetails = document.getElementById('api-record-count-details');
-            if (recordCountDetails) {
-                const primaryKeyField = recordCounts?.apiDetails?.primaryKeyField || summary?.primaryKeyUsed || 'custom field';
-
-                recordCountDetails.innerHTML = `
-                    <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #27ae60;">
-                        <h4 style="color: #2c3e50; margin-bottom: 10px;">✅ Primary Key Analysis</h4>
-                        <p><strong>Primary Key Used:</strong> <code>${primaryKeyField}</code> (API field matching BigQuery)</p>
-                        <p><strong>Comparison Strategy:</strong> Using ${comparisonRecords} sample records from ${apiTotal} total API records for efficient analysis</p>
+        } else {
+            // No filter applied - show standard comparison
+            if (apiTotal === bqTotal) {
+                detailsHTML += `
+                    <div style="background: #d4edda; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #28a745;">
+                        <h4 style="color: #155724; margin-bottom: 10px;">🎉 Perfect Record Count Match!</h4>
+                        <p>API and BigQuery both contain exactly <strong>${apiTotal.toLocaleString()}</strong> records.</p>
+                        <p style="font-style: italic;">This indicates excellent data synchronization between systems.</p>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                        <div>
-                            <h4 style="color: #3498db; margin-bottom: 15px;">🔗 API Source Analysis</h4>
-                            <table style="width: 100%; font-size: 0.9rem;">
-                                <tbody>
-                                    <tr><td><strong>Total Records:</strong></td><td>${apiTotal.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Unique Primary Keys:</strong></td><td>${apiUnique.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Duplicate Records:</strong></td><td style="color: ${apiDuplicates > 0 ? '#f39c12' : '#27ae60'}; font-weight: 600;">${apiDuplicates.toLocaleString()} ${apiDuplicates > 0 ? '⚠️' : '✅'}</td></tr>
-                                    <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
-                                    <tr><td><strong>Sample Size for Analysis:</strong></td><td style="color: #666; font-style: italic;">${comparisonRecords.toLocaleString()} records</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div>
-                            <h4 style="color: #2980b9; margin-bottom: 15px;">🗄️ BigQuery Target Analysis</h4>
-                            <table style="width: 100%; font-size: 0.9rem;">
-                                <tbody>
-                                    <tr><td><strong>Total Records:</strong></td><td>${bqTotal.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Unique Primary Keys:</strong></td><td>${bqUnique.toLocaleString()}</td></tr>
-                                    <tr><td><strong>Primary Key Field:</strong></td><td><code>${primaryKeyField}</code></td></tr>
-                                    <tr><td><strong>Record Count Match:</strong></td><td style="color: ${apiTotal === bqTotal ? '#27ae60' : '#e74c3c'}; font-weight: 600;">${apiTotal === bqTotal ? '✅ Perfect Match' : '⚠️ Count Mismatch'}</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    ${apiTotal !== bqTotal ? `
+                `;
+            } else {
+                detailsHTML += `
                     <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #ffc107;">
                         <h4 style="color: #856404; margin-bottom: 10px;">⚠️ Record Count Mismatch Detected</h4>
                         <p><strong>API Records:</strong> ${apiTotal.toLocaleString()}</p>
@@ -3166,16 +3354,13 @@ function displayApiPreview(preview, metadata) {
                         <p><strong>Difference:</strong> ${Math.abs(apiTotal - bqTotal).toLocaleString()} records</p>
                         <p style="margin-top: 10px; font-style: italic;">This suggests data synchronization issues between the API source and BigQuery target.</p>
                     </div>
-                    ` : `
-                    <div style="background: #d4edda; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #28a745;">
-                        <h4 style="color: #155724; margin-bottom: 10px;">🎉 Perfect Record Count Match!</h4>
-                        <p>API and BigQuery both contain exactly <strong>${apiTotal.toLocaleString()}</strong> records.</p>
-                        <p style="font-style: italic;">This indicates excellent data synchronization between systems.</p>
-                    </div>
-                    `}
                 `;
             }
         }
+
+        recordCountDetails.innerHTML = detailsHTML;
+    }
+}
 
         function populateApiColumnNamesTab(schemaAnalysis) {
             if (!schemaAnalysis) {
@@ -3256,77 +3441,165 @@ function displayApiPreview(preview, metadata) {
             }
         }
 
-        function populateApiComparisonTab(comparisonResults, summary, metadata) {
-            const primaryKeyUsed = summary?.primaryKeyUsed || metadata?.primaryKey || 'unknown';
-            const sourceCount = summary.totalRecordsInFile || 0;
-            const uniqueCount = summary.uniqueSourceRecords || 0;
-            const targetCount = summary.targetRecords || 0;
-            const matchCount = summary.recordsReachedTarget || 0;
-            const failedCount = summary.recordsFailedToReachTarget || 0;
-            const successRate = summary.pipelineSuccessRate || '0.0';
+        // Replace the populateApiComparisonTab function in index.html with this enhanced version
+// that shows BigQuery filter information in the strategy section
 
-            const strategyInfo = document.getElementById('api-strategy-info');
-            if (strategyInfo) {
-                strategyInfo.innerHTML = `
-                    <div class="strategy-title">⚙️ API-Based Comparison</div>
-                    <div class="strategy-description">Analyzing data transfer from API Source (${sourceCount} records) → BigQuery Target (${targetCount} records) using primary key: <strong>${primaryKeyUsed}</strong></div>
-                    <ul class="insight-list">
-                        <li>Using primary key: <strong>${primaryKeyUsed}</strong> (validated to exist in both systems)</li>
-                        <li>Schema compatibility: ${summary.schemaCompatibility || 'Unknown'}% (${summary.commonFieldsCount || 0} common fields)</li>
-                        <li>Pipeline success rate: ${successRate}% (${matchCount}/${uniqueCount} unique records found in target)</li>
-                        <li>Field analysis: ${summary.fieldsAnalyzed || 0} common fields analyzed across ${matchCount} matched records</li>
-                    </ul>
-                `;
-            }
+function populateApiComparisonTab(comparisonResults, summary, metadata) {
+    const primaryKeyUsed = summary?.primaryKeyUsed || metadata?.primaryKey || 'unknown';
+    const sourceCount = summary.totalRecordsInFile || 0;
+    const uniqueCount = summary.uniqueSourceRecords || 0;
+    const targetCount = summary.targetRecords || 0;
+    const matchCount = summary.recordsReachedTarget || 0;
+    const failedCount = summary.recordsFailedToReachTarget || 0;
+    const successRate = summary.pipelineSuccessRate || '0.0';
 
-            const comparisonSummary = document.getElementById('api-comparison-summary');
-            if (comparisonSummary) {
-                comparisonSummary.innerHTML = `
-                    <div class="summary-card">
-                        <div class="summary-number">${uniqueCount}</div>
-                        <div class="summary-label">Unique Source Records</div>
-                    </div>
-                    <div class="summary-card matches">
-                        <div class="summary-number">${matchCount}</div>
-                        <div class="summary-label">Found in Target</div>
-                    </div>
-                    <div class="summary-card missing">
-                        <div class="summary-number">${failedCount}</div>
-                        <div class="summary-label">Not in Target</div>
-                    </div>
-                    <div class="summary-card differences">
-                        <div class="summary-number">${summary.totalFieldIssues || 0}</div>
-                        <div class="summary-label">Field Quality Issues</div>
-                    </div>
-                    <div class="summary-card ${parseFloat(successRate) >= 80 ? 'matches' : 'warning'}">
-                        <div class="summary-number">${successRate}%</div>
-                        <div class="summary-label">Pipeline Success Rate</div>
-                    </div>
-                `;
-            }
+    // Get filter information
+    const filterApplied = summary?.bigQueryFilterApplied || false;
+    const filterCondition = summary?.bigQueryFilterCondition || null;
+    const originalTargetCount = summary?.originalBigQueryRecords || null;
+    const filterReduction = summary?.filterReduction || null;
 
-            const comparisonDetails = document.getElementById('api-comparison-details');
-            if (comparisonDetails) {
-                comparisonDetails.innerHTML = `
-                    <div style="background: #f0f8ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
-                        <h4 style="color: #2c3e50; margin-bottom: 15px;">📊 API Pipeline Validation Analysis</h4>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                            <div>
-                                <h5 style="color: #27ae60; margin-bottom: 10px;">✅ Successfully Transferred Records</h5>
-                                <p><strong>Count:</strong> ${matchCount} out of ${uniqueCount} unique records</p>
-                                <p><strong>Success Rate:</strong> ${successRate}%</p>
-                            </div>
-                            <div>
-                                <h5 style="color: #e74c3c; margin-bottom: 10px;">❌ Failed to Transfer Records</h5>
-                                <p><strong>Count:</strong> ${failedCount} records didn't reach target</p>
-                                <p><strong>Impact:</strong> ${failedCount > 0 ? 'API pipeline has gaps - investigation needed' : 'Perfect data transfer'}</p>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
+    const strategyInfo = document.getElementById('api-strategy-info');
+    if (strategyInfo) {
+        let strategyDescription = '';
+        let insightsList = '';
+
+        if (filterApplied) {
+            // Enhanced strategy description with filter information
+            strategyDescription = `Analyzing data transfer from API Source (${sourceCount} records) → Filtered BigQuery Target (${targetCount} records) using primary key: <strong>${primaryKeyUsed}</strong>`;
+
+            insightsList = `
+                <li>Using primary key: <strong>${primaryKeyUsed}</strong> (validated to exist in both systems)</li>
+                <li>BigQuery Filter Applied: <code>${filterCondition}</code></li>
+                ${originalTargetCount ? `
+                    <li>Filter Impact: Reduced BigQuery records from ${originalTargetCount.toLocaleString()} to ${targetCount.toLocaleString()} (${filterReduction?.percentageReduced || 0}% reduction)</li>
+                ` : ''}
+                <li>Schema compatibility: ${summary.schemaCompatibility || 'Unknown'}% (${summary.commonFieldsCount || 0} common fields)</li>
+                <li>Pipeline success rate: ${successRate}% (${matchCount}/${uniqueCount} unique records found in filtered target)</li>
+                <li>Field analysis: ${summary.fieldsAnalyzed || 0} common fields analyzed across ${matchCount} matched records with filtered BigQuery data</li>
+            `;
+        } else {
+            // Standard strategy description (no filter)
+            strategyDescription = `Analyzing data transfer from API Source (${sourceCount} records) → BigQuery Target (${targetCount} records) using primary key: <strong>${primaryKeyUsed}</strong>`;
+
+            insightsList = `
+                <li>Using primary key: <strong>${primaryKeyUsed}</strong> (validated to exist in both systems)</li>
+                <li>Schema compatibility: ${summary.schemaCompatibility || 'Unknown'}% (${summary.commonFieldsCount || 0} common fields)</li>
+                <li>Pipeline success rate: ${successRate}% (${matchCount}/${uniqueCount} unique records found in target)</li>
+                <li>Field analysis: ${summary.fieldsAnalyzed || 0} common fields analyzed across ${matchCount} matched records</li>
+            `;
         }
 
+        strategyInfo.innerHTML = `
+            <div class="strategy-title">⚙️ ${filterApplied ? 'API-Based Comparison with BigQuery Filtering' : 'API-Based Comparison'}</div>
+            <div class="strategy-description">${strategyDescription}</div>
+            <ul class="insight-list">
+                ${insightsList}
+            </ul>
+        `;
+    }
+
+    const comparisonSummary = document.getElementById('api-comparison-summary');
+    if (comparisonSummary) {
+        let summaryCards = `
+            <div class="summary-card">
+                <div class="summary-number">${uniqueCount}</div>
+                <div class="summary-label">Unique Source Records</div>
+            </div>
+            <div class="summary-card matches">
+                <div class="summary-number">${matchCount}</div>
+                <div class="summary-label">${filterApplied ? 'Found in Filtered Target' : 'Found in Target'}</div>
+            </div>
+            <div class="summary-card missing">
+                <div class="summary-number">${failedCount}</div>
+                <div class="summary-label">${filterApplied ? 'Not in Filtered Target' : 'Not in Target'}</div>
+            </div>
+            <div class="summary-card differences">
+                <div class="summary-number">${summary.totalFieldIssues || 0}</div>
+                <div class="summary-label">Field Quality Issues</div>
+            </div>
+            <div class="summary-card ${parseFloat(successRate) >= 80 ? 'matches' : 'warning'}">
+                <div class="summary-number">${successRate}%</div>
+                <div class="summary-label">${filterApplied ? 'Filtered Pipeline Success' : 'Pipeline Success Rate'}</div>
+            </div>
+        `;
+
+        // Add filter reduction card if applicable
+        if (filterApplied && filterReduction) {
+            summaryCards += `
+                <div class="summary-card differences">
+                    <div class="summary-number">${filterReduction.percentageReduced}%</div>
+                    <div class="summary-label">BigQuery Reduction</div>
+                </div>
+            `;
+        }
+
+        comparisonSummary.innerHTML = summaryCards;
+    }
+
+    const comparisonDetails = document.getElementById('api-comparison-details');
+    if (comparisonDetails) {
+        let detailsContent = '';
+
+        if (filterApplied) {
+            // Enhanced details with filter context
+            detailsContent = `
+                <div style="background: #e8f4fd; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                    <h4 style="color: #2c3e50; margin-bottom: 15px;">🔍 Filtered BigQuery Pipeline Validation Analysis</h4>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <h5 style="color: #2c3e50; margin-bottom: 8px;">Applied Filter:</h5>
+                        <code style="background: #fff; padding: 8px; border-radius: 4px; font-size: 0.9rem; display: block;">${filterCondition}</code>
+                    </div>
+                    ${originalTargetCount ? `
+                        <div style="margin-bottom: 15px;">
+                            <h5 style="color: #2c3e50; margin-bottom: 8px;">Filter Impact:</h5>
+                            <ul style="margin: 0; padding-left: 20px;">
+                                <li>Original BigQuery records: <strong>${originalTargetCount.toLocaleString()}</strong></li>
+                                <li>After filtering: <strong>${targetCount.toLocaleString()}</strong></li>
+                                <li>Reduction: <strong>${filterReduction?.recordsRemoved?.toLocaleString() || 0}</strong> records (${filterReduction?.percentageReduced || 0}%)</li>
+                            </ul>
+                        </div>
+                    ` : ''}
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <h5 style="color: #27ae60; margin-bottom: 10px;">✅ Successfully Transferred to Filtered Target</h5>
+                            <p><strong>Count:</strong> ${matchCount} out of ${uniqueCount} unique records</p>
+                            <p><strong>Success Rate:</strong> ${successRate}%</p>
+                            <p style="font-style: italic; color: #666;">Records found in filtered BigQuery data</p>
+                        </div>
+                        <div>
+                            <h5 style="color: #e74c3c; margin-bottom: 10px;">❌ Not Found in Filtered Target</h5>
+                            <p><strong>Count:</strong> ${failedCount} records didn't match filter criteria</p>
+                            <p><strong>Impact:</strong> ${failedCount > 0 ? 'API data extends beyond filter scope' : 'Perfect filtered data alignment'}</p>
+                            <p style="font-style: italic; color: #666;">May exist in unfiltered BigQuery data</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Standard details (no filter)
+            detailsContent = `
+                <div style="background: #f0f8ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                    <h4 style="color: #2c3e50; margin-bottom: 15px;">📊 API Pipeline Validation Analysis</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <h5 style="color: #27ae60; margin-bottom: 10px;">✅ Successfully Transferred Records</h5>
+                            <p><strong>Count:</strong> ${matchCount} out of ${uniqueCount} unique records</p>
+                            <p><strong>Success Rate:</strong> ${successRate}%</p>
+                        </div>
+                        <div>
+                            <h5 style="color: #e74c3c; margin-bottom: 10px;">❌ Failed to Transfer Records</h5>
+                            <p><strong>Count:</strong> ${failedCount} records didn't reach target</p>
+                            <p><strong>Impact:</strong> ${failedCount > 0 ? 'API pipeline has gaps - investigation needed' : 'Perfect data transfer'}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        comparisonDetails.innerHTML = detailsContent;
+    }
+}
         // DIRECT API FIELD ANALYSIS DISPLAY - Replace populateApiFieldWiseTab function
         function populateApiFieldWiseTab(fieldWiseAnalysis, summary) {
             if (!fieldWiseAnalysis || !fieldWiseAnalysis.fieldComparison) {
@@ -3776,66 +4049,196 @@ function displayApiPreview(preview, metadata) {
         }
 
         // Enhanced Excel Export for API Results
-        function exportApiResultsToExcel() {
-            if (!globalApiResults) {
-                alert('No API comparison results available for export. Please run an API comparison first.');
-                return;
-            }
+        // Replace the exportApiResultsToExcel function in index.html with this enhanced version
+// that includes BigQuery filter information in the Excel report
 
-            try {
-                console.log('Starting comprehensive API vs BQ Excel export...');
+function exportApiResultsToExcel() {
+    if (!globalApiResults) {
+        alert('No API comparison results available for export. Please run an API comparison first.');
+        return;
+    }
 
-                const wb = XLSX.utils.book_new();
+    try {
+        console.log('Starting comprehensive API vs BQ Excel export with BigQuery filter information...');
 
-                // Sheet 1: Executive Summary
-                const summaryData = [
-                    ['API vs BigQuery ETL Validation Report', '', '', '', ''],
-                    ['Generated:', new Date().toLocaleString(), '', '', ''],
-                    ['Primary Key Used:', globalApiResults.primaryKeyUsed || 'N/A', '', '', ''],
-                    ['API Endpoint:', globalApiResults.metadata?.url || 'N/A', '', '', ''],
-                    ['Authentication Type:', globalApiResults.metadata?.authType || 'N/A', '', '', ''],
-                    ['', '', '', '', ''],
-                    ['EXECUTIVE SUMMARY', '', '', '', ''],
-                    ['Metric', 'Value', 'Status', 'Impact', 'Notes'],
-                    ['Pipeline Success Rate', (globalApiResults.summary?.pipelineSuccessRate || '0') + '%',
-                     parseFloat(globalApiResults.summary?.pipelineSuccessRate || 0) >= 90 ? 'Excellent' :
-                     parseFloat(globalApiResults.summary?.pipelineSuccessRate || 0) >= 70 ? 'Good' : 'Needs Attention', 'Business Critical', 'API to BQ transfer rate'],
-                    ['Total API Records', globalApiResults.summary?.totalRecordsInFile || 0, 'Info', 'Volume', 'From API response'],
-                    ['Records Reached Target', globalApiResults.summary?.recordsReachedTarget || 0, 'Info', 'Success', 'Found in BigQuery'],
-                    ['Failed to Reach Target', globalApiResults.summary?.recordsFailedToReachTarget || 0,
-                     (globalApiResults.summary?.recordsFailedToReachTarget || 0) === 0 ? 'Perfect' : 'Review Required', 'Data Quality', 'Missing from BQ'],
-                    ['Schema Compatibility', globalApiResults.summary?.schemaCompatibility || 'N/A', 'Info', 'Integration', 'Field matching %'],
-                    ['Field Quality Issues', globalApiResults.summary?.totalFieldIssues || 0,
-                     (globalApiResults.summary?.totalFieldIssues || 0) === 0 ? 'Perfect' : 'Review Required', 'Data Integrity', 'Value mismatches'],
-                    ['API Authentication Status', globalApiResults.metadata?.authenticationStatus || 'Unknown', 'Info', 'Security', 'Auth validation'],
-                    ['API Response Time', (globalApiResults.metadata?.responseTime || 'N/A') + 'ms', 'Info', 'Performance', 'API latency']
-                ];
+        const wb = XLSX.utils.book_new();
 
-                const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-                XLSX.utils.book_append_sheet(wb, summarySheet, 'Executive Summary');
+        // Get filter information from results
+        const filterApplied = globalApiResults.summary?.bigQueryFilterApplied || false;
+        const filterCondition = globalApiResults.summary?.bigQueryFilterCondition || null;
+        const originalBqRecords = globalApiResults.summary?.originalBigQueryRecords || null;
+        const filteredBqRecords = globalApiResults.summary?.targetRecords || 0;
+        const filterReduction = globalApiResults.summary?.filterReduction || null;
 
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
-                const filename = `API_vs_BQ_Validation_Report_${timestamp[0]}_${timestamp[1].split('.')[0]}.xlsx`;
-                XLSX.writeFile(wb, filename);
+        // Enhanced Sheet 1: Executive Summary with Filter Information
+        const summaryData = [
+            ['API vs BigQuery ETL Validation Report', '', '', '', ''],
+            ['Generated:', new Date().toLocaleString(), '', '', ''],
+            ['Primary Key Used:', globalApiResults.primaryKeyUsed || 'N/A', '', '', ''],
+            ['API Endpoint:', globalApiResults.metadata?.url || 'N/A', '', '', ''],
+            ['Authentication Type:', globalApiResults.metadata?.authType || 'N/A', '', '', ''],
+            ['BigQuery Filter Applied:', filterApplied ? 'Yes' : 'No', '', '', ''],
+            ...(filterApplied ? [
+                ['Filter Condition:', filterCondition || 'N/A', '', '', ''],
+                ...(originalBqRecords ? [
+                    ['Original BigQuery Records:', originalBqRecords.toLocaleString(), '', '', ''],
+                    ['Filtered BigQuery Records:', filteredBqRecords.toLocaleString(), '', '', ''],
+                    ['Filter Reduction:', `${filterReduction?.recordsRemoved?.toLocaleString() || 0} records (${filterReduction?.percentageReduced || 0}%)`, '', '', '']
+                ] : [])
+            ] : []),
+            ['', '', '', '', ''],
+            ['EXECUTIVE SUMMARY', '', '', '', ''],
+            ['Metric', 'Value', 'Status', 'Impact', 'Notes'],
+            ['Pipeline Success Rate', (globalApiResults.summary?.pipelineSuccessRate || '0') + '%',
+             parseFloat(globalApiResults.summary?.pipelineSuccessRate || 0) >= 90 ? 'Excellent' :
+             parseFloat(globalApiResults.summary?.pipelineSuccessRate || 0) >= 70 ? 'Good' : 'Needs Attention',
+             'Business Critical',
+             filterApplied ? 'API to Filtered BQ transfer rate' : 'API to BQ transfer rate'],
 
-                console.log(`API vs BQ Excel report exported: ${filename}`);
+            ['Total API Records', globalApiResults.summary?.totalRecordsInFile || 0, 'Info', 'Volume', 'From API response'],
 
-                const exportButton = document.getElementById('exportApiToExcel');
-                const originalText = exportButton.innerHTML;
-                exportButton.innerHTML = '✅ Exported Successfully!';
-                exportButton.style.background = '#27ae60';
+            ['Records Reached Target', globalApiResults.summary?.recordsReachedTarget || 0, 'Info', 'Success',
+             filterApplied ? 'Found in filtered BigQuery data' : 'Found in BigQuery'],
 
-                setTimeout(() => {
-                    exportButton.innerHTML = originalText;
-                    exportButton.style.background = '';
-                }, 3000);
+            ['Failed to Reach Target', globalApiResults.summary?.recordsFailedToReachTarget || 0,
+             (globalApiResults.summary?.recordsFailedToReachTarget || 0) === 0 ? 'Perfect' : 'Review Required',
+             'Data Quality',
+             filterApplied ? 'Not matching filter criteria' : 'Missing from BQ'],
 
-            } catch (error) {
-                console.error('API Excel export failed:', error);
-                alert('Excel export failed: ' + error.message);
-            }
+            ['Schema Compatibility', globalApiResults.summary?.schemaCompatibility || 'N/A', 'Info', 'Integration', 'Field matching %'],
+
+            ['Field Quality Issues', globalApiResults.summary?.totalFieldIssues || 0,
+             (globalApiResults.summary?.totalFieldIssues || 0) === 0 ? 'Perfect' : 'Review Required',
+             'Data Integrity',
+             filterApplied ? 'Value mismatches in filtered data' : 'Value mismatches'],
+
+            ['API Authentication Status', globalApiResults.metadata?.authenticationStatus || 'Unknown', 'Info', 'Security', 'Auth validation'],
+            ['API Response Time', (globalApiResults.metadata?.responseTime || 'N/A') + 'ms', 'Info', 'Performance', 'API latency'],
+
+            // Add filter-specific metrics if applied
+            ...(filterApplied ? [
+                ['', '', '', '', ''],
+                ['BIGQUERY FILTER ANALYSIS', '', '', '', ''],
+                ['Filter Applied', 'Yes', 'Info', 'Data Scope', 'BigQuery data filtered before comparison'],
+                ['Filter Condition', filterCondition || 'N/A', 'Info', 'SQL Logic', 'Applied WHERE clause'],
+                ...(originalBqRecords ? [
+                    ['Original BQ Records', originalBqRecords.toLocaleString(), 'Info', 'Full Dataset', 'Before filtering'],
+                    ['Filtered BQ Records', filteredBqRecords.toLocaleString(), 'Info', 'Filtered Dataset', 'After applying filter'],
+                    ['Filter Effectiveness', `${filterReduction?.percentageReduced || 0}% reduction`,
+                     parseFloat(filterReduction?.percentageReduced || 0) > 50 ? 'High Impact' :
+                     parseFloat(filterReduction?.percentageReduced || 0) > 20 ? 'Moderate Impact' : 'Low Impact',
+                     'Filter Performance', 'Records removed by filter']
+                ] : [])
+            ] : [])
+        ];
+
+        const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+        XLSX.utils.book_append_sheet(wb, summarySheet, 'Executive Summary');
+
+        // Enhanced Sheet 2: Filter Analysis (if filter was applied)
+        if (filterApplied) {
+            const filterAnalysisData = [
+                ['BigQuery Filter Analysis Report', '', '', ''],
+                ['Generated:', new Date().toLocaleString(), '', ''],
+                ['Filter Condition:', filterCondition || 'N/A', '', ''],
+                ['', '', '', ''],
+                ['FILTER IMPACT ANALYSIS', '', '', ''],
+                ['Metric', 'Value', 'Impact', 'Notes'],
+                ['Original BigQuery Records', originalBqRecords?.toLocaleString() || 'Unknown', 'Baseline', 'Full dataset before filtering'],
+                ['Records After Filter', filteredBqRecords.toLocaleString(), 'Filtered Dataset', 'Records matching filter criteria'],
+                ['Records Removed', filterReduction?.recordsRemoved?.toLocaleString() || 'Unknown', 'Filter Effect', 'Records excluded by filter'],
+                ['Reduction Percentage', `${filterReduction?.percentageReduced || 0}%`, 'Filter Efficiency', 'Percentage of data filtered out'],
+                ['', '', '', ''],
+                ['COMPARISON RESULTS WITH FILTER', '', '', ''],
+                ['API Records Found in Filtered BQ', globalApiResults.summary?.recordsReachedTarget || 0, 'Match Success', 'API records matching filter criteria'],
+                ['API Records Not in Filtered BQ', globalApiResults.summary?.recordsFailedToReachTarget || 0, 'Filter Mismatch', 'May exist in unfiltered data'],
+                ['Pipeline Success Rate', `${globalApiResults.summary?.pipelineSuccessRate || 0}%`, 'Filter-Based Success', 'Success rate with filtered target'],
+                ['', '', '', ''],
+                ['RECOMMENDATIONS', '', '', ''],
+                ['Recommendation', 'Rationale', 'Priority', 'Action'],
+                ...(filterReduction?.percentageReduced > 50 ? [
+                    ['Review Filter Criteria', 'High filter reduction detected', 'High', 'Ensure filter is not overly restrictive']
+                ] : []),
+                ...(globalApiResults.summary?.recordsFailedToReachTarget > 0 ? [
+                    ['Check Unfiltered Data', 'Some API records not in filtered BQ', 'Medium', 'Verify if missing records exist in full BigQuery table']
+                ] : []),
+                ['Validate Filter Logic', 'Ensure filter matches intended business logic', 'Medium', 'Review filter condition with business stakeholders'],
+                ['Monitor Filter Performance', 'Track filter effectiveness over time', 'Low', 'Regular review of filter criteria relevance']
+            ];
+
+            const filterSheet = XLSX.utils.aoa_to_sheet(filterAnalysisData);
+            XLSX.utils.book_append_sheet(wb, filterSheet, 'Filter Analysis');
         }
 
+        // Enhanced Sheet 3: Record Count Analysis with Filter Context
+        if (globalApiResults.recordCounts) {
+            const recordCountData = [
+                ['Record Count Analysis', '', '', ''],
+                ['Report Type:', filterApplied ? 'API vs Filtered BigQuery' : 'API vs BigQuery', '', ''],
+                ['Generated:', new Date().toLocaleString(), '', ''],
+                ...(filterApplied ? [
+                    ['Filter Applied:', 'Yes', '', ''],
+                    ['Filter Condition:', filterCondition || 'N/A', '', '']
+                ] : [
+                    ['Filter Applied:', 'No', '', '']
+                ]),
+                ['', '', '', ''],
+                ['SOURCE ANALYSIS (API)', '', '', ''],
+                ['Metric', 'Count', 'Percentage', 'Notes'],
+                ['Total Records', globalApiResults.recordCounts.apiDetails?.totalRecords || 0, '100%', 'All API records'],
+                ['Unique Primary Keys', globalApiResults.recordCounts.apiDetails?.uniquePrimaryKeys || 0,
+                 `${((globalApiResults.recordCounts.apiDetails?.uniquePrimaryKeys || 0) / Math.max(globalApiResults.recordCounts.apiDetails?.totalRecords || 1, 1) * 100).toFixed(1)}%`,
+                 'Distinct key values'],
+                ['Duplicate Records', globalApiResults.recordCounts.apiDetails?.duplicateRecords || 0,
+                 `${((globalApiResults.recordCounts.apiDetails?.duplicateRecords || 0) / Math.max(globalApiResults.recordCounts.apiDetails?.totalRecords || 1, 1) * 100).toFixed(1)}%`,
+                 'Records with duplicate keys'],
+                ['', '', '', ''],
+                [`TARGET ANALYSIS (${filterApplied ? 'Filtered BigQuery' : 'BigQuery'})`, '', '', ''],
+                ['Metric', 'Count', 'Percentage', 'Notes'],
+                ['Total Records', globalApiResults.recordCounts.bqDetails?.totalRecords || 0, '100%',
+                 filterApplied ? 'Records matching filter criteria' : 'All BigQuery records'],
+                ['Unique Primary Keys', globalApiResults.recordCounts.bqDetails?.uniquePrimaryKeys || 0,
+                 `${((globalApiResults.recordCounts.bqDetails?.uniquePrimaryKeys || 0) / Math.max(globalApiResults.recordCounts.bqDetails?.totalRecords || 1, 1) * 100).toFixed(1)}%`,
+                 'Distinct key values in target'],
+                ...(filterApplied && originalBqRecords ? [
+                    ['', '', '', ''],
+                    ['ORIGINAL BIGQUERY (Pre-Filter)', '', '', ''],
+                    ['Original Total Records', originalBqRecords.toLocaleString(), '100%', 'Full BigQuery dataset'],
+                    ['Filter Reduction', filterReduction?.recordsRemoved?.toLocaleString() || 0, `${filterReduction?.percentageReduced || 0}%`, 'Records removed by filter']
+                ] : [])
+            ];
+
+            const recordCountSheet = XLSX.utils.aoa_to_sheet(recordCountData);
+            XLSX.utils.book_append_sheet(wb, recordCountSheet, 'Record Counts');
+        }
+
+        // Generate filename with filter context
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
+        const filterSuffix = filterApplied ? '_Filtered' : '';
+        const filename = `API_vs_BQ${filterSuffix}_Validation_Report_${timestamp[0]}_${timestamp[1].split('.')[0]}.xlsx`;
+
+        XLSX.writeFile(wb, filename);
+
+        console.log(`Enhanced API vs BQ Excel report exported: ${filename}`);
+
+        // Success feedback with filter context
+        const exportButton = document.getElementById('exportApiToExcel');
+        const originalText = exportButton.innerHTML;
+        const successMessage = filterApplied ? '✅ Filtered Report Exported!' : '✅ Exported Successfully!';
+
+        exportButton.innerHTML = successMessage;
+        exportButton.style.background = '#27ae60';
+
+        setTimeout(() => {
+            exportButton.innerHTML = originalText;
+            exportButton.style.background = '';
+        }, 3000);
+
+    } catch (error) {
+        console.error('Enhanced API Excel export failed:', error);
+        alert('Excel export failed: ' + error.message);
+    }
+}
         // ===========================================
         // JSON vs BQ RESULTS FUNCTIONALITY
         // ===========================================
