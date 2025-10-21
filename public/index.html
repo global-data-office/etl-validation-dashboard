@@ -3606,8 +3606,7 @@ async function testDatabaseConnection(dbType) {
         button.innerHTML = originalText;
     }
 }
-
-// Start RDBMS Comparison - DEMO READY
+// Updated RDBMS Comparison Function - Works with new /api/rdbms-vs-bq endpoint
 async function startRDBMSComparison(dbType) {
     const resultsSection = document.getElementById('rdbms-results');
     const resultsDiv = document.getElementById('rdbms-comparison-results');
@@ -3622,48 +3621,99 @@ async function startRDBMSComparison(dbType) {
         resultsSection.style.display = 'block';
         resultsSection.scrollIntoView({ behavior: 'smooth' });
         
+        // Get connection data based on database type
         const connectionData = getConnectionData(dbType);
         
-        // Get table and BigQuery configuration
+        // Get table configuration - NEW FORMAT
         const prefix = dbType === 'postgresql' ? 'pg' : dbType;
-        const tableConfig = {
-            sourceTable: document.getElementById(`${prefix}-table`)?.value?.trim() || '',
-            bqProject: document.getElementById(`${prefix}-bq-project`)?.value?.trim() || '',
-            bqDataset: document.getElementById(`${prefix}-bq-dataset`)?.value?.trim() || '',
-            bqTable: document.getElementById(`${prefix}-bq-table`)?.value?.trim() || ''
-        };
+        const sourceTable = document.getElementById(`${prefix}-table`)?.value?.trim() || '';
+        const bqTable = document.getElementById(`${prefix}-bq-table`)?.value?.trim() || ''; // Single field now
+        const primaryKey = document.getElementById(`${prefix}-primary-key`)?.value?.trim() || '';
+        const comparisonFields = document.getElementById(`${prefix}-comparison-fields`)?.value?.trim() || '';
         
-        // Validate configuration
-        const missingConfig = Object.keys(tableConfig).filter(key => !tableConfig[key]);
-        if (missingConfig.length > 0) {
+        // Parse comparison fields
+        const comparisonFieldsArray = comparisonFields 
+            ? comparisonFields.split('\n').map(f => f.trim()).filter(f => f.length > 0)
+            : [];
+        
+        // Validation
+        const missingFields = [];
+        if (!sourceTable) missingFields.push('Source Table');
+        if (!bqTable) missingFields.push('BigQuery Table');
+        if (!primaryKey) missingFields.push('Primary Key');
+        
+        // Validate required connection fields
+        if (!connectionData.host && !connectionData.server) missingFields.push('Host/Server');
+        if (!connectionData.username) missingFields.push('Username');
+        if (!connectionData.password) missingFields.push('Password');
+        
+        if (missingFields.length > 0) {
             resultsDiv.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px;">
                     ❌ <strong>Missing Configuration</strong><br>
-                    Please fill in: ${missingConfig.join(', ')}
+                    Please fill in: ${missingFields.join(', ')}<br><br>
+                    <strong>Note:</strong> BigQuery table should be in format: project.dataset.table<br>
+                    <strong>Example:</strong> rax-landing-qa.brm_ods.deal_t
                 </div>
             `;
             return;
         }
         
-        const response = await fetch('/api/compare-rdbms-bq', {
+        // Validate BigQuery table format
+        if (!bqTable.match(/^[\w-]+\.[\w-]+\.[\w-]+$/)) {
+            resultsDiv.innerHTML = `
+                <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px;">
+                    ❌ <strong>Invalid BigQuery Table Format</strong><br>
+                    BigQuery table must be in format: <strong>project.dataset.table</strong><br>
+                    <strong>Your input:</strong> ${bqTable}<br>
+                    <strong>Example:</strong> rax-landing-qa.brm_ods.deal_t
+                </div>
+            `;
+            return;
+        }
+        
+        // Build request data for NEW endpoint
+        const requestData = {
+            dbType: dbType,
+            host: connectionData.host || connectionData.server,
+            port: connectionData.port,
+            database: connectionData.database,
+            server: connectionData.server, // For SQL Server
+            service: connectionData.service, // For Oracle
+            username: connectionData.username,
+            password: connectionData.password,
+            sourceTable: sourceTable,
+            bqTable: bqTable, // Single field in project.dataset.table format
+            primaryKey: primaryKey,
+            comparisonFields: comparisonFieldsArray
+        };
+        
+        console.log('Sending RDBMS comparison request:', {
+            dbType,
+            host: requestData.host,
+            sourceTable,
+            bqTable,
+            primaryKey,
+            comparisonFields: comparisonFieldsArray.length
+        });
+        
+        // Call the NEW endpoint
+        const response = await fetch('/api/rdbms-vs-bq', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                dbType: dbType,
-                connection: connectionData,
-                config: tableConfig
-            })
+            body: JSON.stringify(requestData)
         });
 
         const result = await response.json();
         
         if (result.success) {
-            displayRDBMSResults(result.data);
+            displayEnhancedRDBMSResults(result.data);
         } else {
             resultsDiv.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px;">
                     ❌ <strong>Validation Failed</strong><br>
-                    ${result.error}
+                    ${result.error}<br><br>
+                    ${result.suggestions ? `<strong>Suggestions:</strong><ul>${result.suggestions.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
                 </div>
             `;
         }
@@ -3672,15 +3722,20 @@ async function startRDBMSComparison(dbType) {
         console.error(`${dbType} validation error:`, error);
         resultsDiv.innerHTML = `
             <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px;">
-                ❌ <strong>Validation Error</strong><br>
-                ${error.message}
+                ❌ <strong>Network Error</strong><br>
+                ${error.message}<br><br>
+                <strong>Troubleshooting:</strong>
+                <ul>
+                    <li>Check that your server is running</li>
+                    <li>Verify all form fields are filled correctly</li>
+                    <li>Check browser console for detailed errors</li>
+                </ul>
             </div>
         `;
     }
 }
-
-// Display Results - ENHANCED VERSION
-function displayRDBMSResults(data) {
+// NEW: Enhanced Results Display Function
+function displayEnhancedRDBMSResults(data) {
     const resultsDiv = document.getElementById('rdbms-comparison-results');
     
     if (!resultsDiv) {
@@ -3688,54 +3743,70 @@ function displayRDBMSResults(data) {
         return;
     }
     
+    const summary = data.summary;
+    const comparison = data.comparison;
+    
     let html = `
         <div class="validation-summary" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 10px 0;">
-            <h4 style="color: #495057; margin-bottom: 15px;">📊 ${data.sourceType} vs BigQuery Validation Results</h4>
+            <h4 style="color: #495057; margin-bottom: 15px;">📊 ${summary.sourceType} vs BigQuery Validation Results</h4>
             <div class="summary-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                 <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff;">
                     <strong style="color: #007bff;">Source Records:</strong><br>
-                    <span style="font-size: 1.5em; font-weight: bold;">${data.sourceCount.toLocaleString()}</span>
+                    <span style="font-size: 1.5em; font-weight: bold;">${summary.sourceRecords.toLocaleString()}</span><br>
+                    <small style="color: #6c757d;">${summary.sourceTable}</small>
                 </div>
                 <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">
                     <strong style="color: #28a745;">BigQuery Records:</strong><br>
-                    <span style="font-size: 1.5em; font-weight: bold;">${data.bqCount.toLocaleString()}</span>
+                    <span style="font-size: 1.5em; font-weight: bold;">${summary.bqRecords.toLocaleString()}</span><br>
+                    <small style="color: #6c757d;">${summary.bqTable}</small>
                 </div>
-                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${data.recordsMatch ? '#28a745' : '#dc3545'};">
-                    <strong style="color: ${data.recordsMatch ? '#28a745' : '#dc3545'};">Record Count Match:</strong><br>
-                    <span style="font-size: 1.2em; font-weight: bold;">${data.recordsMatch ? '✅ Match' : '❌ Mismatch'}</span>
+                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #17a2b8;">
+                    <strong style="color: #17a2b8;">Matching Records:</strong><br>
+                    <span style="font-size: 1.5em; font-weight: bold;">${summary.matchingRecords.toLocaleString()}</span><br>
+                    <small style="color: #6c757d;">Success Rate: ${summary.successRate}</small>
+                </div>
+                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${comparison.totalDifferences > 0 ? '#dc3545' : '#28a745'};">
+                    <strong style="color: ${comparison.totalDifferences > 0 ? '#dc3545' : '#28a745'};">Differences:</strong><br>
+                    <span style="font-size: 1.5em; font-weight: bold;">${comparison.totalDifferences.toLocaleString()}</span><br>
+                    <small style="color: #6c757d;">${comparison.totalDifferences === 0 ? 'Perfect match!' : 'Issues found'}</small>
                 </div>
             </div>
         </div>
     `;
     
-    if (data.sampleComparison && data.sampleComparison.length > 0) {
+    if (comparison.differences && comparison.differences.length > 0) {
         html += `
-            <div class="sample-comparison" style="background: white; padding: 20px; border-radius: 8px; margin: 10px 0; border: 1px solid #dee2e6;">
-                <h5 style="color: #495057; margin-bottom: 15px;">🔍 Sample Data Comparison</h5>
+            <div class="differences-section" style="background: white; padding: 20px; border-radius: 8px; margin: 10px 0; border: 1px solid #dee2e6;">
+                <h5 style="color: #495057; margin-bottom: 15px;">🔍 Sample Differences (First ${Math.min(comparison.differences.length, 10)})</h5>
                 <div style="overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                         <thead style="background: #f8f9fa;">
                             <tr>
-                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Field</th>
-                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Source Value</th>
-                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">BigQuery Value</th>
-                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">Match</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Primary Key</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Issue Type</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Details</th>
                             </tr>
                         </thead>
                         <tbody>
         `;
         
-        data.sampleComparison.forEach((item, index) => {
+        comparison.differences.slice(0, 10).forEach((diff) => {
+            let details = diff.issue;
+            if (diff.fieldDifferences && diff.fieldDifferences.length > 0) {
+                details = diff.fieldDifferences.map(field => 
+                    `${field.field}: "${field.sourceValue}" → "${field.bqValue}"`
+                ).join('<br>');
+            }
+            
             html += `
-                <tr style="border-bottom: 1px solid #dee2e6; ${!item.match ? 'background: #fff5f5;' : ''}">
-                    <td style="padding: 10px; font-weight: 500;">${item.field}</td>
-                    <td style="padding: 10px; font-family: monospace;">${item.sourceValue}</td>
-                    <td style="padding: 10px; font-family: monospace;">${item.bqValue}</td>
-                    <td style="padding: 10px; text-align: center;">
-                        <span style="padding: 4px 8px; border-radius: 12px; font-weight: bold; color: white; background: ${item.match ? '#28a745' : '#dc3545'};">
-                            ${item.match ? '✅' : '❌'}
+                <tr style="border-bottom: 1px solid #dee2e6;">
+                    <td style="padding: 10px; font-family: monospace; font-weight: 500;">${diff.primaryKey}</td>
+                    <td style="padding: 10px;">
+                        <span style="padding: 4px 8px; border-radius: 12px; background: #fff3cd; color: #856404; font-size: 12px;">
+                            ${diff.issue}
                         </span>
                     </td>
+                    <td style="padding: 10px; font-family: monospace; font-size: 12px;">${details}</td>
                 </tr>
             `;
         });
@@ -3746,21 +3817,11 @@ function displayRDBMSResults(data) {
                 </div>
             </div>
         `;
-    }
-    
-    if (data.summary && data.summary.recommendations) {
+    } else {
         html += `
-            <div class="recommendations" style="background: #d1ecf1; padding: 20px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #bee5eb;">
-                <h5 style="color: #0c5460; margin-bottom: 15px;">💡 Recommendations</h5>
-                <ul style="margin: 0; padding-left: 20px; color: #0c5460;">
-        `;
-        
-        data.summary.recommendations.forEach(rec => {
-            html += `<li style="margin: 5px 0;">${rec}</li>`;
-        });
-        
-        html += `
-                </ul>
+            <div class="success-message" style="background: #d1edda; padding: 20px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #28a745;">
+                <h4 style="color: #155724; margin-bottom: 10px;">✅ Perfect Match!</h4>
+                <p style="color: #155724; margin: 0;">All records match perfectly between ${summary.sourceType} and BigQuery.</p>
             </div>
         `;
     }
