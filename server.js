@@ -1091,176 +1091,128 @@ app.get('/api/health', (req, res) => {
         ]
     });
 });
-
-// Serve the dashboard HTML file
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-// RDBMS Connection Testing
-app.post('/api/test-rdbms-connection', async (req, res) => {
-    try {
-        const { dbType, ...connectionConfig } = req.body;
-        
-        console.log(`Testing ${dbType} connection:`, {
-            host: connectionConfig.host || connectionConfig.server,
-            port: connectionConfig.port,
-            database: connectionConfig.database || connectionConfig.service,
-            user: connectionConfig.username
-        });
-
-        if (!dbType) {
-            return res.status(400).json({
-                success: false,
-                error: 'Database type is required',
-                suggestions: ['Specify dbType as postgresql, mysql, oracle, or sqlserver']
-            });
-        }
-
-        const result = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
-        
-        res.json({
-            success: result.success,
-            message: result.message,
-            details: result.details,
-            error: result.error,
-            suggestions: result.suggestions
-        });
-
-    } catch (error) {
-        console.error('RDBMS connection test error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Connection test failed: ' + error.message,
-            suggestions: [
-                'Check your connection parameters',
-                'Ensure the database server is accessible',
-                'Verify network connectivity'
-            ]
-        });
-    }
-});
-
-// RDBMS Schema Analysis
-app.post('/api/get-rdbms-schema', async (req, res) => {
-    try {
-        const { dbType, connectionConfig, tableName } = req.body;
-        
-        if (!dbType || !connectionConfig || !tableName) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required parameters: dbType, connectionConfig, and tableName are required'
-            });
-        }
-
-        console.log(`Getting ${dbType} schema for table: ${tableName}`);
-
-        const result = await RDBMSIntegrationService.getSchemaInfo(dbType, connectionConfig, tableName);
-        
-        res.json({
-            success: true,
-            data: result
-        });
-
-    } catch (error) {
-        console.error('RDBMS schema analysis error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Schema analysis failed: ' + error.message,
-            suggestions: [
-                'Verify the table name exists',
-                'Check if the user has SELECT privileges on the table',
-                'Ensure the database connection is valid'
-            ]
-        });
-    }
-});
-
-// RDBMS vs BigQuery Comparison
-app.post('/api/compare-rdbms-bq', async (req, res) => {
-    try {
-        const { dbType, connection, config } = req.body;
-        
-        if (!dbType || !connection || !config) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required parameters: dbType, connection, and config are required'
-            });
-        }
-
-        if (!config.sourceTable || !config.bqProject || !config.bqDataset || !config.bqTable) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing configuration: sourceTable, bqProject, bqDataset, and bqTable are required'
-            });
-        }
-
-        console.log(`Starting ${dbType} vs BigQuery comparison:`, {
-            sourceTable: config.sourceTable,
-            bqProject: config.bqProject,
-            bqDataset: config.bqDataset,
-            bqTable: config.bqTable
-        });
-
-        const comparisonConfig = {
-            sourceTable: config.sourceTable,
-            bqProject: config.bqProject,
-            bqDataset: config.bqDataset,
-            bqTable: config.bqTable,
-            keyFile: config.keyFile
-        };
-
-        const result = await RDBMSIntegrationService.compareWithBigQuery(dbType, connection, comparisonConfig);
-        
-        res.json(result);
-
-    } catch (error) {
-        console.error('RDBMS vs BigQuery comparison error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Comparison failed: ' + error.message,
-            suggestions: [
-                'Verify both source and BigQuery tables exist',
-                'Check BigQuery authentication and permissions',
-                'Ensure network connectivity to both systems'
-            ]
-        });
-    }
-});
-// Replace your /api/rdbms-vs-bq endpoint in server.js with this version that uses existing services
+// Replace your /api/rdbms-vs-bq endpoint with this version that follows the working JSON vs BQ pattern
 app.post('/api/rdbms-vs-bq', async (req, res) => {
     try {
-        const { dbType, host, port, service, username, password, sourceTable, primaryKey, comparisonFields = [] } = req.body;
-
-        // Oracle connection test
-        const connectionConfig = { host, port: parseInt(port) || 1521, service, username, password };
+        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [] } = req.body;
+        
+        console.log(`Starting ${dbType} vs BigQuery comparison using proven JSON vs BQ pattern...`);
+        console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
+        
+        // Step 1: Get RDBMS data (same way JSON data is fetched)
+        const connectionConfig = { 
+            host, 
+            port: parseInt(port) || (dbType === 'oracle' ? 1521 : 5432), 
+            service, 
+            username, 
+            password 
+        };
+        
         const connectionTest = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
         
         if (!connectionTest.success) {
-            return res.status(400).json({ success: false, error: connectionTest.error });
+            return res.status(400).json({ 
+                success: false, 
+                error: `${dbType.toUpperCase()} connection failed: ${connectionTest.error}`,
+                suggestions: connectionTest.suggestions
+            });
         }
 
-        // Get Oracle data only
+        // Build query for different database types
         const fields = [primaryKey, ...comparisonFields].filter(f => f?.trim());
-        const query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ROWNUM <= 10`;
-        const sourceData = await RDBMSIntegrationService.fetchOracleData(connectionConfig, query);
+        let query;
+        
+        switch(dbType.toLowerCase()) {
+            case 'oracle':
+                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ROWNUM <= 1000`;
+                break;
+            case 'postgresql':
+                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
+                break;
+            case 'mysql':
+                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
+                break;
+            case 'sqlserver':
+                query = `SELECT TOP 1000 ${fields.join(', ')} FROM ${sourceTable}`;
+                break;
+            default:
+                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
+        }
 
-        // Return Oracle data results (no BigQuery comparison)
-        const results = {
-            summary: {
-                sourceType: 'ORACLE',
-                sourceTable,
-                primaryKey,
-                sourceRecords: sourceData.recordCount,
-                note: 'Oracle data retrieved successfully - BigQuery comparison will work in cloud deployment'
-            },
-            oracleData: sourceData.records.slice(0, 5) // Show first 5 records
+        console.log(`Executing query: ${query}`);
+        
+        // Fetch data using the appropriate method based on dbType
+        let rdbmsResult;
+        if (dbType.toLowerCase() === 'oracle') {
+            rdbmsResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, query);
+        } else {
+            // For other database types, use the generic fetchData method
+            rdbmsResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
+        }
+        
+        console.log(`Retrieved ${rdbmsResult.recordCount} records from ${dbType.toUpperCase()}`);
+        
+        if (!rdbmsResult.records || rdbmsResult.records.length === 0) {
+            return res.json({
+                success: false,
+                error: `No data found in source table ${sourceTable}`,
+                suggestions: ['Check if the table exists and has data', 'Verify table permissions']
+            });
+        }
+
+        // Step 2: Create temp BigQuery table from RDBMS data (exact same as JSON vs BQ)
+        const bqService = new BigQueryIntegrationService();
+        const tempTableResult = await bqService.createTempTableFromJSON(
+            rdbmsResult.records, 
+            `${dbType}_${Date.now()}`, // Unique temp table name with db type
+            primaryKey
+        );
+        
+        console.log(`Created temp table: ${tempTableResult.tempTableId}`);
+
+        // Step 3: Use existing comparison engine (exact same as JSON vs BQ)
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+        
+        const results = await comparisonEngine.compareJSONvsBigQuery(
+            tempTableResult.tempTableId,    // RDBMS data as temp table
+            bqTable,                         // Target BigQuery table
+            primaryKey,
+            comparisonFields,
+            'enhanced'
+        );
+
+        // Add metadata about the source
+        results.metadata = {
+            ...results.metadata,
+            sourceType: dbType.toUpperCase(),
+            sourceTable: sourceTable,
+            tempTable: tempTableResult.tempTableId,
+            recordsProcessed: rdbmsResult.recordCount
         };
 
-        res.json({ success: true, data: results });
+        console.log(`${dbType.toUpperCase()} vs BigQuery comparison completed using proven pattern`);
+        res.json(results);
 
     } catch (error) {
-        console.error('Oracle test failed:', error.message);
-        res.status(500).json({ success: false, error: error.message });
+        console.error('RDBMS vs BigQuery comparison failed:', error.message);
+        
+        // Enhanced error handling
+        let suggestions = [
+            'Check database connection parameters',
+            'Verify source table exists and has data',
+            'Ensure BigQuery table is accessible'
+        ];
+
+        if (error.message.includes('ENOTFOUND')) {
+            suggestions.unshift('Network connectivity issue - check VPN or network access');
+        }
+
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            suggestions: suggestions
+        });
     }
 });
 // Start server
