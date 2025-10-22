@@ -23,6 +23,211 @@ app.use('/api', jsonUploadRouter);
 const bigquery = new BigQuery({
     projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
 });
+// Add these RDBMS endpoints after line 20 in your server.js file
+
+// RDBMS Connection Testing
+app.post('/api/test-rdbms-connection', async (req, res) => {
+    try {
+        const { dbType, ...connectionConfig } = req.body;
+        
+        console.log(`Testing ${dbType} connection:`, {
+            host: connectionConfig.host || connectionConfig.server,
+            port: connectionConfig.port,
+            database: connectionConfig.database || connectionConfig.service,
+            user: connectionConfig.username
+        });
+
+        if (!dbType) {
+            return res.status(400).json({
+                success: false,
+                error: 'Database type is required',
+                suggestions: ['Specify dbType as postgresql, mysql, oracle, or sqlserver']
+            });
+        }
+
+        const result = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
+        
+        res.json({
+            success: result.success,
+            message: result.message,
+            details: result.details,
+            error: result.error,
+            suggestions: result.suggestions
+        });
+
+    } catch (error) {
+        console.error('RDBMS connection test error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Connection test failed: ' + error.message,
+            suggestions: [
+                'Check your connection parameters',
+                'Ensure the database server is accessible',
+                'Verify network connectivity'
+            ]
+        });
+    }
+});
+
+// RDBMS Schema Analysis
+app.post('/api/get-rdbms-schema', async (req, res) => {
+    try {
+        const { dbType, connectionConfig, tableName } = req.body;
+        
+        if (!dbType || !connectionConfig || !tableName) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required parameters: dbType, connectionConfig, and tableName are required'
+            });
+        }
+
+        console.log(`Getting ${dbType} schema for table: ${tableName}`);
+
+        const result = await RDBMSIntegrationService.getSchemaInfo(dbType, connectionConfig, tableName);
+        
+        res.json({
+            success: true,
+            data: result
+        });
+
+    } catch (error) {
+        console.error('RDBMS schema analysis error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Schema analysis failed: ' + error.message,
+            suggestions: [
+                'Verify the table name exists',
+                'Check if the user has SELECT privileges on the table',
+                'Ensure the database connection is valid'
+            ]
+        });
+    }
+});
+
+// RDBMS vs BigQuery Comparison (using proven JSON vs BQ pattern)
+app.post('/api/rdbms-vs-bq', async (req, res) => {
+    try {
+        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [] } = req.body;
+        
+        console.log(`Starting ${dbType} vs BigQuery comparison using proven JSON vs BQ pattern...`);
+        console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
+        
+        // Step 1: Get RDBMS data (same way JSON data is fetched)
+        const connectionConfig = { 
+            host, 
+            port: parseInt(port) || (dbType === 'oracle' ? 1521 : 5432), 
+            service, 
+            username, 
+            password 
+        };
+        
+        const connectionTest = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
+        
+        if (!connectionTest.success) {
+            return res.status(400).json({ 
+                success: false, 
+                error: `${dbType.toUpperCase()} connection failed: ${connectionTest.error}`,
+                suggestions: connectionTest.suggestions
+            });
+        }
+
+        // Build query for different database types
+        const fields = [primaryKey, ...comparisonFields].filter(f => f?.trim());
+        let query;
+        
+        switch(dbType.toLowerCase()) {
+            case 'oracle':
+                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ROWNUM <= 1000`;
+                break;
+            case 'postgresql':
+                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
+                break;
+            case 'mysql':
+                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
+                break;
+            case 'sqlserver':
+                query = `SELECT TOP 1000 ${fields.join(', ')} FROM ${sourceTable}`;
+                break;
+            default:
+                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
+        }
+
+        console.log(`Executing query: ${query}`);
+        
+        // Fetch data using the appropriate method based on dbType
+        let rdbmsResult;
+        if (dbType.toLowerCase() === 'oracle') {
+            rdbmsResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, query);
+        } else {
+            // For other database types, use the generic fetchData method
+            rdbmsResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
+        }
+        
+        console.log(`Retrieved ${rdbmsResult.recordCount} records from ${dbType.toUpperCase()}`);
+        
+        if (!rdbmsResult.records || rdbmsResult.records.length === 0) {
+            return res.json({
+                success: false,
+                error: `No data found in source table ${sourceTable}`,
+                suggestions: ['Check if the table exists and has data', 'Verify table permissions']
+            });
+        }
+
+        // Step 2: Create temp BigQuery table from RDBMS data (exact same as JSON vs BQ)
+        const bqService = new BigQueryIntegrationService();
+        const tempTableResult = await bqService.createTempTableFromJSON(
+            rdbmsResult.records, 
+            `${dbType}_${Date.now()}`, // Unique temp table name with db type
+            primaryKey
+        );
+        
+        console.log(`Created temp table: ${tempTableResult.tempTableId}`);
+
+        // Step 3: Use existing comparison engine (exact same as JSON vs BQ)
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+        
+        const results = await comparisonEngine.compareJSONvsBigQuery(
+            tempTableResult.tempTableId,    // RDBMS data as temp table
+            bqTable,                         // Target BigQuery table
+            primaryKey,
+            comparisonFields,
+            'enhanced'
+        );
+
+        // Add metadata about the source
+        results.metadata = {
+            ...results.metadata,
+            sourceType: dbType.toUpperCase(),
+            sourceTable: sourceTable,
+            tempTable: tempTableResult.tempTableId,
+            recordsProcessed: rdbmsResult.recordCount
+        };
+
+        console.log(`${dbType.toUpperCase()} vs BigQuery comparison completed using proven pattern`);
+        res.json(results);
+
+    } catch (error) {
+        console.error('RDBMS vs BigQuery comparison failed:', error.message);
+        
+        // Enhanced error handling
+        let suggestions = [
+            'Check database connection parameters',
+            'Verify source table exists and has data',
+            'Ensure BigQuery table is accessible'
+        ];
+
+        if (error.message.includes('ENOTFOUND')) {
+            suggestions.unshift('Network connectivity issue - check VPN or network access');
+        }
+
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            suggestions: suggestions
+        });
+    }
+});
 
 // UTILITY: Consistent JSON parsing function used across all endpoints
 function parseJsonContent(fileContent, fileName = 'unknown') {
