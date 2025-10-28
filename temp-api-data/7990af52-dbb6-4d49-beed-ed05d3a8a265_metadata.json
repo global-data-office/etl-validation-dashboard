@@ -1,0 +1,46 @@
+{
+  "id": "7990af52-dbb6-4d49-beed-ed05d3a8a265",
+  "url": "https://rackspace.peakon.com/api/v1/auth/application",
+  "method": "POST",
+  "status": 200,
+  "statusText": "OK",
+  "contentType": "application/json; charset=utf-8",
+  "fetchedAt": "2025-10-28T11:51:51.672Z",
+  "responseSize": 780,
+  "duration": 262,
+  "dataType": "Object (1 properties)",
+  "authenticationUsed": "Custom Headers",
+  "authenticationStatus": "success",
+  "connectionSuccessful": true,
+  "totalRecords": 0,
+  "totalRecordsInAPI": 0,
+  "totalRecordsAvailable": 0,
+  "recordsForComparison": 1,
+  "fetchStrategy": "complete-dataset",
+  "isCompleteFetch": true,
+  "comparisonCoverage": "100%",
+  "comparisonStrategy": "complete-dataset",
+  "userPaginationRespected": false,
+  "bearerToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJbnRlZ3JhdGlvbklkIjoiNDEyMzgiLCJjb21wYW55SWQiOjIyMzA0LCJzY29wZXMiOlsiYW5zd2VyOnJlYWQiLCJhdHRyaWJ1dGU6cmVhZCIsInNlZ21lbnQ6cmVhZCIsImVtcGxveWVlOmFkbWluIiwiZW1wbG95ZWU6bGlzdCIsImVtcGxveWVlOnJlYWQiLCJlbXBsb3llZTp3cml0ZSIsInNjb3JlOmRyaXZlcjpyZWFkIiwic2NvcmU6Y29tcGFyZSIsInNjb3JlOnZhbHVlOnJlYWQiLCJwcmlvcml0eTpyZWFkIiwic2NvcmU6Y2F0ZWdvcnlHcm91cDpyZWFkIiwiYWN0aW9uOnJlYWQiLCJhdWRpdDpyZWFkIl0sImp0aSI6IjlUSUx1N0x2V2gydm5XRWtHU3NJIiwiaWF0IjoxNzYxNjUyMzEyLCJpc3MiOiJQZWFrb24iLCJzdWIiOiJhcHBfaW50ZWdyYXRpb246NDEyMzgifQ.p2P11dQvfpJlnZYiurxY5AAVITxhzMOYIbeea7nbdy8",
+  "hasAuthToken": true,
+  "authResponse": {
+    "data": {
+      "type": "bearer_tokens",
+      "id": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJbnRlZ3JhdGlvbklkIjoiNDEyMzgiLCJjb21wYW55SWQiOjIyMzA0LCJzY29wZXMiOlsiYW5zd2VyOnJlYWQiLCJhdHRyaWJ1dGU6cmVhZCIsInNlZ21lbnQ6cmVhZCIsImVtcGxveWVlOmFkbWluIiwiZW1wbG95ZWU6bGlzdCIsImVtcGxveWVlOnJlYWQiLCJlbXBsb3llZTp3cml0ZSIsInNjb3JlOmRyaXZlcjpyZWFkIiwic2NvcmU6Y29tcGFyZSIsInNjb3JlOnZhbHVlOnJlYWQiLCJwcmlvcml0eTpyZWFkIiwic2NvcmU6Y2F0ZWdvcnlHcm91cDpyZWFkIiwiYWN0aW9uOnJlYWQiLCJhdWRpdDpyZWFkIl0sImp0aSI6IjlUSUx1N0x2V2gydm5XRWtHU3NJIiwiaWF0IjoxNzYxNjUyMzEyLCJpc3MiOiJQZWFrb24iLCJzdWIiOiJhcHBfaW50ZWdyYXRpb246NDEyMzgifQ.p2P11dQvfpJlnZYiurxY5AAVITxhzMOYIbeea7nbdy8",
+      "relationships": {
+        "source": {
+          "data": {
+            "type": "app_integrations",
+            "id": "41238"
+          }
+        },
+        "session": {
+          "data": {
+            "type": "sessions",
+            "id": "9TILu7LvWh2vnWEkGSsI"
+          }
+        }
+      }
+    }
+  }
+}

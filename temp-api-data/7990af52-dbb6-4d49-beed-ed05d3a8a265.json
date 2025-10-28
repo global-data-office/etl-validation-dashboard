@@ -1,0 +1,20 @@
+{
+  "data": {
+    "type": "bearer_tokens",
+    "id": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJbnRlZ3JhdGlvbklkIjoiNDEyMzgiLCJjb21wYW55SWQiOjIyMzA0LCJzY29wZXMiOlsiYW5zd2VyOnJlYWQiLCJhdHRyaWJ1dGU6cmVhZCIsInNlZ21lbnQ6cmVhZCIsImVtcGxveWVlOmFkbWluIiwiZW1wbG95ZWU6bGlzdCIsImVtcGxveWVlOnJlYWQiLCJlbXBsb3llZTp3cml0ZSIsInNjb3JlOmRyaXZlcjpyZWFkIiwic2NvcmU6Y29tcGFyZSIsInNjb3JlOnZhbHVlOnJlYWQiLCJwcmlvcml0eTpyZWFkIiwic2NvcmU6Y2F0ZWdvcnlHcm91cDpyZWFkIiwiYWN0aW9uOnJlYWQiLCJhdWRpdDpyZWFkIl0sImp0aSI6IjlUSUx1N0x2V2gydm5XRWtHU3NJIiwiaWF0IjoxNzYxNjUyMzEyLCJpc3MiOiJQZWFrb24iLCJzdWIiOiJhcHBfaW50ZWdyYXRpb246NDEyMzgifQ.p2P11dQvfpJlnZYiurxY5AAVITxhzMOYIbeea7nbdy8",
+    "relationships": {
+      "source": {
+        "data": {
+          "type": "app_integrations",
+          "id": "41238"
+        }
+      },
+      "session": {
+        "data": {
+          "type": "sessions",
+          "id": "9TILu7LvWh2vnWEkGSsI"
+        }
+      }
+    }
+  }
+}

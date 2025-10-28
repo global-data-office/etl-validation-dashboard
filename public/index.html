@@ -1536,6 +1536,22 @@
                 </div>
             </div>
         </div>
+<div class="option-group" id="postAuthSection" style="display: none;">
+    <label>
+        <input type="checkbox" id="requiresPostAuth" onchange="togglePostAuthOptions()">
+        Two-Step POST Authentication (POST to get token, then GET data)
+    </label>
+    <small class="field-notice info">Enable this for APIs like Peakon that require POST authentication first</small>
+</div>
+
+<div id="postAuthDataUrl" style="display: none; margin-top: 15px;">
+    <div class="option-group">
+        <label>Data Fetch URL (after authentication)</label>
+        <input type="text" id="dataFetchUrl" placeholder="https://rackspace.peakon.com/api/v1/employees">
+        <small class="field-notice success">URL to fetch actual data after POST authentication succeeds</small>
+    </div>
+</div>
+
 
         <!-- Page 3: API vs BigQuery Comparison -->
         <div id="api-comparison-page" class="page-content">
@@ -2486,126 +2502,160 @@
                 }
             });
         });
+// FIXED: Update test connection handler in index.html
+document.getElementById('testApiConnection').addEventListener('click', async function() {
+    const url = document.getElementById('apiUrl').value.trim();
+    const method = document.querySelector('.method-option.selected').getAttribute('data-method'); // Get selected method
 
-        // ENHANCED: Test API Connection with Dependency Management
-        document.getElementById('testApiConnection').addEventListener('click', async function() {
-            const url = document.getElementById('apiUrl').value.trim();
+    if (!url) {
+        alert('Please enter an API URL first!');
+        return;
+    }
 
-            if (!url) {
-                alert('Please enter an API URL first!');
-                return;
-            }
+    const button = this;
+    const originalText = button.innerHTML;
 
-            const button = this;
-            const originalText = button.innerHTML;
+    try {
+        button.disabled = true;
+        button.innerHTML = '🔄 Testing Connection...';
 
-            try {
-                button.disabled = true;
-                button.innerHTML = '🔄 Testing Connection...';
+        const authConfig = buildAuthConfig();
+        const headersText = document.getElementById('apiHeaders').value.trim();
+        const bodyText = document.getElementById('apiBody').value.trim(); // Get body for POST
 
-                const authConfig = buildAuthConfig();
-                const headersText = document.getElementById('apiHeaders').value.trim();
-
-                // Parse additional headers
-                const additionalHeaders = {};
-                if (headersText) {
-                    const headerLines = headersText.split('\n');
-                    for (const line of headerLines) {
-                        const [key, ...valueParts] = line.split(':');
-                        if (key && valueParts.length > 0) {
-                            additionalHeaders[key.trim()] = valueParts.join(':').trim();
-                        }
-                    }
+        // Parse additional headers
+        const additionalHeaders = {};
+        if (headersText) {
+            const headerLines = headersText.split('\n');
+            for (const line of headerLines) {
+                const [key, ...valueParts] = line.split(':');
+                if (key && valueParts.length > 0) {
+                    additionalHeaders[key.trim()] = valueParts.join(':').trim();
                 }
-
-                // Combine auth headers with additional headers
-                const allHeaders = Object.assign({}, authConfig.headers, additionalHeaders);
-
-                const testConfig = {
-                    url: url,
-                    method: 'GET',
-                    headers: allHeaders,
-                    username: authConfig.username,
-                    password: authConfig.password,
-                    authType: authConfig.authType
-                };
-
-                const response = await fetch('/api/test-api-connection', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(testConfig)
-                });
-
-                const result = await response.json();
-
-                const resultDiv = document.getElementById('connectionTestResult');
-                resultDiv.style.display = 'block';
-
-const httpStatus = result.httpStatus || result.status;
-const isHttpSuccess = httpStatus >= 200 && httpStatus < 300;
-
-// FIXED: Must have successful HTTP status (2xx) to enable fetch
-if (result.success && result.connectionSuccessful && result.authenticationSuccessful && isHttpSuccess) {
-                    connectionTestPassed = true;
-                    enableFetchDataButton();
-
-                    resultDiv.innerHTML = `
-                        <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
-                            <h5 style="margin-bottom: 10px;">✅ Connection & Authentication Successful!</h5>
-                            <p><strong>Status:</strong> ${result.status} ${result.statusText}</p>
-                            <p><strong>Auth Type:</strong> ${result.authType}</p>
-                            <p><strong>Response Time:</strong> ${result.duration}ms</p>
-                            <p style="margin: 10px 0 0 0; font-weight: 600; color: #28a745;">🚀 Ready to fetch data!</p>
-                        </div>
-                    `;
-                } else {
-                    // ENHANCED: Connection test failed - ensure fetch button stays disabled
-connectionTestPassed = false;
-disableFetchDataButton();
-
-const httpStatus = result.httpStatus || result.status;
-const isAuthError = httpStatus === 401 || httpStatus === 403;
-const isBadRequest = httpStatus === 400;
-
-let errorMessage = result.error;
-let additionalInfo = '';
-
-if (isBadRequest) {
-    additionalInfo = '<p style="font-weight: 600;">🔧 Check your API URL and headers!</p>';
-} else if (isAuthError) {
-    additionalInfo = '<p style="font-weight: 600;">🔐 Check your credentials!</p>';
-}
-
-resultDiv.innerHTML = `
-    <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
-        <h5 style="margin-bottom: 10px;">❌ Connection Failed</h5>
-        <p><strong>Error:</strong> ${errorMessage}</p>
-        <p><strong>HTTP Status:</strong> ${httpStatus} ${result.statusText || ''}</p>
-        ${additionalInfo}
-    </div>
-`;
-                }
-
-            } catch (error) {
-                console.error('Test failed:', error);
-
-                // ENHANCED: Test failed - ensure fetch button stays disabled
-                connectionTestPassed = false;
-                disableFetchDataButton();
-
-                const resultDiv = document.getElementById('connectionTestResult');
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `
-                    <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px;">
-                        <h5>❌ Test Failed</h5>
-                        <p>${error.message}</p>
-                    </div>
-                `;
-            } finally {
-                button.disabled = false;
-                button.innerHTML = originalText;
             }
+        }
+
+        const allHeaders = Object.assign({}, authConfig.headers, additionalHeaders);
+
+        const testConfig = {
+            url: url,
+            method: method, // FIXED: Pass the selected method
+            headers: allHeaders,
+            username: authConfig.username,
+            password: authConfig.password,
+            authType: authConfig.authType,
+            body: bodyText // FIXED: Include body for POST requests
+        };
+
+        console.log('Testing with method:', method);
+        console.log('Request body:', bodyText);
+
+        const response = await fetch('/api/test-api-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(testConfig)
         });
+
+        const result = await response.json();
+
+        const resultDiv = document.getElementById('connectionTestResult');
+        resultDiv.style.display = 'block';
+
+        const httpStatus = result.httpStatus || result.status;
+        const isHttpSuccess = httpStatus >= 200 && httpStatus < 300;
+
+        if (result.success && result.connectionSuccessful && result.authenticationSuccessful && isHttpSuccess) {
+            connectionTestPassed = true;
+            enableFetchDataButton();
+
+            let successMessage = `
+                <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+                    <h5 style="margin-bottom: 10px;">✅ Connection & Authentication Successful!</h5>
+                    <p><strong>Status:</strong> ${result.status} ${result.statusText}</p>
+                    <p><strong>Method:</strong> ${method}</p>
+                    <p><strong>Auth Type:</strong> ${result.authType}</p>
+                    <p><strong>Response Time:</strong> ${result.duration}ms</p>
+            `;
+
+            // Add token info for POST authentication
+            if (result.hasToken && method === 'POST') {
+                successMessage += `
+                    <p style="margin: 10px 0; padding: 10px; background: #fff; border-radius: 4px;">
+                        <strong style="color: #28a745;">🔑 Bearer Token Received!</strong><br>
+                        <span style="font-size: 0.9rem; color: #666;">Token successfully generated for data fetch requests</span>
+                    </p>
+                `;
+            }
+
+            successMessage += `
+                    <p style="margin: 10px 0 0 0; font-weight: 600; color: #28a745;">🚀 Ready to fetch data!</p>
+                </div>
+            `;
+
+            resultDiv.innerHTML = successMessage;
+        } else {
+            connectionTestPassed = false;
+            disableFetchDataButton();
+
+            let errorMessage = result.error || 'Connection test failed';
+            let suggestions = [];
+
+            if (httpStatus === 404) {
+                suggestions = [
+                    `Endpoint not found - verify the URL is correct`,
+                    `For Peakon auth: ensure URL is /api/v1/auth/application`,
+                    `Check API documentation for correct endpoint path`
+                ];
+            } else if (httpStatus === 400) {
+                suggestions = [
+                    `Bad Request - check your request body format`,
+                    `For Peakon: body should be {"type": "bearer_tokens"}`,
+                    `Verify Content-Type header is application/json`
+                ];
+            } else if (httpStatus === 401) {
+                suggestions = [
+                    `Authentication failed - check credentials`,
+                    `Verify API key or token is correct`,
+                    `Check if additional headers are required`
+                ];
+            }
+
+            resultDiv.innerHTML = `
+                <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                    <h5 style="margin-bottom: 10px;">❌ Connection Failed</h5>
+                    <p><strong>Error:</strong> ${errorMessage}</p>
+                    <p><strong>HTTP Status:</strong> ${httpStatus}</p>
+                    <p><strong>Method:</strong> ${method}</p>
+                    ${suggestions.length > 0 ? `
+                        <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 4px;">
+                            <strong>💡 Suggestions:</strong>
+                            <ul style="margin: 5px 0 0 20px; padding: 0;">
+                                ${suggestions.map(s => `<li style="margin: 5px 0;">${s}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+    } catch (error) {
+        console.error('Test failed:', error);
+        connectionTestPassed = false;
+        disableFetchDataButton();
+
+        const resultDiv = document.getElementById('connectionTestResult');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+            <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px;">
+                <h5>❌ Test Failed</h5>
+                <p>${error.message}</p>
+            </div>
+        `;
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+});
 
         // ENHANCED: Fetch API Data with Dependency Check
         document.getElementById('fetchApiData').addEventListener('click', async function() {
@@ -2615,161 +2665,123 @@ resultDiv.innerHTML = `
                 return;
             }
 
-            const url = document.getElementById('apiUrl').value.trim();
-            const method = document.querySelector('.method-option.selected').getAttribute('data-method');
-            const headersText = document.getElementById('apiHeaders').value.trim();
-            const bodyText = document.getElementById('apiBody').value.trim();
+    const url = document.getElementById('apiUrl').value.trim();
+    const method = document.querySelector('.method-option.selected').getAttribute('data-method');
+    const headersText = document.getElementById('apiHeaders').value.trim();
+    const bodyText = document.getElementById('apiBody').value.trim();
 
-            if (!url) {
-                alert('Please enter an API URL!');
-                return;
-            }
+    // NEW: Get POST authentication settings
+    const requiresPostAuth = document.getElementById('requiresPostAuth')?.checked || false;
+    const dataFetchUrl = document.getElementById('dataFetchUrl')?.value.trim() || '';
 
-            // Check if authentication is configured for ServiceNow
-            const authConfig = buildAuthConfig();
-            if (url.toLowerCase().includes('service-now') || url.toLowerCase().includes('servicenow')) {
-                if (authConfig.authType === 'none' || (!authConfig.username && !authConfig.password)) {
-                    const proceed = confirm('ServiceNow APIs require authentication. Please configure authentication first.\n\nDo you want to proceed anyway?');
-                    if (!proceed) {
-                        return;
-                    }
+    if (!url) {
+        alert('Please enter an API URL!');
+        return;
+    }
+
+    const button = this;
+    const originalText = button.innerHTML;
+
+    try {
+        button.disabled = true;
+        button.innerHTML = 'ðŸ"„ Fetching API Data...';
+
+        document.getElementById('api-upload-section').style.display = 'none';
+        document.getElementById('api-processing-section').style.display = 'block';
+
+        // Update processing text for POST auth
+        if (requiresPostAuth) {
+            document.getElementById('api-processing-text').textContent = 'Step 1: POST Authentication...';
+            document.getElementById('api-processing-subtext').textContent = 'Getting bearer token from authentication endpoint';
+        } else {
+            document.getElementById('api-processing-text').textContent = 'Connecting to API...';
+            document.getElementById('api-processing-subtext').textContent = 'Fetching data';
+        }
+
+        const authConfig = buildAuthConfig();
+        const additionalHeaders = {};
+
+        if (headersText) {
+            const headerLines = headersText.split('\n');
+            for (const line of headerLines) {
+                const [key, ...valueParts] = line.split(':');
+                if (key && valueParts.length > 0) {
+                    additionalHeaders[key.trim()] = valueParts.join(':').trim();
                 }
             }
+        }
 
-            const button = this;
-            const originalText = button.innerHTML;
+        const allHeaders = Object.assign({}, authConfig.headers, additionalHeaders);
 
-            try {
-                button.disabled = true;
-                button.innerHTML = '🔄 Fetching API Data...';
+        const requestBody = {
+            url: url,
+            method: method,
+            headers: allHeaders,
+            username: authConfig.username,
+            password: authConfig.password,
+            authType: authConfig.authType,
 
-                document.getElementById('api-upload-section').style.display = 'none';
-                document.getElementById('api-processing-section').style.display = 'block';
-                document.getElementById('api-processing-text').textContent = 'Connecting to API with authentication...';
-                document.getElementById('api-processing-subtext').textContent = 'Using ' + (authConfig.authType || 'no') + ' authentication';
+            // NEW: POST authentication parameters
+            requiresPostAuth: requiresPostAuth,
+            dataUrl: dataFetchUrl || null
+        };
 
-                // Parse additional headers
-                const additionalHeaders = {};
-                if (headersText) {
-                    const headerLines = headersText.split('\n');
-                    for (const line of headerLines) {
-                        const [key, ...valueParts] = line.split(':');
-                        if (key && valueParts.length > 0) {
-                            additionalHeaders[key.trim()] = valueParts.join(':').trim();
-                        }
-                    }
-                }
+        if (['POST', 'PUT', 'PATCH'].includes(method) && bodyText) {
+            requestBody.body = bodyText;
+        }
 
-                // Combine auth headers with additional headers
-                const allHeaders = Object.assign({}, authConfig.headers, additionalHeaders);
-
-                const requestBody = {
-                    url: url,
-                    method: method,
-                    headers: allHeaders,
-                    username: authConfig.username,
-                    password: authConfig.password,
-                    authType: authConfig.authType
-                };
-
-                if (['POST', 'PUT', 'PATCH'].includes(method) && bodyText) {
-                    requestBody.body = bodyText;
-                }
-
-                const response = await fetch('/api/fetch-api-data', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
-                });
-
-                const result = await response.json();
-
-                if (!result.success) {
-                    // Handle authentication errors specifically
-                    if (result.authenticationRequired || result.httpStatus === 401) {
-                        alert('🔒 Authentication Failed!\n\nThe API returned 401 Unauthorized.\n\nPlease:\n1. Select "Basic Authentication"\n2. Enter valid username/password\n3. Test connection first');
-                        document.getElementById('api-processing-section').style.display = 'none';
-                        document.getElementById('api-upload-section').style.display = 'block';
-                        return;
-                    } else if (result.httpStatus === 403) {
-                        alert('🚫 Access Forbidden!\n\nYour credentials are valid but you don\'t have permission.\n\nContact your administrator for proper access rights.');
-                        document.getElementById('api-processing-section').style.display = 'none';
-                        document.getElementById('api-upload-section').style.display = 'block';
-                        return;
-                    }
-                    throw new Error(result.error || 'API fetch failed');
-                }
-
-                // Check if we got actual data or an error response
-                const preview = result.dataPreview;
-                const fields = preview.availableFields || [];
-                const hasErrorFields = fields.some(field => field.toLowerCase().includes('error'));
-                const hasBusinessFields = fields.some(field => {
-                    const lower = field.toLowerCase();
-                    return lower.includes('sys_id') || lower.includes('name') || lower.includes('active') || lower.includes('description');
-                });
-
-                if (hasErrorFields && !hasBusinessFields && preview.totalRecords <= 2) {
-                    alert('⚠️ API Error Response Detected!\n\nThe API returned an error instead of data:\n\nFields found: ' + fields.join(', ') + '\n\nThis usually means authentication failed or the endpoint is incorrect.\n\nPlease:\n1. Check your authentication credentials\n2. Verify the API endpoint URL\n3. Test connection first');
-                    document.getElementById('api-processing-section').style.display = 'none';
-                    document.getElementById('api-upload-section').style.display = 'block';
-                    return;
-                }
-
-                console.log('✅ API data fetched successfully');
-                console.log('Authentication status:', result.authenticationStatus);
-                console.log('Records found:', preview.totalRecords);
-                console.log('Fields available:', fields.join(', '));
-
-                currentApiDataId = result.dataId;
-
-                // Show connection success message
-                document.getElementById('api-processing-text').textContent = '✅ API Connection Successful!';
-                document.getElementById('api-processing-subtext').textContent = 'Authentication passed - Loading ' + result.dataPreview.totalRecords + ' records with ' + result.dataPreview.fieldsDetected + ' fields...';
-
-                // Brief delay to show success message
-                setTimeout(function() {
-                    displayApiPreview(result.dataPreview, result.metadata);
-                    document.getElementById('api-processing-section').style.display = 'none';
-                    document.getElementById('api-upload-section').style.display = 'block';
-
-                    const compareBtn = document.getElementById('startApiComparison');
-                    compareBtn.disabled = false;
-                    compareBtn.style.background = '#27ae60';
-                    compareBtn.style.cursor = 'pointer';
-                }, 1500);
-
-            } catch (error) {
-                console.error('API fetch failed:', error);
-
-                document.getElementById('api-processing-section').style.display = 'none';
-                document.getElementById('api-upload-section').style.display = 'block';
-
-                let errorMessage = error.message;
-
-                // ENHANCED: Check if connection was lost
-                if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
-                    errorMessage += '\n\n🔄 Connection may have expired. Please re-test connection.';
-                    connectionTestPassed = false;
-                    disableFetchDataButton();
-                } else if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
-                    errorMessage += '\n\n🚫 Access denied unexpectedly. This shouldn\'t happen after successful connection test.';
-                }
-
-                alert('API fetch failed: ' + errorMessage);
-
-            } finally {
-                button.disabled = false;
-                button.innerHTML = originalText;
-            }
+        const response = await fetch('/api/fetch-api-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
         });
 
-        // ========================================
-        // ENHANCED API PREVIEW DISPLAY
-        // ========================================
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'API fetch failed');
+        }
+
+        console.log('âœ… API data fetched successfully');
+
+        currentApiDataId = result.dataId;
+
+        // Show success message
+        if (requiresPostAuth) {
+            document.getElementById('api-processing-text').textContent = 'âœ… Authentication & Data Fetch Complete!';
+            document.getElementById('api-processing-subtext').textContent = `POST auth successful â†' Bearer token received â†' Data fetched: ${result.dataPreview.totalRecords} records`;
+        } else {
+            document.getElementById('api-processing-text').textContent = 'âœ… API Connection Successful!';
+            document.getElementById('api-processing-subtext').textContent = `Loading ${result.dataPreview.totalRecords} records...`;
+        }
+
+        setTimeout(function() {
+            displayApiPreview(result.dataPreview, result.metadata);
+            document.getElementById('api-processing-section').style.display = 'none';
+            document.getElementById('api-upload-section').style.display = 'block';
+
+            const compareBtn = document.getElementById('startApiComparison');
+            compareBtn.disabled = false;
+        }, 1500);
+
+    } catch (error) {
+        console.error('API fetch failed:', error);
+
+        document.getElementById('api-processing-section').style.display = 'none';
+        document.getElementById('api-upload-section').style.display = 'block';
+
+        alert('API fetch failed: ' + error.message);
+
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+});
+
+// FIXED: displayApiPreview function with proper authentication response handling
 function displayApiPreview(preview, metadata) {
     try {
-        console.log('📊 DISPLAYING ENHANCED API PREVIEW WITH FIELD DEBUGGING');
+        console.log('🔍 DISPLAYING ENHANCED API PREVIEW WITH AUTHENTICATION DETECTION');
         console.log('Preview data received:', preview);
         console.log('Metadata received:', metadata);
 
@@ -2779,14 +2791,114 @@ function displayApiPreview(preview, metadata) {
             dataSourceElement.textContent = metadata?.url || 'API Endpoint';
         }
 
-        // FIXED: Use correct total counts from metadata
-        // Total available in API (from API headers/response)
+        // CRITICAL FIX: Proper bearer token detection from multiple sources
+        const capturedBearerToken = preview.bearerToken ||
+                                    preview.authToken ||
+                                    preview.token ||
+                                    metadata?.bearerToken ||
+                                    metadata?.authToken ||
+                                    null;
+
+        // CRITICAL FIX: Better authentication response detection
+        // Check if this is an auth response by looking at multiple indicators
+        const hasToken = !!capturedBearerToken;
+        const hasLowRecordCount = !preview.totalRecords || preview.totalRecords <= 1;
+        const statusCode = metadata?.status || 200;
+        const isAuthEndpoint = (metadata?.url || '').toLowerCase().includes('auth');
+
+        // This is likely an auth response if:
+        // 1. Has a bearer token, OR
+        // 2. Has low/zero records AND is an auth endpoint AND got 200 status
+        const isAuthenticationResponse = hasToken ||
+                                        (hasLowRecordCount && isAuthEndpoint && statusCode === 200);
+
+        console.log('🔍 Authentication Response Detection:');
+        console.log('   - Has Bearer Token:', hasToken);
+        console.log('   - Token Value:', capturedBearerToken ? 'Present' : 'None');
+        console.log('   - Total Records:', preview.totalRecords || 0);
+        console.log('   - Is Auth Endpoint:', isAuthEndpoint);
+        console.log('   - Status Code:', statusCode);
+        console.log('   - Is Auth Response:', isAuthenticationResponse);
+
+        if (isAuthenticationResponse) {
+            console.log('✅ DETECTED: This is an authentication response');
+
+            // Display authentication success stats
+            const apiStats = document.getElementById('api-stats');
+            if (apiStats) {
+                apiStats.innerHTML = `
+                    <div class="api-stat-card" style="border-left: 4px solid #27ae60;">
+                        <div class="api-stat-number" style="color: #27ae60; font-size: 2rem;">✅</div>
+                        <div class="api-stat-label">Authentication Successful</div>
+                        <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Bearer token ${hasToken ? 'received' : 'generated'}</div>
+                    </div>
+                    <div class="api-stat-card" style="border-left: 4px solid #3498db;">
+                        <div class="api-stat-number" style="color: #3498db; font-size: 1.3rem;">${statusCode}</div>
+                        <div class="api-stat-label">HTTP Status</div>
+                        <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">POST auth response</div>
+                    </div>
+                    <div class="api-stat-card" style="border-left: 4px solid #9b59b6;">
+                        <div class="api-stat-number" style="color: #9b59b6;">${metadata?.duration || 0}ms</div>
+                        <div class="api-stat-label">Response Time</div>
+                        <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Authentication latency</div>
+                    </div>
+                    <div class="api-stat-card" style="border-left: 4px solid #e67e22;">
+                        <div class="api-stat-number" style="color: #e67e22;">🔑</div>
+                        <div class="api-stat-label">Token Ready</div>
+                        <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Ready for data fetch</div>
+                    </div>
+                `;
+            }
+
+            // Show authentication-specific field suggestions
+            const fieldSuggestions = document.getElementById('api-field-suggestions');
+            if (fieldSuggestions) {
+                fieldSuggestions.innerHTML = `
+                    <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; border-left: 4px solid #27ae60;">
+                        <h4 style="color: #2c3e50; margin-bottom: 12px;">🔐 POST Authentication Complete</h4>
+                        <p style="color: #555; margin-bottom: 15px; line-height: 1.6;">
+                            Your POST authentication was successful! ${hasToken ? 'A bearer token has been generated' : 'Authentication completed'} and is ready to use for data fetch requests.
+                        </p>
+                        ${hasToken ? `
+                            <div style="background: #fff9e6; padding: 15px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #f39c12;">
+                                <p style="color: #666; margin: 0; font-size: 0.9rem;">
+                                    <strong>Next Step:</strong> The bearer token will automatically be included in your data fetch request.
+                                    Configure your data fetch URL and click "Fetch API Data" to proceed.
+                                </p>
+                            </div>
+                        ` : ''}
+                        <p style="color: #666; font-size: 0.85rem; margin: 0;">
+                            ${hasToken ? 'Token type: <strong>Bearer Token (OAuth 2.0)</strong><br>' : ''}
+                            Status: <strong style="color: #27ae60;">✅ Ready for Data Fetch</strong>
+                        </p>
+                    </div>
+                `;
+            }
+
+            // CRITICAL: Display Bearer Token prominently if available
+            if (hasToken) {
+                displayBearerToken(capturedBearerToken, metadata?.url);
+            }
+
+            // Show the API preview section
+            const apiPreview = document.getElementById('api-preview');
+            if (apiPreview) {
+                apiPreview.style.display = 'block';
+            }
+
+            console.log('✅ Authentication response preview displayed successfully');
+            return; // Exit early - don't process as data response
+        }
+
+        // NORMAL DATA RESPONSE HANDLING (existing code)
+        console.log('📊 Processing as normal data response...');
+
+        // Use correct total counts from metadata
         const totalRecordsInAPI = metadata?.totalRecordsInAPI ||
                                   metadata?.totalRecordsAvailable ||
                                   preview.totalRecordsAvailable ||
                                   preview.totalRecords || 0;
 
-        // Records used for comparison (sample or complete)
         const recordsForComparison = metadata?.recordsForComparison ||
                                      preview.sampleSize ||
                                      preview.totalRecords || 0;
@@ -2965,6 +3077,79 @@ function displayApiPreview(preview, metadata) {
         alert('API data fetched successfully but preview display failed. You can still proceed with comparison.');
     }
 }
+
+// NEW: Helper function to display bearer token prominently
+function displayBearerToken(token, apiUrl) {
+    const apiPreview = document.getElementById('api-preview');
+    if (!apiPreview) return;
+
+    // Remove any existing token display
+    const existingTokenDisplay = apiPreview.querySelector('.bearer-token-display');
+    if (existingTokenDisplay) {
+        existingTokenDisplay.remove();
+    }
+
+    const tokenSection = document.createElement('div');
+    tokenSection.className = 'bearer-token-display';
+    tokenSection.style.cssText = `
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 25px;
+        border-radius: 12px;
+        margin-top: 20px;
+        border-left: 5px solid #764ba2;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+    `;
+
+    const tokenDisplay = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;">
+            <div style="flex: 1;">
+                <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    🔐 Bearer Token Generated Successfully
+                </h4>
+                <p style="margin: 0 0 12px 0; font-size: 13px; opacity: 0.95; line-height: 1.5;">
+                    Your authentication was successful. The bearer token below will be automatically used for all subsequent API data fetch requests.
+                </p>
+                <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 12px; word-break: break-all; max-height: 80px; overflow-y: auto;">
+                    <span style="color: #e0e0e0;">Bearer ${token}</span>
+                </div>
+            </div>
+            <button
+                onclick="navigator.clipboard.writeText('Bearer ${token}').then(() => alert('Bearer token copied to clipboard!')).catch(err => console.error('Failed to copy:', err));"
+                style="
+                    background: white;
+                    color: #667eea;
+                    border: none;
+                    padding: 12px 20px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-weight: 600;
+                    font-size: 13px;
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                "
+                onmouseover="this.style.background='#f5f5f5'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)';"
+                onmouseout="this.style.background='white'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';"
+            >
+                📋 Copy Token
+            </button>
+        </div>
+        <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.15); border-radius: 6px; font-size: 12px;">
+            <strong>API URL:</strong> <span style="opacity: 0.9;">${apiUrl || 'N/A'}</span><br>
+            <strong>Status:</strong> <span style="color: #4caf50; font-weight: 600;">✅ Ready to Fetch Data</span>
+        </div>
+    `;
+
+    tokenSection.innerHTML = tokenDisplay;
+    apiPreview.appendChild(tokenSection);
+
+    console.log('✅ Bearer token display added to preview');
+}
+        // ========================================
+        // ENHANCED API PREVIEW DISPLAY
+        // ========================================
 
         // Enhanced API Comparison
         // Replace the existing startApiComparison event listener in index.html
@@ -4991,6 +5176,41 @@ function exportApiResultsToExcel() {
                 });
             }
         });
+
+
+        document.querySelectorAll('.method-option').forEach(option => {
+    option.addEventListener('click', function() {
+        document.querySelectorAll('.method-option').forEach(opt => opt.classList.remove('selected'));
+        this.classList.add('selected');
+
+        const method = this.getAttribute('data-method');
+        const bodySection = document.getElementById('apiBodySection');
+        const postAuthSection = document.getElementById('postAuthSection');
+
+        if (['POST', 'PUT', 'PATCH'].includes(method)) {
+            bodySection.style.display = 'block';
+            if (method === 'POST') {
+                postAuthSection.style.display = 'block'; // Show POST auth option
+            }
+        } else {
+            bodySection.style.display = 'none';
+            postAuthSection.style.display = 'none';
+        }
+    });
+});
+
+// Toggle POST authentication options
+function togglePostAuthOptions() {
+    const requiresPostAuth = document.getElementById('requiresPostAuth').checked;
+    const postAuthDataUrl = document.getElementById('postAuthDataUrl');
+
+    if (requiresPostAuth) {
+        postAuthDataUrl.style.display = 'block';
+    } else {
+        postAuthDataUrl.style.display = 'none';
+    }
+}
+
     </script>
 </body>
 </html>

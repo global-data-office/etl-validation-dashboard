@@ -1098,20 +1098,32 @@ app.get('/', (req, res) => {
 
 const APIFetcherService = require('./services/api-fetcher');
 const apiFetcher = new APIFetcherService();
-// API vs BQ - NEW ENDPOINTS ONLY
+// FIXED: server.js test-api-connection endpoint
 app.post('/api/test-api-connection', async (req, res) => {
     try {
-        const { url, method, headers, username, password, authType } = req.body;
-        if (!url) return res.status(400).json({ success: false, error: 'URL required' });
+        const { url, method, headers, body, username, password, authType } = req.body; // Add body parameter
 
-        const result = await apiFetcher.testAPIConnection({ url, method: method || 'GET', headers: headers || {}, username, password, authType });
+        if (!url) {
+            return res.status(400).json({ success: false, error: 'URL required' });
+        }
+
+        console.log('Testing API connection with method:', method || 'GET');
+
+        const result = await apiFetcher.testAPIConnection({
+            url,
+            method: method || 'GET',  // Pass method to service
+            headers: headers || {},
+            body: body || null,       // Pass body to service
+            username,
+            password,
+            authType
+        });
+
         res.json(result);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-
-// In your server.js file, REPLACE the existing /api/fetch-api-data endpoint with this enhanced version:
 
 app.post('/api/fetch-api-data', async (req, res) => {
     try {

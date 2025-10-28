@@ -40,220 +40,379 @@ class APIFetcherService {
         }
     }
 
-    // COMPLETELY FIXED: Main fetch method that properly handles total vs comparison records
-    async fetchAPIData(config) {
-        try {
-            console.log('=== ENHANCED API DATA FETCH WITH FIXED TOTAL VS COMPARISON LOGIC ===');
-            console.log(`URL: ${config.url}`);
-            console.log(`Method: ${config.method || 'GET'}`);
-            console.log(`Auth: ${this.getAuthType(config)}`);
+async handlePostAuthentication(config) {
+    try {
+        console.log('=== POST AUTHENTICATION FLOW ===');
+        console.log('Step 1: Making POST request to get bearer token...');
 
-            // PRIORITY CHECK: Detect if user specified pagination parameters
-            const url = new URL(config.url);
-            const hasUserPaginationParams = this.detectUserPaginationParams(url);
-
-            if (hasUserPaginationParams) {
-                console.log('USER PAGINATION DETECTED - Using direct request strategy');
-                return await this.handleDirectUserRequest(config, url);
+        // Step 1: POST request to get token
+        const postConfig = {
+            method: 'POST',
+            url: config.url,
+            timeout: this.config.defaultTimeout,
+            maxRedirects: this.config.maxRedirects,
+            validateStatus: function (status) {
+                return status < 500;
+            },
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'ETL-Validation-Dashboard/2.0'
             }
+        };
 
-            // Check for specific strategy requests from frontend
-            if (config.fetchAllWithFirstPageComparison) {
-                console.log('ALL RECORDS + FIRST PAGE COMPARISON strategy requested');
-                return await this.fetchAllRecordsForComparison(config);
+        // Add POST body if provided
+        if (config.body) {
+            try {
+                postConfig.data = JSON.parse(config.body);
+            } catch (e) {
+                postConfig.data = config.body;
             }
-
-            if (config.useSmartSampling) {
-                console.log('SMART SAMPLING strategy requested');
-                return await this.fetchSmartSampleWithProperCounts(config);
-            }
-
-            if (config.fetchAllPages) {
-                console.log('FETCH ALL PAGES strategy requested');
-                return await this.fetchAllPages(config);
-            }
-
-            // DEFAULT STRATEGY: Always try to get total count first, then decide on comparison sample
-            console.log('Using default strategy with proper total vs comparison handling');
-            return await this.fetchWithProperTotalAndComparisonLogic(config);
-
-        } catch (error) {
-            console.error('fetchAPIData error:', error);
-            return this.createErrorResponse(error);
         }
-    }
 
-    // NEW: Default strategy with proper total vs comparison logic
-    async fetchWithProperTotalAndComparisonLogic(config) {
-        try {
-            console.log('=== FETCHING WITH PROPER TOTAL VS COMPARISON LOGIC ===');
-
-            // Step 1: Make initial request to get structure and potential total count
-            const requestConfig = this.buildRequestConfig(config);
-
-            // Try to get a reasonable sample to understand the API structure
-            const initialUrl = new URL(config.url);
-            this.applyGenericPaginationParams(initialUrl, 1, 100); // Get first 100 records
-            requestConfig.url = initialUrl.toString();
-
-            console.log(`Initial request URL: ${requestConfig.url}`);
-
-            const startTime = Date.now();
-            const response = await axios(requestConfig);
-            const duration = Date.now() - startTime;
-
-            console.log(`Initial request completed: ${response.status} in ${duration}ms`);
-
-            // Validate response
-            const validationResult = this.isValidJSONResponse(response);
-            if (!validationResult.isValid) {
-                throw new Error(`Invalid response: ${validationResult.details}`);
-            }
-
-            // Step 2: Extract total count and sample data
-            const totalRecordsInAPI = this.extractTotalCountGeneric(response) || this.countRecordsInResponse(response.data);
-            const sampleRecords = this.extractRecordsFromResponse(response.data);
-            const sampleSize = sampleRecords.length;
-
-            console.log(`DETECTED: ${totalRecordsInAPI} total records in API`);
-            console.log(`SAMPLE: Got ${sampleSize} records for analysis`);
-
-            // Step 3: Determine comparison strategy based on total count
-            let recordsForComparison = sampleSize;
-            let comparisonStrategy = 'complete-sample';
-            let isCompleteFetch = false;
-
-            if (totalRecordsInAPI <= this.config.recordThreshold) {
-                // Small dataset - try to get all records for comparison
-                console.log(`STRATEGY: Fetch all records for comparison (${totalRecordsInAPI} <= ${this.config.recordThreshold})`);
-
-                if (totalRecordsInAPI > sampleSize) {
-                    // Need to fetch more records
-                    try {
-                        const allRecordsUrl = new URL(config.url);
-                        this.applyGenericPaginationParams(allRecordsUrl, 1, totalRecordsInAPI);
-                        const allRecordsConfig = { ...requestConfig, url: allRecordsUrl.toString() };
-
-                        const allResponse = await axios(allRecordsConfig);
-                        if (this.isValidJSONResponse(allResponse).isValid) {
-                            const allRecords = this.extractRecordsFromResponse(allResponse.data);
-                            recordsForComparison = allRecords.length;
-                            response.data = allResponse.data; // Use complete data
-                            comparisonStrategy = 'complete-dataset';
-                            isCompleteFetch = true;
-                            console.log(`SUCCESS: Fetched all ${recordsForComparison} records for comparison`);
-                        }
-                    } catch (error) {
-                        console.log(`Failed to fetch all records, using sample: ${error.message}`);
-                        // Keep the original sample
-                    }
-                } else {
-                    comparisonStrategy = 'complete-dataset';
-                    isCompleteFetch = true;
-                }
-            } else {
-    // Large dataset - use sample for comparison
-    const sampleConfig = this.calculateDynamicSampleSize(totalRecordsInAPI);
-    comparisonStrategy = 'representative-sample';
-
-    console.log(`STRATEGY: Use 22% sample for comparison (${totalRecordsInAPI} > ${this.config.recordThreshold})`);
-    console.log(`CALCULATED: Need ${sampleConfig.sampleSize} records (${sampleConfig.actualPercentage}% of total)`);
-    console.log(`CURRENT: Have ${sampleSize} records from initial fetch`);
-
-    // FIXED: Always fetch the optimized sample if it's different from what we have
-    if (sampleConfig.sampleSize !== sampleSize) {
-        console.log(`FETCHING OPTIMIZED SAMPLE: Requesting ${sampleConfig.sampleSize} records...`);
-        try {
-            const sampleUrl = new URL(config.url);
-            this.applyGenericPaginationParams(sampleUrl, 1, sampleConfig.sampleSize);
-            const sampleRequestConfig = { ...requestConfig, url: sampleUrl.toString() };
-
-            const sampleResponse = await axios(sampleRequestConfig);
-            if (this.isValidJSONResponse(sampleResponse).isValid) {
-                const newSampleRecords = this.extractRecordsFromResponse(sampleResponse.data);
-                recordsForComparison = newSampleRecords.length;
-                response.data = sampleResponse.data; // Use optimized sample
-                console.log(`✅ SUCCESS: Fetched optimized sample of ${recordsForComparison} records`);
-            }
-        } catch (error) {
-            console.log(`⚠️ Failed to fetch optimized sample, using original ${sampleSize} records: ${error.message}`);
-            recordsForComparison = sampleSize; // Keep the original sample
+        // Add any additional headers
+        if (config.headers && Object.keys(config.headers).length > 0) {
+            Object.entries(config.headers).forEach(([key, value]) => {
+                postConfig.headers[key] = value;
+            });
         }
-    } else {
-        // Sample size matches what we need
-        recordsForComparison = sampleSize;
-        console.log(`✅ USING INITIAL SAMPLE: ${sampleSize} records is sufficient`);
+
+        const startTime = Date.now();
+        const authResponse = await axios(postConfig);
+        const duration = Date.now() - startTime;
+
+        console.log(`POST auth request completed: ${authResponse.status} in ${duration}ms`);
+
+        // Validate response
+        const validationResult = this.isValidJSONResponse(authResponse);
+        if (!validationResult.isValid) {
+            throw new Error(`Invalid auth response: ${validationResult.details}`);
+        }
+
+        // Extract bearer token from response
+        const bearerToken = this.extractBearerToken(authResponse.data);
+
+        if (!bearerToken) {
+            throw new Error('Bearer token not found in POST response');
+        }
+
+        console.log('âœ… Bearer token extracted successfully');
+        console.log('Step 2: Will use bearer token for data fetch requests');
+
+        return {
+            success: true,
+            bearerToken: bearerToken,
+            authResponse: authResponse.data,
+            duration: duration,
+            status: authResponse.status
+        };
+
+    } catch (error) {
+        console.error('POST authentication failed:', error);
+        return {
+            success: false,
+            error: error.message
+        };
     }
 }
-            // Step 4: Create proper metadata with correct total vs comparison counts
-            const dataId = uuidv4();
-            const metadata = {
-                id: dataId,
-                url: config.url,
-                method: config.method || 'GET',
-                status: response.status,
-                statusText: response.statusText,
-                contentType: response.headers['content-type'] || 'unknown',
-                fetchedAt: new Date().toISOString(),
-                responseSize: JSON.stringify(response.data).length,
-                duration: duration,
-                dataType: this.detectDataType(response.data),
-                authenticationUsed: this.getAuthType(config),
-                authenticationStatus: 'success',
-                connectionSuccessful: true,
 
-                // FIXED: Proper separation of total vs comparison counts
-                totalRecords: totalRecordsInAPI,  // ACTUAL total from API
-                totalRecordsInAPI: totalRecordsInAPI,  // ACTUAL total from API
-                totalRecordsAvailable: totalRecordsInAPI,  // ACTUAL total from API
-                recordsForComparison: recordsForComparison,  // Records used for comparison
-
-                fetchStrategy: comparisonStrategy,
-                isCompleteFetch: isCompleteFetch,
-                comparisonCoverage: isCompleteFetch ? '100%' : `${((recordsForComparison / totalRecordsInAPI) * 100).toFixed(2)}%`,
-                comparisonStrategy: isCompleteFetch ? 'complete-dataset' : 'representative-sample',
-                userPaginationRespected: false
-            };
-
-            // Save data and metadata
-            const dataFilePath = path.join(this.tempDir, `${dataId}.json`);
-            const metadataFilePath = path.join(this.tempDir, `${dataId}_metadata.json`);
-
-            await fs.writeFile(dataFilePath, JSON.stringify(response.data, null, 2));
-            await fs.writeFile(metadataFilePath, JSON.stringify(metadata, null, 2));
-
-            // Create enhanced preview
-            const dataPreview = this.createEnhancedPreview(response.data, {
-                totalRecordsAvailable: totalRecordsInAPI,
-                sampleSize: recordsForComparison,
-                strategy: comparisonStrategy,
-                isComplete: isCompleteFetch
-            });
-
-            const message = isCompleteFetch
-                ? `Complete dataset - ${totalRecordsInAPI} total records, all ${recordsForComparison} used for comparison`
-                : `Efficient strategy - ${totalRecordsInAPI} total records in API, ${recordsForComparison} used for comparison (${((recordsForComparison / totalRecordsInAPI) * 100).toFixed(2)}% sample)`;
-
-            return {
-                success: true,
-                dataId: dataId,
-                metadata: metadata,
-                dataPreview: dataPreview,
-                message: message,
-                connectionStatus: 'SUCCESS',
-                authenticationStatus: 'success',
-                fetchStrategy: comparisonStrategy,
-                totalRecordsInAPI: totalRecordsInAPI,  // ACTUAL total
-                recordsRetrieved: recordsForComparison,  // For comparison
-                comparisonAccuracy: isCompleteFetch ? 'COMPLETE' : 'REPRESENTATIVE',
-                userPaginationRespected: false
-            };
-
-        } catch (error) {
-            console.error('fetchWithProperTotalAndComparisonLogic error:', error);
-            return this.createErrorResponse(error);
+// Helper method to extract bearer token from various response structures
+extractBearerToken(data) {
+    try {
+        // Common patterns for bearer token location
+        if (data.data && data.data.id) {
+            return data.data.id; // Peakon pattern from your screenshot
         }
+        if (data.access_token) {
+            return data.access_token;
+        }
+        if (data.token) {
+            return data.token;
+        }
+        if (data.bearer_token) {
+            return data.bearer_token;
+        }
+        if (data.data && data.data.token) {
+            return data.data.token;
+        }
+        if (data.data && data.data.access_token) {
+            return data.data.access_token;
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Token extraction failed:', error);
+        return null;
     }
+}
+// Update fetchAPIData method to support POST authentication
+async fetchAPIData(config) {
+    try {
+        console.log('=== ENHANCED API DATA FETCH WITH POST METHOD SUPPORT ===');
+        console.log(`URL: ${config.url}`);
+        console.log(`Method: ${config.method || 'GET'}`);
+
+        // NEW: Check if this is a POST authentication flow
+        if ((config.method || 'GET').toUpperCase() === 'POST' && config.requiresPostAuth) {
+            console.log('POST authentication flow detected');
+
+            // Step 1: Authenticate with POST to get bearer token
+            const authResult = await this.handlePostAuthentication(config);
+
+            if (!authResult.success) {
+                throw new Error(`POST authentication failed: ${authResult.error}`);
+            }
+
+            // Step 2: Now fetch data using GET with bearer token
+            console.log('Authentication successful, fetching data with bearer token...');
+
+            const dataFetchConfig = {
+                ...config,
+                method: 'GET', // Switch to GET for data fetch
+                url: config.dataUrl || config.url, // Use dataUrl if provided
+                headers: {
+                    ...config.headers,
+                    'Authorization': `Bearer ${authResult.bearerToken}`
+                },
+                requiresPostAuth: false // Prevent recursion
+            };
+
+            // Fetch actual data with bearer token
+            return await this.fetchWithProperTotalAndComparisonLogic(dataFetchConfig);
+        }
+
+        // EXISTING LOGIC: Handle all other cases as before
+        const url = new URL(config.url);
+        const hasUserPaginationParams = this.detectUserPaginationParams(url);
+
+        if (hasUserPaginationParams) {
+            console.log('USER PAGINATION DETECTED - Using direct request strategy');
+            return await this.handleDirectUserRequest(config, url);
+        }
+
+        if (config.fetchAllWithFirstPageComparison) {
+            console.log('ALL RECORDS + FIRST PAGE COMPARISON strategy requested');
+            return await this.fetchAllRecordsForComparison(config);
+        }
+
+        if (config.useSmartSampling) {
+            console.log('SMART SAMPLING strategy requested');
+            return await this.fetchSmartSampleWithProperCounts(config);
+        }
+
+        if (config.fetchAllPages) {
+            console.log('FETCH ALL PAGES strategy requested');
+            return await this.fetchAllPages(config);
+        }
+
+        console.log('Using default strategy with proper total vs comparison handling');
+        return await this.fetchWithProperTotalAndComparisonLogic(config);
+
+    } catch (error) {
+        console.error('fetchAPIData error:', error);
+        return this.createErrorResponse(error);
+    }
+}
+async fetchWithProperTotalAndComparisonLogic(config) {
+    try {
+        console.log('=== FETCHING WITH PROPER TOTAL VS COMPARISON LOGIC ===');
+
+        // Step 1: Make initial request to get structure and potential total count
+        const requestConfig = this.buildRequestConfig(config);
+
+        // Try to get a reasonable sample to understand the API structure
+        const initialUrl = new URL(config.url);
+        this.applyGenericPaginationParams(initialUrl, 1, 100); // Get first 100 records
+        requestConfig.url = initialUrl.toString();
+
+        console.log(`Initial request URL: ${requestConfig.url}`);
+
+        const startTime = Date.now();
+        const response = await axios(requestConfig);
+        const duration = Date.now() - startTime;
+
+        console.log(`Initial request completed: ${response.status} in ${duration}ms`);
+
+        // Validate response
+        const validationResult = this.isValidJSONResponse(response);
+        if (!validationResult.isValid) {
+            throw new Error(`Invalid response: ${validationResult.details}`);
+        }
+
+        // Step 2: Extract total count and sample data
+        const totalRecordsInAPI = this.extractTotalCountGeneric(response) || this.countRecordsInResponse(response.data);
+        const sampleRecords = this.extractRecordsFromResponse(response.data);
+        const sampleSize = sampleRecords.length;
+
+        console.log(`DETECTED: ${totalRecordsInAPI} total records in API`);
+        console.log(`SAMPLE: Got ${sampleSize} records for analysis`);
+
+        // Step 3: Determine comparison strategy based on total count
+        let recordsForComparison = sampleSize;
+        let comparisonStrategy = 'complete-sample';
+        let isCompleteFetch = false;
+
+        if (totalRecordsInAPI <= this.config.recordThreshold) {
+            // Small dataset - try to get all records for comparison
+            console.log(`STRATEGY: Fetch all records for comparison (${totalRecordsInAPI} <= ${this.config.recordThreshold})`);
+
+            if (totalRecordsInAPI > sampleSize) {
+                // Need to fetch more records
+                try {
+                    const allRecordsUrl = new URL(config.url);
+                    this.applyGenericPaginationParams(allRecordsUrl, 1, totalRecordsInAPI);
+                    const allRecordsConfig = { ...requestConfig, url: allRecordsUrl.toString() };
+
+                    const allResponse = await axios(allRecordsConfig);
+                    if (this.isValidJSONResponse(allResponse).isValid) {
+                        const allRecords = this.extractRecordsFromResponse(allResponse.data);
+                        recordsForComparison = allRecords.length;
+                        response.data = allResponse.data; // Use complete data
+                        comparisonStrategy = 'complete-dataset';
+                        isCompleteFetch = true;
+                        console.log(`SUCCESS: Fetched all ${recordsForComparison} records for comparison`);
+                    }
+                } catch (error) {
+                    console.log(`Failed to fetch all records, using sample: ${error.message}`);
+                    // Keep the original sample
+                }
+            } else {
+                comparisonStrategy = 'complete-dataset';
+                isCompleteFetch = true;
+            }
+        } else {
+            // Large dataset - use sample for comparison
+            const sampleConfig = this.calculateDynamicSampleSize(totalRecordsInAPI);
+            comparisonStrategy = 'representative-sample';
+
+            console.log(`STRATEGY: Use 22% sample for comparison (${totalRecordsInAPI} > ${this.config.recordThreshold})`);
+            console.log(`CALCULATED: Need ${sampleConfig.sampleSize} records (${sampleConfig.actualPercentage}% of total)`);
+            console.log(`CURRENT: Have ${sampleSize} records from initial fetch`);
+
+            // FIXED: Always fetch the optimized sample if it's different from what we have
+            if (sampleConfig.sampleSize !== sampleSize) {
+                console.log(`FETCHING OPTIMIZED SAMPLE: Requesting ${sampleConfig.sampleSize} records...`);
+                try {
+                    const sampleUrl = new URL(config.url);
+                    this.applyGenericPaginationParams(sampleUrl, 1, sampleConfig.sampleSize);
+                    const sampleRequestConfig = { ...requestConfig, url: sampleUrl.toString() };
+
+                    const sampleResponse = await axios(sampleRequestConfig);
+                    if (this.isValidJSONResponse(sampleResponse).isValid) {
+                        const newSampleRecords = this.extractRecordsFromResponse(sampleResponse.data);
+                        recordsForComparison = newSampleRecords.length;
+                        response.data = sampleResponse.data; // Use optimized sample
+                        console.log(`✅ SUCCESS: Fetched optimized sample of ${recordsForComparison} records`);
+                    }
+                } catch (error) {
+                    console.log(`⚠️ Failed to fetch optimized sample, using original ${sampleSize} records: ${error.message}`);
+                    recordsForComparison = sampleSize; // Keep the original sample
+                }
+            } else {
+                // Sample size matches what we need
+                recordsForComparison = sampleSize;
+                console.log(`✅ USING INITIAL SAMPLE: ${sampleSize} records is sufficient`);
+            }
+        }
+
+        // ENHANCED: Capture bearer token from response for POST auth
+        let capturedBearerToken = null;
+
+        // Check if this was a POST auth response
+        if ((config.method || 'GET').toUpperCase() === 'POST') {
+            console.log('🔐 POST request detected - extracting bearer token...');
+
+            // Extract bearer token from response
+            capturedBearerToken = this.extractBearerToken(response.data);
+
+            if (capturedBearerToken) {
+                console.log('✅ Bearer token extracted from POST response');
+            } else {
+                console.log('⚠️ POST request completed but no bearer token found in response');
+            }
+        }
+
+        // Step 4: Create proper metadata with correct total vs comparison counts
+        const dataId = uuidv4();
+        const metadata = {
+            id: dataId,
+            url: config.url,
+            method: config.method || 'GET',
+            status: response.status,
+            statusText: response.statusText,
+            contentType: response.headers['content-type'] || 'unknown',
+            fetchedAt: new Date().toISOString(),
+            responseSize: JSON.stringify(response.data).length,
+            duration: duration,
+            dataType: this.detectDataType(response.data),
+            authenticationUsed: this.getAuthType(config),
+            authenticationStatus: 'success',
+            connectionSuccessful: true,
+
+            // FIXED: Proper separation of total vs comparison counts
+            totalRecords: totalRecordsInAPI,  // ACTUAL total from API
+            totalRecordsInAPI: totalRecordsInAPI,  // ACTUAL total from API
+            totalRecordsAvailable: totalRecordsInAPI,  // ACTUAL total from API
+            recordsForComparison: recordsForComparison,  // Records used for comparison
+
+            fetchStrategy: comparisonStrategy,
+            isCompleteFetch: isCompleteFetch,
+            comparisonCoverage: isCompleteFetch ? '100%' : `${((recordsForComparison / totalRecordsInAPI) * 100).toFixed(2)}%`,
+            comparisonStrategy: isCompleteFetch ? 'complete-dataset' : 'representative-sample',
+            userPaginationRespected: false,
+
+            // NEW: Include bearer token info
+            bearerToken: capturedBearerToken,
+            hasAuthToken: !!capturedBearerToken,
+            authResponse: response.data  // Full auth response for reference
+        };
+
+        // Save data and metadata
+        const dataFilePath = path.join(this.tempDir, `${dataId}.json`);
+        const metadataFilePath = path.join(this.tempDir, `${dataId}_metadata.json`);
+
+        await fs.writeFile(dataFilePath, JSON.stringify(response.data, null, 2));
+        await fs.writeFile(metadataFilePath, JSON.stringify(metadata, null, 2));
+
+        // Create enhanced preview with token information
+        const dataPreview = this.createEnhancedPreview(response.data, {
+            totalRecordsAvailable: totalRecordsInAPI,
+            sampleSize: recordsForComparison,
+            strategy: comparisonStrategy,
+            isComplete: isCompleteFetch,
+            // NEW: Include captured bearer token
+            authToken: capturedBearerToken,
+            bearerToken: capturedBearerToken,
+            token: capturedBearerToken
+        });
+
+        const message = isCompleteFetch
+            ? `Complete dataset - ${totalRecordsInAPI} total records, all ${recordsForComparison} used for comparison`
+            : `Efficient strategy - ${totalRecordsInAPI} total records in API, ${recordsForComparison} used for comparison (${((recordsForComparison / totalRecordsInAPI) * 100).toFixed(2)}% sample)`;
+
+        return {
+            success: true,
+            dataId: dataId,
+            metadata: metadata,
+            dataPreview: dataPreview,  // This now includes the token
+            message: message,
+            connectionStatus: 'SUCCESS',
+            authenticationStatus: 'success',
+            fetchStrategy: comparisonStrategy,
+            totalRecordsInAPI: totalRecordsInAPI,  // ACTUAL total
+            recordsRetrieved: recordsForComparison,  // For comparison
+            comparisonAccuracy: isCompleteFetch ? 'COMPLETE' : 'REPRESENTATIVE',
+            userPaginationRespected: false,
+            // NEW: Include bearer token info in response
+            bearerToken: capturedBearerToken,
+            hasToken: !!capturedBearerToken
+        };
+
+    } catch (error) {
+        console.error('fetchWithProperTotalAndComparisonLogic error:', error);
+        return this.createErrorResponse(error);
+    }
+}
 
     // ENHANCED: Generic user pagination detection
     detectUserPaginationParams(url) {
@@ -899,21 +1058,19 @@ if (response.data.issues) {
 
     // FIXED: Enhanced testAPIConnection method in api-fetcher.js
 // Replace the existing testAPIConnection method with this improved version
-
+// FIXED: Enhanced testAPIConnection method that supports POST
 async testAPIConnection(config) {
     try {
         console.log('Testing API connection with enhanced validation...');
         console.log(`URL: ${config.url}`);
+        console.log(`Method: ${config.method || 'GET'}`); // Log the actual method
         console.log(`Auth: ${this.getAuthType(config)}`);
 
-        // FIXED: Determine API type for specialized handling
-        const urlLower = config.url.toLowerCase();
-        const isServiceNow = urlLower.includes('service-now') || urlLower.includes('servicenow');
-        const isCloudflare = urlLower.includes('cloudflare.com');
-        const isGitHub = urlLower.includes('github.com') || urlLower.includes('api.github.com');
+        // FIXED: Use the actual method specified by user (GET or POST)
+        const testMethod = config.method || 'GET';
 
         const testConfig = {
-            method: 'GET', // FIXED: Always use GET for connection test, not HEAD
+            method: testMethod, // FIXED: Use actual method, not hardcoded GET
             url: config.url,
             timeout: 30000,
             maxRedirects: 5,
@@ -926,110 +1083,62 @@ async testAPIConnection(config) {
             }
         };
 
+        // FIXED: Add Content-Type for POST/PUT/PATCH methods
+        if (['POST', 'PUT', 'PATCH'].includes(testMethod.toUpperCase())) {
+            testConfig.headers['Content-Type'] = 'application/json';
+            console.log('Added Content-Type header for POST method');
+        }
+
         this.configureAuthentication(testConfig, config);
 
-        // FIXED: Add API-specific parameters only where needed
-        if (isServiceNow) {
-            testConfig.params = { sysparm_limit: 1 };
-        } else if (isCloudflare) {
-            // Cloudflare API doesn't need pagination params for connection test
-            // Just test the endpoint as-is
-        } else if (isGitHub) {
-            testConfig.params = { per_page: 1 };
+        // FIXED: Add body for POST/PUT/PATCH requests
+        if (['POST', 'PUT', 'PATCH'].includes(testMethod.toUpperCase())) {
+            if (config.body) {
+                try {
+                    testConfig.data = typeof config.body === 'string' ? JSON.parse(config.body) : config.body;
+                    console.log('Request body added:', testConfig.data);
+                } catch (parseError) {
+                    testConfig.data = config.body;
+                    console.log('Request body added (raw):', config.body);
+                }
+            }
         }
-        // FIXED: Don't add generic pagination params for unknown APIs
+
+        console.log(`Making ${testMethod} request to: ${testConfig.url}`);
+        console.log('Final headers:', testConfig.headers);
 
         const startTime = Date.now();
-        let response;
-
-        try {
-            console.log(`Making GET request to: ${testConfig.url}`);
-            response = await axios(testConfig);
-        } catch (requestError) {
-            console.log('Direct request failed, analyzing error...');
-            throw requestError; // Don't try alternative requests for non-ServiceNow APIs
-        }
-
+        const response = await axios(testConfig);
         const duration = Date.now() - startTime;
+
         console.log(`Request completed: ${response.status} in ${duration}ms`);
 
-        // FIXED: Improved empty response handling
-        const hasEmptyResponse = (
-            (typeof response.data === 'string' && response.data.trim() === '') ||
-            (response.data === null) ||
-            (typeof response.data === 'object' && Object.keys(response.data).length === 0)
-        );
+        // FIXED: Better success detection for POST authentication endpoints
+        const isSuccess = response.status >= 200 && response.status < 300;
+        const hasAuthToken = this.hasAuthenticationToken(response.data);
 
-        if (hasEmptyResponse && isServiceNow) {
-            // ONLY try alternative tables for ServiceNow
-            console.log('Empty response in ServiceNow - trying alternative tables...');
-
-            const alternativeUrl = config.url.replace(/\/table\/[^/?]+/, '/table/incident');
-            console.log(`Testing alternative ServiceNow table: ${alternativeUrl}`);
-
-            try {
-                const altTestConfig = { ...testConfig };
-                altTestConfig.url = alternativeUrl;
-                altTestConfig.params = { sysparm_limit: 1 };
-
-                const altResponse = await axios(altTestConfig);
-
-                if (altResponse.data && typeof altResponse.data === 'object') {
-                    console.log('Alternative table has data - original table appears empty');
-                    return {
-                        success: true,
-                        connectionSuccessful: true,
-                        authenticationSuccessful: true,
-                        status: response.status,
-                        statusText: response.statusText,
-                        duration: duration,
-                        authType: this.getAuthType(config),
-                        contentType: response.headers['content-type'] || 'unknown',
-                        message: 'Connection successful - but original table appears empty',
-                        authMessage: 'Authentication successful',
-                        warning: 'Original table appears empty',
-                        suggestions: [
-                            'Your authentication and connection are working perfectly',
-                            'The original table appears to be empty or inaccessible',
-                            'Try these ServiceNow tables with data: incident, sys_user, cmdb_ci',
-                            'Or add query parameters to your current URL: ?sysparm_limit=10'
-                        ]
-                    };
-                }
-            } catch (altError) {
-                console.log('Alternative table test failed:', altError.message);
-            }
-        } else if (hasEmptyResponse && !isServiceNow) {
-            // FIXED: For non-ServiceNow APIs with empty response, check if it's actually successful
-            if (response.status >= 200 && response.status < 300) {
-                console.log('Empty response but successful status code - may be normal for this API endpoint');
-                return {
-                    success: true,
-                    connectionSuccessful: true,
-                    authenticationSuccessful: true,
-                    status: response.status,
-                    statusText: response.statusText,
-                    duration: duration,
-                    authType: this.getAuthType(config),
-                    contentType: response.headers['content-type'] || 'unknown',
-                    message: 'Connection and authentication successful',
-                    authMessage: 'Authentication successful',
-                    warning: 'API returned empty response (may be normal for this endpoint)',
-                    suggestions: [
-                        'Connection and authentication are working correctly',
-                        'The API endpoint responded successfully but with no data',
-                        'This may be normal behavior for this specific endpoint',
-                        'Try fetching data to verify the connection is fully functional'
-                    ]
-                };
-            }
+        if (isSuccess && hasAuthToken) {
+            console.log('✅ POST authentication successful - token detected in response');
+            return {
+                success: true,
+                connectionSuccessful: true,
+                authenticationSuccessful: true,
+                status: response.status,
+                statusText: response.statusText,
+                duration: duration,
+                authType: this.getAuthType(config),
+                contentType: response.headers['content-type'] || 'unknown',
+                message: 'POST Authentication successful - Bearer token received',
+                authMessage: 'Authentication token successfully generated',
+                responseData: response.data,
+                hasToken: true
+            };
         }
 
-        // FIXED: Enhanced response validation
+        // Validate response
         const validationResult = this.isValidJSONResponse(response);
 
-        if (!validationResult.isValid && response.status >= 200 && response.status < 300) {
-            // FIXED: For successful status codes with invalid JSON, still consider connection successful
+        if (!validationResult.isValid && isSuccess) {
             console.log(`Non-JSON response but successful HTTP status: ${response.status}`);
 
             return {
@@ -1043,19 +1152,12 @@ async testAPIConnection(config) {
                 contentType: response.headers['content-type'] || 'unknown',
                 message: 'Connection and authentication successful',
                 authMessage: 'Authentication successful',
-                warning: 'Response format may not be standard JSON',
-                suggestions: [
-                    'Connection and authentication are working correctly',
-                    'API responded with successful status code',
-                    'Response format may be different than expected, but connection is valid',
-                    'Proceed with data fetching to test full functionality'
-                ]
+                warning: 'Response format may not be standard JSON'
             };
         }
 
         if (!validationResult.isValid) {
             console.log(`Invalid response detected: ${validationResult.reason}`);
-
             return {
                 success: false,
                 connectionSuccessful: false,
@@ -1065,13 +1167,11 @@ async testAPIConnection(config) {
                 httpStatus: response.status,
                 contentType: response.headers['content-type'] || 'unknown',
                 authType: this.getAuthType(config),
-                duration: duration,
-                suggestions: this.getResponseErrorSuggestions(validationResult.reason, response.status)
+                duration: duration
             };
         }
 
-        // FIXED: Standard success response
-        const connectionSuccessful = response.status >= 200 && response.status < 300;
+        const connectionSuccessful = isSuccess;
         const authenticationSuccessful = response.status !== 401 && response.status !== 403;
         const overallSuccess = connectionSuccessful || (response.status === 401 || response.status === 403);
 
@@ -1084,25 +1184,13 @@ async testAPIConnection(config) {
             duration: duration,
             authType: this.getAuthType(config),
             contentType: response.headers['content-type'] || 'unknown',
-            message: connectionSuccessful ? 'Connection successful' : `API returned ${response.status} - ${response.statusText}`,
+            message: connectionSuccessful ? 'Connection successful' : `API returned ${response.status}`,
             authMessage: authenticationSuccessful ? 'Authentication successful' : 'Authentication failed',
-
-            ...(response.status === 400 && {
-                error: 'Bad Request - API endpoint or parameters may be incorrect',
-                suggestions: [
-                    'Check if the API endpoint URL is complete and correct',
-                    'Verify if this endpoint requires specific query parameters',
-                    'Some APIs require POST requests instead of GET for authentication',
-                    'Try a different endpoint for testing'
-                ]
-            })
+            responseData: response.data
         };
 
     } catch (error) {
         console.error('Connection test failed:', error);
-        console.error('Error response:', error.response?.data);
-        console.error('Error response status:', error.response?.status);
-        console.error('Error response headers:', error.response?.headers);
 
         let errorMessage = 'Connection test failed';
         let authenticationFailed = false;
@@ -1111,7 +1199,6 @@ async testAPIConnection(config) {
             const status = error.response.status;
             const responseData = error.response.data;
 
-            // FIXED: Better error data extraction
             let errorDetails = '';
             if (responseData) {
                 if (typeof responseData === 'string') {
@@ -1119,39 +1206,24 @@ async testAPIConnection(config) {
                 } else if (responseData.error) {
                     errorDetails = typeof responseData.error === 'string' ?
                         responseData.error : JSON.stringify(responseData.error);
-                } else if (responseData.errors && Array.isArray(responseData.errors)) {
-                    errorDetails = responseData.errors.map(e => e.message || JSON.stringify(e)).join(', ');
                 } else if (responseData.message) {
                     errorDetails = responseData.message;
-                } else {
-                    errorDetails = JSON.stringify(responseData).substring(0, 200);
                 }
             }
 
-            if (status === 400) {
-                console.log('400 Bad Request details:', responseData);
-                errorMessage = `Bad Request (400): ${errorDetails || 'The API endpoint or parameters are incorrect'}`;
-                authenticationFailed = false;
+            if (status === 404) {
+                errorMessage = `Endpoint Not Found (404)${errorDetails ? ': ' + errorDetails : ''}`;
             } else if (status === 401) {
-                errorMessage = `Authentication Failed (401 Unauthorized)${errorDetails ? ': ' + errorDetails : ''}`;
+                errorMessage = `Authentication Failed (401)${errorDetails ? ': ' + errorDetails : ''}`;
                 authenticationFailed = true;
             } else if (status === 403) {
-                errorMessage = `Access Forbidden (403 Forbidden)${errorDetails ? ': ' + errorDetails : ''}`;
+                errorMessage = `Access Forbidden (403)${errorDetails ? ': ' + errorDetails : ''}`;
                 authenticationFailed = true;
-            } else if (status >= 500) {
-                errorMessage = `Server Error (${status}): ${errorDetails || 'API server is experiencing issues'}`;
-                authenticationFailed = false;
+            } else if (status === 400) {
+                errorMessage = `Bad Request (400)${errorDetails ? ': ' + errorDetails : ''}`;
             } else {
-                errorMessage = `HTTP ${status}: ${error.response.statusText || 'Request failed'}${errorDetails ? ' - ' + errorDetails : ''}`;
+                errorMessage = `HTTP ${status}: ${error.response.statusText}${errorDetails ? ' - ' + errorDetails : ''}`;
             }
-        } else if (error.code === 'ECONNREFUSED') {
-            errorMessage = 'Connection Refused - API server not reachable';
-        } else if (error.code === 'ETIMEDOUT') {
-            errorMessage = 'Connection Timeout - API server too slow';
-        } else if (error.code === 'ENOTFOUND') {
-            errorMessage = 'DNS Error - API server hostname not found';
-        } else {
-            errorMessage = error.message || error.toString() || 'Unknown connection error';
         }
 
         return {
@@ -1159,15 +1231,28 @@ async testAPIConnection(config) {
             connectionSuccessful: false,
             authenticationSuccessful: !authenticationFailed,
             error: errorMessage,
-            details: error.message || 'No details available',
             httpStatus: error.response?.status || 'NO_RESPONSE',
-            statusText: error.response?.statusText || 'Unknown',
-            responseData: error.response?.data || null,
             authType: this.getAuthType(config)
         };
     }
 }
-    // ALL OTHER EXISTING METHODS REMAIN EXACTLY THE SAME
+
+// NEW: Helper to detect authentication tokens in response
+hasAuthenticationToken(data) {
+    if (!data || typeof data !== 'object') return false;
+
+    // Check for common token patterns
+    if (data.data && data.data.id) return true; // Peakon pattern
+    if (data.access_token) return true;
+    if (data.token) return true;
+    if (data.bearer_token) return true;
+    if (data.id_token) return true;
+    if (data.data && data.data.token) return true;
+
+    return false;
+}
+
+
     async fetchFirstPageForComparison(config) {
         try {
             console.log('Fetching first page for comparison...');
@@ -1873,21 +1958,25 @@ async testAPIConnection(config) {
             return 'No Authentication';
         }
     }
+// FIXED: configureAuthentication method in api-fetcher.js
 configureAuthentication(requestConfig, config) {
     console.log('=== AUTHENTICATION DEBUG ===');
     console.log('Auth Type:', config.authType);
+    console.log('Method:', config.method || 'GET');
     console.log('Raw headers:', config.headers);
 
+    // Handle Basic Authentication
     if (config.username && config.password) {
         const credentials = Buffer.from(`${config.username}:${config.password}`).toString('base64');
         requestConfig.headers['Authorization'] = `Basic ${credentials}`;
         console.log('Basic Authentication configured');
     }
 
+    // Handle Custom Headers
     if (config.headers && Object.keys(config.headers).length > 0) {
         console.log('Processing custom headers...');
+
         if (typeof config.headers === 'string') {
-            console.log('Headers are string, parsing...');
             const headerLines = config.headers.split('\n');
             for (const line of headerLines) {
                 const trimmedLine = line.trim();
@@ -1897,9 +1986,9 @@ configureAuthentication(requestConfig, config) {
                         const key = trimmedLine.substring(0, colonIndex).trim();
                         const value = trimmedLine.substring(colonIndex + 1).trim();
 
-                        // Skip Content-Type for GET requests
-                        if (key.toLowerCase() === 'content-type' &&
-                            (config.method || 'GET').toUpperCase() === 'GET') {
+                        // FIXED: Only skip Content-Type for GET requests
+                        const method = (config.method || 'GET').toUpperCase();
+                        if (key.toLowerCase() === 'content-type' && method === 'GET') {
                             console.log('Skipping Content-Type header for GET request');
                             continue;
                         }
@@ -1912,12 +2001,13 @@ configureAuthentication(requestConfig, config) {
         } else {
             // Handle object headers
             Object.entries(config.headers).forEach(([key, value]) => {
-                // Skip Content-Type for GET requests
-                if (key.toLowerCase() === 'content-type' &&
-                    (config.method || 'GET').toUpperCase() === 'GET') {
+                // FIXED: Only skip Content-Type for GET requests
+                const method = (config.method || 'GET').toUpperCase();
+                if (key.toLowerCase() === 'content-type' && method === 'GET') {
                     console.log('Skipping Content-Type header for GET request');
                     return;
                 }
+
                 requestConfig.headers[key] = value;
                 console.log(`Added header: ${key} = ${value}`);
             });
@@ -1926,7 +2016,7 @@ configureAuthentication(requestConfig, config) {
 
     console.log('Final request headers:', requestConfig.headers);
     console.log('=== END AUTHENTICATION DEBUG ===');
-}  // <-- THIS CLOSING BRACE WAS MISSING OR IN THE WRONG PLACE
+}
 
     isErrorResponse(data, status) {
         if (status >= 400) {
