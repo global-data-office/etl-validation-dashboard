@@ -309,7 +309,6 @@ class BigQueryIntegrationService {
                 try {
                     const insertStartTime = Date.now();
                     console.log(`Starting SINGLE ATOMIC INSERT at ${new Date().toISOString()}`);
-                    
                     await table.insert(insertionData);
                     
                     const insertDuration = Date.now() - insertStartTime;

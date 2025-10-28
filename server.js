@@ -174,6 +174,11 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
         }
 
         // Step 2: Create temp BigQuery table from RDBMS data (exact same as JSON vs BQ)
+		console.log('=== RDBMS DATA DEBUG ===');
+        console.log('RDBMS data sample:', JSON.stringify(rdbmsResult.records[0], null, 2));
+        console.log('Records count:', rdbmsResult.records.length);
+        console.log('Primary key:', primaryKey);
+        console.log('=======================');
         const bqService = new BigQueryIntegrationService();
         const tempTableResult = await bqService.createTempTableFromJSON(
             rdbmsResult.records, 
