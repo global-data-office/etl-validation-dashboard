@@ -1640,6 +1640,16 @@
                                 <textarea id="apiHeaders" placeholder="Content-Type: application/json&#10;Accept: application/json"></textarea>
                                 <small class="field-notice success">One header per line in format: Header-Name: Header-Value</small>
                             </div>
+<!-- ✅ REQUEST BODY SECTION - NOW APPEARS BEFORE TEST BUTTON -->
+<div class="api-form-section" id="apiBodySection" style="display: none;">
+    <h4>📝 Request Body</h4>
+    <div class="option-group">
+        <label>JSON Body (for POST/PUT/PATCH)</label>
+        <textarea id="apiBody" placeholder='{"key": "value"}'></textarea>
+        <small class="field-notice warning">Enter valid JSON for the request body</small>
+    </div>
+</div>
+
 
                             <button class="btn-secondary" id="testApiConnection" style="width: 100%; margin-top: 15px;">
                                 🔗 Test API Connection & Authentication
@@ -1647,14 +1657,6 @@
                             <div id="connectionTestResult" style="margin-top: 15px; display: none;"></div>
                         </div>
 
-                        <div class="api-form-section" id="apiBodySection" style="display: none;">
-                            <h4>📝 Request Body</h4>
-                            <div class="option-group">
-                                <label>JSON Body (for POST/PUT/PATCH)</label>
-                                <textarea id="apiBody" placeholder='{"key": "value"}'></textarea>
-                                <small class="field-notice warning">Enter valid JSON for the request body</small>
-                            </div>
-                        </div>
 
                         <button class="btn-primary" id="fetchApiData" style="width: 100%; margin-top: 20px;" disabled>
                             📄 Fetch API Data
@@ -2431,28 +2433,58 @@
 
         // Authentication Type Toggle
         function toggleAuthFields() {
-            const authType = document.getElementById('authType').value;
+    const authType = document.getElementById('authType').value;
 
-            // Hide all auth fields first
-            document.getElementById('basicAuthFields').style.display = 'none';
-            document.getElementById('apiKeyFields').style.display = 'none';
-            document.getElementById('bearerTokenFields').style.display = 'none';
+    // Get the Additional Headers section (the entire .option-group containing apiHeaders)
+    const apiHeadersElement = document.getElementById('apiHeaders');
+    const apiHeadersGroup = apiHeadersElement ? apiHeadersElement.parentElement : null;
 
-            // Show relevant fields based on selection
-            switch(authType) {
-                case 'basic':
-                    document.getElementById('basicAuthFields').style.display = 'block';
-                    break;
-                case 'apikey':
-                    document.getElementById('apiKeyFields').style.display = 'block';
-                    break;
-                case 'bearer':
-                    document.getElementById('bearerTokenFields').style.display = 'block';
-                    break;
+    // Hide all auth-specific fields first
+    document.getElementById('basicAuthFields').style.display = 'none';
+    document.getElementById('apiKeyFields').style.display = 'none';
+    document.getElementById('bearerTokenFields').style.display = 'none';
+
+    // Hide Additional Headers by default
+    if (apiHeadersGroup) {
+        apiHeadersGroup.style.display = 'none';
+    }
+
+    // Show relevant fields based on selected authentication type
+    switch(authType) {
+        case 'basic':
+            // Show only username and password for Basic Auth
+            document.getElementById('basicAuthFields').style.display = 'block';
+            console.log('✓ Basic Authentication selected - Additional Headers HIDDEN');
+            break;
+
+        case 'apikey':
+            // Show only API Key fields for API Key Auth
+            document.getElementById('apiKeyFields').style.display = 'block';
+            console.log('✓ API Key Authentication selected - Additional Headers HIDDEN');
+            break;
+
+        case 'bearer':
+            // Show only Bearer Token field for Bearer Auth
+            document.getElementById('bearerTokenFields').style.display = 'block';
+            console.log('✓ Bearer Token Authentication selected - Additional Headers HIDDEN');
+            break;
+
+        case 'custom':
+            // ONLY show Additional Headers for Custom Headers authentication
+            if (apiHeadersGroup) {
+                apiHeadersGroup.style.display = 'block';
             }
+            console.log('✓ Custom Headers Only selected - Additional Headers SHOWN');
+            break;
 
-            console.log('Authentication type changed to:', authType);
-        }
+        case 'none':
+            // No authentication - hide everything except URL
+            console.log('✓ No Authentication selected - Additional Headers HIDDEN');
+            break;
+    }
+
+    console.log('Authentication type changed to:', authType);
+}
 
         // Build authentication configuration
         function buildAuthConfig() {
@@ -5210,7 +5242,11 @@ function togglePostAuthOptions() {
         postAuthDataUrl.style.display = 'none';
     }
 }
-
+// Initialize authentication UI on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleAuthFields(); // Set correct field visibility based on default auth type
+    console.log('✓ API Authentication UI initialized');
+});
     </script>
 </body>
 </html>
