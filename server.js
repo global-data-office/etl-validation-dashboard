@@ -1,4 +1,4 @@
-// server.js - UNIVERSAL DATA TYPES + DUAL DUPLICATES ANALYSIS + EXCEL EXPORT READY
+// server.js - UNIVERSAL DATA TYPES + DUAL DUPLICATES ANALYSIS + EXccCEL EXPORT READY
 const express = require('express');
 const { BigQuery } = require('@google-cloud/bigquery');
 const cors = require('cors');
