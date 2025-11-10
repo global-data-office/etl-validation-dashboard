@@ -1574,17 +1574,18 @@
                                 <input type="text" id="apiUrl" placeholder="https://rackspace.service-now.com/api/now/table/domain" required>
                                 <small class="field-notice info">Enter the complete API endpoint URL</small>
                             </div>
+                            <!-- Replace the existing method selector with this -->
+<div class="option-group">
+    <label>HTTP Method</label>
+    <div class="api-method-selector">
+        <div class="method-option selected" data-method="GET">GET</div>
+        <div class="method-option" data-method="POST">POST</div>
+        <div class="method-option disabled" data-method="PUT" style="opacity: 0.5; cursor: not-allowed;" title="PUT method temporarily disabled">PUT</div>
+        <div class="method-option disabled" data-method="PATCH" style="opacity: 0.5; cursor: not-allowed;" title="PATCH method temporarily disabled">PATCH</div>
+    </div>
+    <small class="field-notice info">Select the HTTP method for your API endpoint (PUT/PATCH temporarily disabled)</small>
+</div>
 
-                            <div class="option-group">
-                                <label>HTTP Method</label>
-                                <div class="api-method-selector">
-                                    <div class="method-option selected" data-method="GET">GET</div>
-                                    <div class="method-option" data-method="POST">POST</div>
-                                    <div class="method-option" data-method="PUT">PUT</div>
-                                    <div class="method-option" data-method="PATCH">PATCH</div>
-                                </div>
-                                <small class="field-notice info">Select the HTTP method for your API endpoint</small>
-                            </div>
                         </div>
 
                         <div class="api-form-section">
@@ -2519,22 +2520,36 @@
         }
 
         // API Method Selection
-        document.querySelectorAll('.method-option').forEach(option => {
-            option.addEventListener('click', function() {
-                document.querySelectorAll('.method-option').forEach(opt => opt.classList.remove('selected'));
-                this.classList.add('selected');
+        // Replace the existing method option click handler with this
+document.querySelectorAll('.method-option').forEach(option => {
+    option.addEventListener('click', function() {
+        // Check if method is disabled
+        if (this.classList.contains('disabled')) {
+            console.log('Method disabled:', this.getAttribute('data-method'));
+            alert('PUT and PATCH methods are temporarily disabled. Please use GET or POST methods.');
+            return; // Exit early, don't process disabled methods
+        }
 
-                const method = this.getAttribute('data-method');
-                const bodySection = document.getElementById('apiBodySection');
+        // Normal processing for enabled methods
+        document.querySelectorAll('.method-option').forEach(opt => opt.classList.remove('selected'));
+        this.classList.add('selected');
 
-                if (['POST', 'PUT', 'PATCH'].includes(method)) {
-                    bodySection.style.display = 'block';
-                } else {
-                    bodySection.style.display = 'none';
-                }
-            });
-        });
-// FIXED: Update test connection handler in index.html
+        const method = this.getAttribute('data-method');
+        const bodySection = document.getElementById('apiBodySection');
+        const postAuthSection = document.getElementById('postAuthSection');
+
+        if (['POST', 'PUT', 'PATCH'].includes(method)) {
+            bodySection.style.display = 'block';
+            if (method === 'POST') {
+                postAuthSection.style.display = 'block'; // Show POST auth option
+            }
+        } else {
+            bodySection.style.display = 'none';
+            postAuthSection.style.display = 'none';
+        }
+    });
+});
+       // FIXED: Update test connection handler in index.html
 document.getElementById('testApiConnection').addEventListener('click', async function() {
     const url = document.getElementById('apiUrl').value.trim();
     const method = document.querySelector('.method-option.selected').getAttribute('data-method'); // Get selected method

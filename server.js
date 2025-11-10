@@ -1099,10 +1099,26 @@ app.get('/', (req, res) => {
 const APIFetcherService = require('./services/api-fetcher');
 const apiFetcher = new APIFetcherService();
 // FIXED: server.js test-api-connection endpoint
+// Add at the very beginning of the endpoint handler
 app.post('/api/test-api-connection', async (req, res) => {
     try {
-        const { url, method, headers, body, username, password, authType } = req.body; // Add body parameter
+        const { url, method, headers, body, username, password, authType } = req.body;
 
+        // VALIDATION: Block PUT and PATCH methods
+        if (method && ['PUT', 'PATCH'].includes(method.toUpperCase())) {
+            return res.status(400).json({
+                success: false,
+                error: 'PUT and PATCH methods are temporarily disabled',
+                details: 'Please use GET or POST methods for API testing',
+                suggestions: [
+                    'Use GET method for data retrieval',
+                    'Use POST method for data submission or authentication',
+                    'Contact administrator if PUT/PATCH access is required'
+                ]
+            });
+        }
+
+        // ... rest of existing code continues unchanged
         if (!url) {
             return res.status(400).json({ success: false, error: 'URL required' });
         }
@@ -1129,6 +1145,16 @@ app.post('/api/fetch-api-data', async (req, res) => {
     try {
         const { url, method, headers, body, username, password, authType } = req.body;
 
+        // VALIDATION: Block PUT and PATCH methods
+        if (method && ['PUT', 'PATCH'].includes(method.toUpperCase())) {
+            return res.status(400).json({
+                success: false,
+                error: 'PUT and PATCH methods are temporarily disabled',
+                details: 'Please use GET or POST methods for API data fetching'
+            });
+        }
+
+        // ... rest of existing code continues unchanged
         console.log('=== ENHANCED API DATA FETCH (RESPECTS USER PAGINATION) ===');
         console.log(`URL: ${url}`);
         console.log(`Method: ${method || 'GET'}`);
