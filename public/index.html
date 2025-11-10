@@ -3705,9 +3705,17 @@ async function startRDBMSComparison(dbType) {
         });
 
         const result = await response.json();
-        
+        console.log('=== RDBMS RESPONSE DEBUG ===');
+        console.log('result:', result);
+        console.log('result.success:', result.success);
+        console.log('result.data:', result.data);
+        console.log('typeof result.data:', typeof result.data);
+        if (result.data) {
+        console.log('result.data keys:', Object.keys(result.data));
+        }
+        console.log('=== END DEBUG ===');
         if (result.success) {
-            displayEnhancedRDBMSResults(result.data);
+            displayRDBMSResults(result);
         } else {
             resultsDiv.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px;">
@@ -3734,99 +3742,53 @@ async function startRDBMSComparison(dbType) {
         `;
     }
 }
-// NEW: Enhanced Results Display Function
-function displayEnhancedRDBMSResults(data) {
-    const resultsDiv = document.getElementById('rdbms-comparison-results');
+function displayRDBMSResults(data) {
+    console.log('Displaying RDBMS results:', data);
     
+    // Find the RDBMS results div (stays in current RDBMS tab)
+    const resultsDiv = document.getElementById('rdbms-comparison-results');
     if (!resultsDiv) {
-        console.error('Results div not found');
+        console.error('RDBMS results div not found');
         return;
     }
     
-    const summary = data.summary;
-    const comparison = data.comparison;
-    
-    let html = `
-        <div class="validation-summary" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 10px 0;">
-            <h4 style="color: #495057; margin-bottom: 15px;">📊 ${summary.sourceType} vs BigQuery Validation Results</h4>
-            <div class="summary-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff;">
-                    <strong style="color: #007bff;">Source Records:</strong><br>
-                    <span style="font-size: 1.5em; font-weight: bold;">${summary.sourceRecords.toLocaleString()}</span><br>
-                    <small style="color: #6c757d;">${summary.sourceTable}</small>
+    // Display detailed results within the RDBMS section
+    resultsDiv.innerHTML = `
+        <div style="background: white; padding: 20px; border-radius: 8px; margin: 10px 0;">
+            <h3 style="color: #495057; margin-bottom: 20px;">📊 Oracle vs BigQuery Validation Results</h3>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">
+                    <strong style="color: #28a745;">Source Records:</strong><br>
+                    <span style="font-size: 1.5em; font-weight: bold;">${data.summary?.totalRecordsInFile || 0}</span><br>
+                    <small style="color: #6c757d;">Oracle Database</small>
                 </div>
-                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">
-                    <strong style="color: #28a745;">BigQuery Records:</strong><br>
-                    <span style="font-size: 1.5em; font-weight: bold;">${summary.bqRecords.toLocaleString()}</span><br>
-                    <small style="color: #6c757d;">${summary.bqTable}</small>
-                </div>
-                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #17a2b8;">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #17a2b8;">
                     <strong style="color: #17a2b8;">Matching Records:</strong><br>
-                    <span style="font-size: 1.5em; font-weight: bold;">${summary.matchingRecords.toLocaleString()}</span><br>
-                    <small style="color: #6c757d;">Success Rate: ${summary.successRate}</small>
+                    <span style="font-size: 1.5em; font-weight: bold;">${data.summary?.uniqueSourceRecords || 0}</span><br>
+                    <small style="color: #6c757d;">Success Rate: ${data.summary?.pipelineSuccessRate || 0}%</small>
                 </div>
-                <div class="stat-item" style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${comparison.totalDifferences > 0 ? '#dc3545' : '#28a745'};">
-                    <strong style="color: ${comparison.totalDifferences > 0 ? '#dc3545' : '#28a745'};">Differences:</strong><br>
-                    <span style="font-size: 1.5em; font-weight: bold;">${comparison.totalDifferences.toLocaleString()}</span><br>
-                    <small style="color: #6c757d;">${comparison.totalDifferences === 0 ? 'Perfect match!' : 'Issues found'}</small>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #dc3545;">
+                    <strong style="color: #dc3545;">Field Issues:</strong><br>
+                    <span style="font-size: 1.5em; font-weight: bold;">${data.fieldWiseAnalysis?.totalFieldIssues || 0}</span><br>
+                    <small style="color: #6c757d;">Data Quality Issues</small>
                 </div>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107;">
+                    <strong style="color: #ffc107;">Duplicates Found:</strong><br>
+                    <span style="font-size: 1.5em; font-weight: bold;">${(data.duplicatesAnalysis?.jsonDuplicates?.duplicateCount || 0) + (data.duplicatesAnalysis?.bqDuplicates?.duplicateCount || 0)}</span><br>
+                    <small style="color: #6c757d;">Total Across Both Systems</small>
+                </div>
+            </div>
+            
+            <div style="background: #d1edda; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">
+                <h4 style="color: #155724; margin-bottom: 10px;">✅ Validation Completed Successfully</h4>
+                <p style="color: #155724; margin: 0;">
+                    Oracle vs BigQuery comparison completed with ${data.summary?.uniqueSourceRecords || 0} matching records 
+                    and ${data.summary?.pipelineSuccessRate || 0}% success rate.
+                </p>
             </div>
         </div>
     `;
-    
-    if (comparison.differences && comparison.differences.length > 0) {
-        html += `
-            <div class="differences-section" style="background: white; padding: 20px; border-radius: 8px; margin: 10px 0; border: 1px solid #dee2e6;">
-                <h5 style="color: #495057; margin-bottom: 15px;">🔍 Sample Differences (First ${Math.min(comparison.differences.length, 10)})</h5>
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                        <thead style="background: #f8f9fa;">
-                            <tr>
-                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Primary Key</th>
-                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Issue Type</th>
-                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-        `;
-        
-        comparison.differences.slice(0, 10).forEach((diff) => {
-            let details = diff.issue;
-            if (diff.fieldDifferences && diff.fieldDifferences.length > 0) {
-                details = diff.fieldDifferences.map(field => 
-                    `${field.field}: "${field.sourceValue}" → "${field.bqValue}"`
-                ).join('<br>');
-            }
-            
-            html += `
-                <tr style="border-bottom: 1px solid #dee2e6;">
-                    <td style="padding: 10px; font-family: monospace; font-weight: 500;">${diff.primaryKey}</td>
-                    <td style="padding: 10px;">
-                        <span style="padding: 4px 8px; border-radius: 12px; background: #fff3cd; color: #856404; font-size: 12px;">
-                            ${diff.issue}
-                        </span>
-                    </td>
-                    <td style="padding: 10px; font-family: monospace; font-size: 12px;">${details}</td>
-                </tr>
-            `;
-        });
-        
-        html += `
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    } else {
-        html += `
-            <div class="success-message" style="background: #d1edda; padding: 20px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #28a745;">
-                <h4 style="color: #155724; margin-bottom: 10px;">✅ Perfect Match!</h4>
-                <p style="color: #155724; margin: 0;">All records match perfectly between ${summary.sourceType} and BigQuery.</p>
-            </div>
-        `;
-    }
-    
-    resultsDiv.innerHTML = html;
 }
 // RDBMS Connection Test Function
 async function testDatabaseConnection(dbType) {
