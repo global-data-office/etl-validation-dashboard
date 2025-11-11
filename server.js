@@ -131,26 +131,64 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             });
         }
 
-        // Build query for different database types
-        const fields = [primaryKey, ...comparisonFields].filter(f => f?.trim());
-        let query;
-        
-        switch(dbType.toLowerCase()) {
-            case 'oracle':
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ROWNUM <= 1000`;
-                break;
-            case 'postgresql':
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
-                break;
-            case 'mysql':
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
-                break;
-            case 'sqlserver':
-                query = `SELECT TOP 1000 ${fields.join(', ')} FROM ${sourceTable}`;
-                break;
-            default:
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
-        }
+// STEP 1: Get total count (fast - no data transfer)
+console.log(`📊 Getting total record count from ${sourceTable}...`);
+let totalRecordCount = 0;
+let countQuery;
+
+switch(dbType.toLowerCase()) {
+    case 'oracle':
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+        break;
+    case 'postgresql':
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+        break;
+    case 'mysql':
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+        break;
+    case 'sqlserver':
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+        break;
+    default:
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+}
+
+try {
+    let countResult;
+    if (dbType.toLowerCase() === 'oracle') {
+        countResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, countQuery);
+    } else {
+        countResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, countQuery);
+    }
+    totalRecordCount = countResult.records[0]?.total_count || countResult.records[0]?.TOTAL_COUNT || 0;
+    console.log(`✅ Total records: ${totalRecordCount.toLocaleString()}`);
+} catch (countError) {
+    console.warn('Count query failed:', countError.message);
+}
+
+// STEP 2: Fetch sample data (2000 records)
+const SAMPLE_SIZE = 2000;
+console.log(`📦 Fetching ${SAMPLE_SIZE} sample records for validation...`);
+
+const fields = [primaryKey, ...comparisonFields].filter(f => f?.trim());
+let query;
+
+switch(dbType.toLowerCase()) {
+    case 'oracle':
+        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ROWNUM <= ${SAMPLE_SIZE}`;
+        break;
+    case 'postgresql':
+        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+        break;
+    case 'mysql':
+        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+        break;
+    case 'sqlserver':
+        query = `SELECT TOP ${SAMPLE_SIZE} ${fields.join(', ')} FROM ${sourceTable}`;
+        break;
+    default:
+        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+}
 
         console.log(`Executing query: ${query}`);
         
@@ -163,7 +201,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             rdbmsResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
         }
         
-        console.log(`Retrieved ${rdbmsResult.recordCount} records from ${dbType.toUpperCase()}`);
+		console.log(`✅ Retrieved ${rdbmsResult.recordCount} sample records from ${dbType.toUpperCase()}`);
         
         if (!rdbmsResult.records || rdbmsResult.records.length === 0) {
             return res.json({
@@ -200,14 +238,28 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             'enhanced'
         );
 
-        // Add metadata about the source
-        results.metadata = {
-            ...results.metadata,
-            sourceType: dbType.toUpperCase(),
-            sourceTable: sourceTable,
-            tempTable: tempTableResult.tempTableId,
-            recordsProcessed: rdbmsResult.recordCount
+      // Add metadata about the source (including total count)
+         results.metadata = {
+           ...results.metadata,
+           sourceType: dbType.toUpperCase(),
+           sourceTable: sourceTable,
+           tempTable: tempTableResult.tempTableId,
+           recordsProcessed: rdbmsResult.recordCount,
+           totalRecordsInSource: totalRecordCount,
+           sampleRecordsValidated: rdbmsResult.recordCount,
+           validationApproach: 'sample-based',
+           samplingNote: totalRecordCount > 0 
+           ? `Total: ${totalRecordCount.toLocaleString()} records. Validated ${rdbmsResult.recordCount} sample.`
+          : `Validated ${rdbmsResult.recordCount} sample records.`
         };
+
+      // Update summary
+       results.summary = {
+        ...results.summary,
+        totalRecordsInSource: totalRecordCount > 0 ? totalRecordCount : rdbmsResult.recordCount,
+       sampleRecordsValidated: rdbmsResult.recordCount,
+       isSampleBased: true
+     };
 
         console.log(`${dbType.toUpperCase()} vs BigQuery comparison completed using proven pattern`);
         res.json(results);
