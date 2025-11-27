@@ -8,6 +8,20 @@ const BigQueryIntegrationService = require('./services/bq-integration');
 const RDBMSIntegrationService = require('./services/rdbms-integration');
 require('dotenv').config();
 
+// Initialize Oracle thick mode
+const oracledb = require('oracledb');
+
+try {
+  oracledb.initOracleClient({
+    libDir: 'C:\\oracle\\instantclient_19_29'
+  });
+  console.log('✅ Oracle thick mode initialized successfully');
+  console.log('🏛️ Oracle Client Version:', oracledb.oracleClientVersionString);
+} catch (err) {
+  console.error('⚠️ Oracle thick mode initialization failed:', err.message);
+  console.log('Continuing with thin mode - some Oracle features may be limited');
+}
+
 const app = express();
 const port = process.env.PORT || 8080;
 
@@ -1353,130 +1367,7 @@ app.get('/api/health', (req, res) => {
         ]
     });
 });
-// Replace your /api/rdbms-vs-bq endpoint with this version that follows the working JSON vs BQ pattern
-app.post('/api/rdbms-vs-bq', async (req, res) => {
-    try {
-        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [] } = req.body;
-        
-        console.log(`Starting ${dbType} vs BigQuery comparison using proven JSON vs BQ pattern...`);
-        console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
-        
-        // Step 1: Get RDBMS data (same way JSON data is fetched)
-        const connectionConfig = { 
-            host, 
-            port: parseInt(port) || (dbType === 'oracle' ? 1521 : 5432), 
-            service, 
-            username, 
-            password 
-        };
-        
-        const connectionTest = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
-        
-        if (!connectionTest.success) {
-            return res.status(400).json({ 
-                success: false, 
-                error: `${dbType.toUpperCase()} connection failed: ${connectionTest.error}`,
-                suggestions: connectionTest.suggestions
-            });
-        }
 
-        // Build query for different database types
-        const fields = [primaryKey, ...comparisonFields].filter(f => f?.trim());
-        let query;
-        
-        switch(dbType.toLowerCase()) {
-            case 'oracle':
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ROWNUM <= 1000`;
-                break;
-            case 'postgresql':
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
-                break;
-            case 'mysql':
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
-                break;
-            case 'sqlserver':
-                query = `SELECT TOP 1000 ${fields.join(', ')} FROM ${sourceTable}`;
-                break;
-            default:
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT 1000`;
-        }
-
-        console.log(`Executing query: ${query}`);
-        
-        // Fetch data using the appropriate method based on dbType
-        let rdbmsResult;
-        if (dbType.toLowerCase() === 'oracle') {
-            rdbmsResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, query);
-        } else {
-            // For other database types, use the generic fetchData method
-            rdbmsResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
-        }
-        
-        console.log(`Retrieved ${rdbmsResult.recordCount} records from ${dbType.toUpperCase()}`);
-        
-        if (!rdbmsResult.records || rdbmsResult.records.length === 0) {
-            return res.json({
-                success: false,
-                error: `No data found in source table ${sourceTable}`,
-                suggestions: ['Check if the table exists and has data', 'Verify table permissions']
-            });
-        }
-
-        // Step 2: Create temp BigQuery table from RDBMS data (exact same as JSON vs BQ)
-        const bqService = new BigQueryIntegrationService();
-        const tempTableResult = await bqService.createTempTableFromJSON(
-            rdbmsResult.records, 
-            `${dbType}_${Date.now()}`, // Unique temp table name with db type
-            primaryKey
-        );
-        
-        console.log(`Created temp table: ${tempTableResult.tempTableId}`);
-
-        // Step 3: Use existing comparison engine (exact same as JSON vs BQ)
-        const ComparisonEngineService = require('./services/comparison-engine');
-        const comparisonEngine = new ComparisonEngineService();
-        
-        const results = await comparisonEngine.compareJSONvsBigQuery(
-            tempTableResult.tempTableId,    // RDBMS data as temp table
-            bqTable,                         // Target BigQuery table
-            primaryKey,
-            comparisonFields,
-            'enhanced'
-        );
-
-        // Add metadata about the source
-        results.metadata = {
-            ...results.metadata,
-            sourceType: dbType.toUpperCase(),
-            sourceTable: sourceTable,
-            tempTable: tempTableResult.tempTableId,
-            recordsProcessed: rdbmsResult.recordCount
-        };
-
-        console.log(`${dbType.toUpperCase()} vs BigQuery comparison completed using proven pattern`);
-        res.json(results);
-
-    } catch (error) {
-        console.error('RDBMS vs BigQuery comparison failed:', error.message);
-        
-        // Enhanced error handling
-        let suggestions = [
-            'Check database connection parameters',
-            'Verify source table exists and has data',
-            'Ensure BigQuery table is accessible'
-        ];
-
-        if (error.message.includes('ENOTFOUND')) {
-            suggestions.unshift('Network connectivity issue - check VPN or network access');
-        }
-
-        res.status(500).json({ 
-            success: false, 
-            error: error.message,
-            suggestions: suggestions
-        });
-    }
-});
 // Start server
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
