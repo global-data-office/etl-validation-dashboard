@@ -107,7 +107,7 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
 // RDBMS vs BigQuery Comparison (using proven JSON vs BQ pattern)
 app.post('/api/rdbms-vs-bq', async (req, res) => {
     try {
-        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [] } = req.body;
+        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '', targetFilter = '' } = req.body;
         
         console.log(`Starting ${dbType} vs BigQuery comparison using proven JSON vs BQ pattern...`);
         console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
@@ -137,20 +137,20 @@ let totalRecordCount = 0;
 let countQuery;
 
 switch(dbType.toLowerCase()) {
-    case 'oracle':
-        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
-        break;
-    case 'postgresql':
-        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
-        break;
-    case 'mysql':
-        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
-        break;
-    case 'sqlserver':
-        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
-        break;
-    default:
-        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+   case 'oracle':
+            countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
+            break;
+        case 'postgresql':
+            countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
+            break;
+        case 'mysql':
+            countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
+            break;
+        case 'sqlserver':
+            countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
+            break;
+        default:
+            countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
 }
 
 try {
@@ -174,20 +174,20 @@ const fields = [primaryKey, ...comparisonFields].filter(f => f?.trim());
 let query;
 
 switch(dbType.toLowerCase()) {
-    case 'oracle':
-        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ROWNUM <= ${SAMPLE_SIZE}`;
-        break;
-    case 'postgresql':
-        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
-        break;
-    case 'mysql':
-        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
-        break;
-    case 'sqlserver':
-        query = `SELECT TOP ${SAMPLE_SIZE} ${fields.join(', ')} FROM ${sourceTable}`;
-        break;
-    default:
-        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+  case 'oracle':
+            query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ${sourceFilter ? `${sourceFilter} AND ` : ''}ROWNUM <= ${SAMPLE_SIZE}`;
+            break;
+        case 'postgresql':
+            query = `SELECT ${fields.join(', ')} FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
+            break;
+        case 'mysql':
+            query = `SELECT ${fields.join(', ')} FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
+            break;
+        case 'sqlserver':
+            query = `SELECT TOP ${SAMPLE_SIZE} ${fields.join(', ')} FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
+            break;
+        default:
+            query = `SELECT ${fields.join(', ')} FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
 }
 
         console.log(`Executing query: ${query}`);
@@ -231,12 +231,12 @@ switch(dbType.toLowerCase()) {
         const comparisonEngine = new ComparisonEngineService();
         
         const results = await comparisonEngine.compareJSONvsBigQuery(
-            tempTableResult.tempTableId,    // RDBMS data as temp table
-            bqTable,                         // Target BigQuery table
+            tempTableResult.tempTableId,
+            bqTable,
             primaryKey,
             comparisonFields,
             'enhanced'
-        );
+         );
 
       // Add metadata about the source (including total count)
          results.metadata = {
@@ -248,6 +248,8 @@ switch(dbType.toLowerCase()) {
            totalRecordsInSource: totalRecordCount,
            sampleRecordsValidated: rdbmsResult.recordCount,
            validationApproach: 'sample-based',
+		   sourceFilter: sourceFilter || 'None',
+           targetFilter: targetFilter || 'None',
            samplingNote: totalRecordCount > 0 
            ? `Total: ${totalRecordCount.toLocaleString()} records. Validated ${rdbmsResult.recordCount} sample.`
           : `Validated ${rdbmsResult.recordCount} sample records.`

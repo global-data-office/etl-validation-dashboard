@@ -1676,14 +1676,14 @@
 
     <!-- RDBMS Database Type Selection Tabs -->
     <div class="results-tabs">
-        <button class="results-tab-button active" onclick="showRDBMSTab('postgresql')">🐘 PostgreSQL to BQ</button>
+        <button class="results-tab-button active" onclick="showRDBMSTab('oracle')">🔴 Oracle to BQ</button>
+        <button class="results-tab-button" onclick="showRDBMSTab('postgresql')">🐘 PostgreSQL to BQ</button>
         <button class="results-tab-button" onclick="showRDBMSTab('mysql')">🐬 MySQL to BQ</button>
-        <button class="results-tab-button" onclick="showRDBMSTab('oracle')">🔴 Oracle to BQ</button>
         <button class="results-tab-button" onclick="showRDBMSTab('sqlserver')">🟦 SQL Server to BQ</button>
     </div>
 
     <!-- PostgreSQL Configuration Tab -->
-    <div id="postgresql-rdbms-tab" class="results-tab-content active">
+    <div id="postgresql-rdbms-tab" class="results-tab-content">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
             <!-- Left Side: PostgreSQL Configuration -->
             <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
@@ -1861,7 +1861,8 @@
     </div>
 
     <!-- Oracle Configuration Tab -->
-    <div id="oracle-rdbms-tab" class="results-tab-content">
+    <div id="oracle-rdbms-tab" class="results-tab-content active">
+	<div id="oracle-config-section">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
             <!-- Left Side: Oracle Configuration -->
             <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
@@ -1900,15 +1901,27 @@
                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                     </div>
                 </div>
+				<div style="margin-bottom: 20px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Oracle Table</label>
+                        <input type="text" id="oracle-table" placeholder="SCHEMA.TABLE_NAME" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                        <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                            Enter the Oracle table to validate (e.g., HR.EMPLOYEES)
+                        </small>
+                    </div>
 
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Oracle Table</label>
-                    <input type="text" id="oracle-table" placeholder="table_name" 
-                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
-                    <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e8f4fd; border-radius: 4px;">
-                        Enter the Oracle table to validate
-                    </small>
-                </div>
+                <!-- TASK 1: Source Filter for Incremental Validation -->
+                  <div style="margin-bottom: 20px;">
+                       <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                         🔍 Source Filter (WHERE clause) 
+                       <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+                       </label>
+                       <textarea id="oracle-source-filter" placeholder="e.g., CREATED_DATE >= TO_DATE('2024-01-01', 'YYYY-MM-DD')&#10;or: STATUS = 'ACTIVE' AND DEPARTMENT_ID = 10" 
+                       style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
+                       <small style="color: #856404; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #fff3cd; border-radius: 4px; border-left: 3px solid #ffc107;">
+                      💡 Filter Oracle source data for incremental validation (do not include WHERE keyword)
+                       </small>
+                   </div>
 
                 <button id="testOracleConnection" class="btn-secondary" onclick="testDatabaseConnection('oracle')"
                         style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
@@ -1934,20 +1947,42 @@
                     <input type="text" id="oracle-primary-key" placeholder="id, user_id, etc" 
                            style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                 </div>
+				<div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
+                        <input type="text" id="oracle-comparison-fields" placeholder="field1, field2, field3" 
+                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                        <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                               Leave empty to compare all fields, or specify fields to compare (comma-separated)
+                        </small>
+                  </div>
 
+                <!-- TASK 1: Target Filter for Incremental Validation -->
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
-                    <textarea id="oracle-comparison-fields" placeholder="field1, field2, field3" 
-                              style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; resize: vertical; font-family: monospace;"></textarea>
-                </div>
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                    🔍 Target Filter (WHERE clause)
+                    <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+                    </label>
+                    <textarea id="oracle-target-filter" placeholder="e.g., created_date >= '2024-01-01'&#10;or: status = 'ACTIVE' AND department_id = 10" 
+                    style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
+                    <small style="color: #155724; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #d4edda; border-radius: 4px; border-left: 3px solid #28a745;">
+                   💡 Filter BigQuery target data to match source filter (do not include WHERE keyword)
+                    </small>
+               </div>
 
-                <button class="btn-primary" onclick="startRDBMSComparison('oracle')"
+                <button class="btn-primary" onclick="startOracleValidation()"
                         style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
                     🚀 Start Oracle vs BigQuery Validation
                 </button>
             </div>
         </div>
     </div>
+	<!-- Close oracle-config-section and add results section -->
+    
+    <!-- Results Section - hidden by default, shown after comparison -->
+    <div id="oracle-comparison-results" class="comparison-results" style="display: none;">
+    </div>
+    
+</div>
 
     <!-- SQL Server Configuration Tab -->
     <div id="sqlserver-rdbms-tab" class="results-tab-content">
@@ -4192,7 +4227,9 @@ async function startRDBMSComparison(dbType) {
             sourceTable: sourceTable,
             bqTable: bqTable,
             primaryKey: primaryKey,
-            comparisonFields: comparisonFieldsArray
+            comparisonFields: comparisonFieldsArray,
+			sourceFilter: document.getElementById(`${prefix}-source-filter`)?.value?.trim() || '',
+            targetFilter: document.getElementById(`${prefix}-target-filter`)?.value?.trim() || '',
         };
         
         console.log('Sending request:', { dbType, sourceTable, bqTable, primaryKey });
@@ -4764,6 +4801,194 @@ function generateColumnNamesTab(schemaAnalysis, dbName) {
             </div>
         </div>
     `;
+}
+// ============================================
+// TASK 2: Oracle Validation with Results Page
+// ============================================
+
+async function startOracleValidation() {
+    const configSection = document.getElementById('oracle-config-section');
+    const resultsSection = document.getElementById('oracle-comparison-results');
+    
+    // Get values
+    const host = document.getElementById('oracle-host')?.value?.trim();
+    const port = document.getElementById('oracle-port')?.value || 1521;
+    const service = document.getElementById('oracle-service')?.value?.trim();
+    const username = document.getElementById('oracle-username')?.value?.trim();
+    const password = document.getElementById('oracle-password')?.value;
+    const sourceTable = document.getElementById('oracle-table')?.value?.trim();
+    const bqTable = document.getElementById('oracle-bq-table')?.value?.trim();
+    const primaryKey = document.getElementById('oracle-primary-key')?.value?.trim();
+    const comparisonFieldsRaw = document.getElementById('oracle-comparison-fields')?.value?.trim() || '';
+    
+    const comparisonFields = comparisonFieldsRaw
+        ? comparisonFieldsRaw.split(',').map(f => f.trim()).filter(f => f)
+        : [];
+    
+    // Validation
+    if (!sourceTable || !bqTable || !primaryKey || !host || !service || !username || !password) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    if (!bqTable.match(/^[\w-]+\.[\w-]+\.[\w-]+$/)) {
+        alert('BigQuery table must be in format: project.dataset.table');
+        return;
+    }
+    
+    try {
+        // Hide config, show results with loading
+        configSection.style.display = 'none';
+        resultsSection.style.display = 'block';
+        resultsSection.innerHTML = `
+            <div class="processing-state" style="text-align: center; padding: 60px 30px;">
+                <div class="processing-spinner"></div>
+                <div class="processing-text">Running Oracle vs BigQuery Validation...</div>
+                <div class="processing-subtext">Analyzing data and comparing records</div>
+            </div>
+        `;
+        
+        const response = await fetch('/api/rdbms-vs-bq', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dbType: 'oracle',
+                host, port, service, username, password,
+                sourceTable, bqTable, primaryKey, comparisonFields
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            globalComparisonResults = result.data || result;
+            displayOracleComparisonResults(result);
+        } else {
+            throw new Error(result.error || 'Validation failed');
+        }
+        
+    } catch (error) {
+        console.error('Oracle validation error:', error);
+        resultsSection.innerHTML = `
+            <div style="padding: 30px;">
+                <div class="error-container">
+                    <div class="error-header">
+                        <div class="error-icon">❌</div>
+                        <div class="error-title">Validation Failed</div>
+                    </div>
+                    <div class="error-message">${error.message}</div>
+                </div>
+                <button class="btn-secondary" onclick="startNewOracleComparison()" style="margin-top: 20px;">
+                    🔄 Try Again
+                </button>
+            </div>
+        `;
+    }
+}
+
+// New Comparison - go back to config
+function startNewOracleComparison() {
+    document.getElementById('oracle-comparison-results').style.display = 'none';
+    document.getElementById('oracle-config-section').style.display = 'block';
+    document.getElementById('oracle-comparison-results').innerHTML = '';
+}
+// Display Oracle Results - Same structure as JSON vs BQ
+function displayOracleComparisonResults(results) {
+    const resultsSection = document.getElementById('oracle-comparison-results');
+    const data = results.data || results;
+    
+    // Store globally for export
+    globalComparisonResults = data;
+    
+    resultsSection.innerHTML = `
+        <div class="results-header">
+            <div class="results-title">
+                <span>📊</span> Comprehensive Analysis Results
+            </div>
+            <div class="results-actions">
+                <button class="btn-export" onclick="exportResultsToExcel()">
+                    📊 Export to Excel
+                </button>
+                <button class="btn-secondary" onclick="startNewOracleComparison()">
+                    New Comparison
+                </button>
+            </div>
+        </div>
+
+        <div class="results-navigation-tabs">
+            <button class="results-tab-button active" onclick="showOracleResultsTab('record-count')">
+                <span class="results-tab-icon">📊</span>
+                <span class="results-tab-label">Record Count</span>
+            </button>
+            <button class="results-tab-button" onclick="showOracleResultsTab('column-names')">
+                <span class="results-tab-icon">📋</span>
+                <span class="results-tab-label">Column Names</span>
+            </button>
+            <button class="results-tab-button" onclick="showOracleResultsTab('comparison')">
+                <span class="results-tab-icon">🔍</span>
+                <span class="results-tab-label">Comparison</span>
+            </button>
+            <button class="results-tab-button" onclick="showOracleResultsTab('field-wise')">
+                <span class="results-tab-icon">🔬</span>
+                <span class="results-tab-label">Field Analysis</span>
+            </button>
+            <button class="results-tab-button" onclick="showOracleResultsTab('duplicates')">
+                <span class="results-tab-icon">🔄</span>
+                <span class="results-tab-label">Duplicates</span>
+            </button>
+        </div>
+
+        <div id="oracle-record-count-tab" class="results-tab-content active"></div>
+        <div id="oracle-column-names-tab" class="results-tab-content"></div>
+        <div id="oracle-comparison-tab" class="results-tab-content"></div>
+        <div id="oracle-field-wise-tab" class="results-tab-content"></div>
+        <div id="oracle-duplicates-tab" class="results-tab-content"></div>
+    `;
+
+    // Populate tabs using existing functions from JSON vs BQ
+    populateRecordCountTab(data.recordCounts, data.summary);
+    populateColumnNamesTabComplete(data.schemaAnalysis);
+    populateComparisonTabComplete(data.comparisonResults, data.summary, data.metadata);
+    populateFieldWiseTabComplete(data.fieldWiseAnalysis, data.summary);
+    populateDuplicatesTabEnhanced(data.duplicatesAnalysis, data.summary);
+
+    // Copy content to Oracle tabs
+    const recordCountContent = document.getElementById('record-count-tab');
+    const columnNamesContent = document.getElementById('column-names-tab');
+    const comparisonContent = document.getElementById('comparison-tab');
+    const fieldWiseContent = document.getElementById('field-wise-tab');
+    const duplicatesContent = document.getElementById('duplicates-tab');
+
+    if (recordCountContent) document.getElementById('oracle-record-count-tab').innerHTML = recordCountContent.innerHTML;
+    if (columnNamesContent) document.getElementById('oracle-column-names-tab').innerHTML = columnNamesContent.innerHTML;
+    if (comparisonContent) document.getElementById('oracle-comparison-tab').innerHTML = comparisonContent.innerHTML;
+    if (fieldWiseContent) document.getElementById('oracle-field-wise-tab').innerHTML = fieldWiseContent.innerHTML;
+    if (duplicatesContent) document.getElementById('oracle-duplicates-tab').innerHTML = duplicatesContent.innerHTML;
+}
+
+// Tab switching for Oracle results
+function showOracleResultsTab(tabId) {
+    // Hide all Oracle tabs
+    document.querySelectorAll('#oracle-comparison-results .results-tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+
+    // Remove active from all buttons
+    document.querySelectorAll('#oracle-comparison-results .results-tab-button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // Show selected tab
+    const selectedTab = document.getElementById('oracle-' + tabId + '-tab');
+    if (selectedTab) {
+        selectedTab.classList.add('active');
+    }
+
+    // Activate clicked button
+    if (event && event.target) {
+        const btn = event.target.closest('.results-tab-button');
+        if (btn) btn.classList.add('active');
+    }
 }
     </script>
 </body>
