@@ -171,7 +171,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
         const SAMPLE_SIZE = 2000;
         console.log(`📦 Fetching ${SAMPLE_SIZE} sample records for validation...`);
 
-        const fields = [primaryKey, ...comparisonFields].filter(f => f?.trim());
+        const fields = comparisonFields.length > 0 ? [primaryKey, ...comparisonFields].filter(f => f?.trim()) : ['*'];
         let query;
 
         switch(dbType.toLowerCase()) {
