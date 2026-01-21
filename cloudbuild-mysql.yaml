@@ -1,0 +1,27 @@
+steps:
+  # Step 1: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-mysql'
+      - '.'
+  
+  # Step 2: Push Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-mysql'
+  
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'etl-automation-mysql'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-mysql'
+      - '--region'
+      - 'us-central1'
+      - '--set-env-vars'
+      - 'GOOGLE_CLOUD_PROJECT_ID=rax-cloud-composer-qa,BIGQUERY_DATASET=stage_three_dw,NODE_ENV=production'
