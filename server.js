@@ -6,8 +6,21 @@ const path = require('path');
 const jsonUploadRouter = require('./routes/json-upload');
 const BigQueryIntegrationService = require('./services/bq-integration');
 const RDBMSIntegrationService = require('./services/rdbms-integration');
-const RDBMSComparisonEngineService = require('./services/rdbms-comparison-engine'); // NEW: RDBMS-specific comparison engine
 require('dotenv').config();
+
+// Initialize Oracle thick mode
+const oracledb = require('oracledb');
+
+try {
+  oracledb.initOracleClient({
+    libDir: 'C:\\oracle\\instantclient_19_29'
+  });
+  console.log('✅ Oracle thick mode initialized successfully');
+  console.log('🏛️ Oracle Client Version:', oracledb.oracleClientVersionString);
+} catch (err) {
+  console.error('⚠️ Oracle thick mode initialization failed:', err.message);
+  console.log('Continuing with thin mode - some Oracle features may be limited');
+}
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -105,15 +118,15 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
     }
 });
 
-// ENHANCED: RDBMS vs BigQuery Comparison with comprehensive metrics
+// RDBMS vs BigQuery Comparison (using proven JSON vs BQ pattern)
 app.post('/api/rdbms-vs-bq', async (req, res) => {
     try {
-        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '', targetFilter = '' } = req.body;
+        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [] } = req.body;
         
-        console.log(`Starting ENHANCED ${dbType} vs BigQuery comparison...`);
+        console.log(`Starting ${dbType} vs BigQuery comparison using proven JSON vs BQ pattern...`);
         console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
         
-        // Step 1: Test connection
+        // Step 1: Get RDBMS data (same way JSON data is fetched)
         const connectionConfig = { 
             host, 
             port: parseInt(port) || (dbType === 'oracle' ? 1521 : 5432), 
@@ -132,76 +145,77 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             });
         }
 
-        // STEP 1: Get total count (fast - no data transfer)
-        console.log(`📊 Getting total record count from ${sourceTable}...`);
-        let totalRecordCount = 0;
-        let countQuery;
+// STEP 1: Get total count (fast - no data transfer)
+console.log(`📊 Getting total record count from ${sourceTable}...`);
+let totalRecordCount = 0;
+let countQuery;
 
-        switch(dbType.toLowerCase()) {
-            case 'oracle':
-                countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
-                break;
-            case 'postgresql':
-                countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
-                break;
-            case 'mysql':
-                countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
-                break;
-            case 'sqlserver':
-                countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
-                break;
-            default:
-                countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
-        }
+switch(dbType.toLowerCase()) {
+    case 'oracle':
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+        break;
+    case 'postgresql':
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+        break;
+    case 'mysql':
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+        break;
+    case 'sqlserver':
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+        break;
+    default:
+        countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}`;
+}
 
-        try {
-            let countResult;
-            if (dbType.toLowerCase() === 'oracle') {
-                countResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, countQuery);
-            } else {
-                countResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, countQuery);
-            }
-            totalRecordCount = countResult.records[0]?.total_count || countResult.records[0]?.TOTAL_COUNT || 0;
-            console.log(`✅ Total records: ${totalRecordCount.toLocaleString()}`);
-        } catch (countError) {
-            console.warn('Count query failed:', countError.message);
-        }
+try {
+    let countResult;
+    if (dbType.toLowerCase() === 'oracle') {
+        countResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, countQuery);
+    } else {
+        countResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, countQuery);
+    }
+    totalRecordCount = countResult.records[0]?.total_count || countResult.records[0]?.TOTAL_COUNT || 0;
+    console.log(`✅ Total records: ${totalRecordCount.toLocaleString()}`);
+} catch (countError) {
+    console.warn('Count query failed:', countError.message);
+}
 
-        // STEP 2: Fetch sample data (2000 records)
-        const SAMPLE_SIZE = 2000;
-        console.log(`📦 Fetching ${SAMPLE_SIZE} sample records for validation...`);
+// STEP 2: Fetch sample data (2000 records)
+const SAMPLE_SIZE = 2000;
+console.log(`📦 Fetching ${SAMPLE_SIZE} sample records for validation...`);
 
-        const fields = comparisonFields.length > 0 ? [primaryKey, ...comparisonFields].filter(f => f?.trim()) : ['*'];
-        let query;
+const fields = [primaryKey, ...comparisonFields].filter(f => f?.trim());
+let query;
 
-        switch(dbType.toLowerCase()) {
-            case 'oracle':
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ${sourceFilter ? `${sourceFilter} AND ` : ''}ROWNUM <= ${SAMPLE_SIZE}`;
-                break;
-            case 'postgresql':
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
-                break;
-            case 'mysql':
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
-                break;
-            case 'sqlserver':
-                query = `SELECT TOP ${SAMPLE_SIZE} ${fields.join(', ')} FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
-                break;
-            default:
-                query = `SELECT ${fields.join(', ')} FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
-        }
+switch(dbType.toLowerCase()) {
+    case 'oracle':
+        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ROWNUM <= ${SAMPLE_SIZE}`;
+        break;
+    case 'postgresql':
+        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+        break;
+    case 'mysql':
+        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+        break;
+    case 'sqlserver':
+        query = `SELECT TOP ${SAMPLE_SIZE} ${fields.join(', ')} FROM ${sourceTable}`;
+        break;
+    default:
+        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+}
 
         console.log(`Executing query: ${query}`);
         
-        // Fetch data
+        // Fetch data using the appropriate method based on dbType
         let rdbmsResult;
         if (dbType.toLowerCase() === 'oracle') {
             rdbmsResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, query);
         } else {
+            // For other database types, use the generic fetchData method
             rdbmsResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
         }
         
-        console.log(`✅ Retrieved ${rdbmsResult.recordCount} sample records from ${dbType.toUpperCase()}`);
+		console.log(`✅ Retrieved ${rdbmsResult.recordCount} sample records from ${dbType.toUpperCase()}`);
         
         if (!rdbmsResult.records || rdbmsResult.records.length === 0) {
             return res.json({
@@ -211,77 +225,63 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             });
         }
 
-        // Step 2: Create temp BigQuery table from RDBMS data
-        console.log('=== RDBMS DATA DEBUG ===');
+        // Step 2: Create temp BigQuery table from RDBMS data (exact same as JSON vs BQ)
+		console.log('=== RDBMS DATA DEBUG ===');
         console.log('RDBMS data sample:', JSON.stringify(rdbmsResult.records[0], null, 2));
         console.log('Records count:', rdbmsResult.records.length);
         console.log('Primary key:', primaryKey);
         console.log('=======================');
-        
         const bqService = new BigQueryIntegrationService();
         const tempTableResult = await bqService.createTempTableFromJSON(
             rdbmsResult.records, 
-            `${dbType}_${Date.now()}`,
+            `${dbType}_${Date.now()}`, // Unique temp table name with db type
             primaryKey
         );
         
         console.log(`Created temp table: ${tempTableResult.tempTableId}`);
 
-        // Step 3: Use ENHANCED RDBMS comparison engine
-        console.log('🔍 Using ENHANCED RDBMS Comparison Engine with comprehensive metrics...');
-        const rdbmsComparisonEngine = new RDBMSComparisonEngineService();
+        // Step 3: Use existing comparison engine (exact same as JSON vs BQ)
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
         
-        const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
-        tempTableResult.tempTableId,
-        bqTable,
-        primaryKey,
-        comparisonFields,
-        'enhanced',
-        totalRecordCount
-         );
+        const results = await comparisonEngine.compareJSONvsBigQuery(
+            tempTableResult.tempTableId,    // RDBMS data as temp table
+            bqTable,                         // Target BigQuery table
+            primaryKey,
+            comparisonFields,
+            'enhanced'
+        );
 
-        // Add enhanced metadata
-        results.metadata = {
-            ...results.metadata,
-            sourceType: dbType.toUpperCase(),
-            sourceTable: sourceTable,
-            tempTable: tempTableResult.tempTableId,
-            recordsProcessed: rdbmsResult.recordCount,
-            totalRecordsInSource: totalRecordCount,
-            sampleRecordsValidated: rdbmsResult.recordCount,
-            validationApproach: 'sample-based-enhanced',
-            sourceFilter: sourceFilter || 'None',
-            targetFilter: targetFilter || 'None',
-            samplingNote: totalRecordCount > 0 
-                ? `Total: ${totalRecordCount.toLocaleString()} records. Validated ${rdbmsResult.recordCount} sample with comprehensive metrics.`
-                : `Validated ${rdbmsResult.recordCount} sample records with comprehensive metrics.`,
-            enhancedMetrics: true,
-            metricsIncluded: [
-                'Identical Records',
-                'Mismatched Records (same PK, different data)',
-                'Missing in Target',
-                'Extra in Target',
-                'NULL Primary Keys (Source & Target)'
-            ]
+      // Add metadata about the source (including total count)
+         results.metadata = {
+           ...results.metadata,
+           sourceType: dbType.toUpperCase(),
+           sourceTable: sourceTable,
+           tempTable: tempTableResult.tempTableId,
+           recordsProcessed: rdbmsResult.recordCount,
+           totalRecordsInSource: totalRecordCount,
+           sampleRecordsValidated: rdbmsResult.recordCount,
+           validationApproach: 'sample-based',
+           samplingNote: totalRecordCount > 0 
+           ? `Total: ${totalRecordCount.toLocaleString()} records. Validated ${rdbmsResult.recordCount} sample.`
+          : `Validated ${rdbmsResult.recordCount} sample records.`
         };
 
-        // Update summary with enhanced metrics
-        results.summary = {
-            ...results.summary,
-            totalRecordsInSource: totalRecordCount > 0 ? totalRecordCount : rdbmsResult.recordCount,
-            sampleRecordsValidated: rdbmsResult.recordCount,
-            isSampleBased: true,
-            enhancedValidation: true
-        };
+      // Update summary
+       results.summary = {
+        ...results.summary,
+        totalRecordsInSource: totalRecordCount > 0 ? totalRecordCount : rdbmsResult.recordCount,
+       sampleRecordsValidated: rdbmsResult.recordCount,
+       isSampleBased: true
+     };
 
-        console.log(`${dbType.toUpperCase()} vs BigQuery ENHANCED comparison completed`);
-        console.log(`📊 Results: ${results.summary.identicalRecords || 0} identical, ${results.summary.mismatchedRecords || 0} mismatched`);
-        
+        console.log(`${dbType.toUpperCase()} vs BigQuery comparison completed using proven pattern`);
         res.json(results);
 
     } catch (error) {
         console.error('RDBMS vs BigQuery comparison failed:', error.message);
         
+        // Enhanced error handling
         let suggestions = [
             'Check database connection parameters',
             'Verify source table exists and has data',
@@ -1367,6 +1367,7 @@ app.get('/api/health', (req, res) => {
         ]
     });
 });
+
 // Start server
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);

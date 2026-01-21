@@ -1571,7 +1571,7 @@
                         <button class="btn-export" id="exportToExcel" onclick="exportResultsToExcel()" disabled>
                             📊 Export to Excel
                         </button>
-                        <button class="btn-secondary" onclick="if(confirm('Start a new ORACLE comparison? This will clear current results.')) { startNewMultiComparison('oracle'); }">
+                        <button class="btn-secondary" onclick="startNewComparison()">
                             New Comparison
                         </button>
                     </div>
@@ -1676,14 +1676,14 @@
 
     <!-- RDBMS Database Type Selection Tabs -->
     <div class="results-tabs">
-        <button class="results-tab-button active" onclick="showRDBMSTab('oracle')">🔴 Oracle to BQ</button>
-        <button class="results-tab-button" onclick="showRDBMSTab('postgresql')">🐘 PostgreSQL to BQ</button>
+        <button class="results-tab-button active" onclick="showRDBMSTab('postgresql')">🐘 PostgreSQL to BQ</button>
         <button class="results-tab-button" onclick="showRDBMSTab('mysql')">🐬 MySQL to BQ</button>
+        <button class="results-tab-button" onclick="showRDBMSTab('oracle')">🔴 Oracle to BQ</button>
         <button class="results-tab-button" onclick="showRDBMSTab('sqlserver')">🟦 SQL Server to BQ</button>
     </div>
 
     <!-- PostgreSQL Configuration Tab -->
-    <div id="postgresql-rdbms-tab" class="results-tab-content">
+    <div id="postgresql-rdbms-tab" class="results-tab-content active">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
             <!-- Left Side: PostgreSQL Configuration -->
             <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
@@ -1861,8 +1861,7 @@
     </div>
 
     <!-- Oracle Configuration Tab -->
-    <div id="oracle-rdbms-tab" class="results-tab-content active">
-	<div id="oracle-config-section">
+    <div id="oracle-rdbms-tab" class="results-tab-content">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
             <!-- Left Side: Oracle Configuration -->
             <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
@@ -1901,27 +1900,15 @@
                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                     </div>
                 </div>
-				<div style="margin-bottom: 20px;">
-                     <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Oracle Table(s)</label>
-                     <textarea id="oracle-table" placeholder="SCHEMA.TABLE1&#10;SCHEMA.TABLE2&#10;SCHEMA.TABLE3" 
-                      style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
-                     <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
-                     💡 Enter one table per line to validate multiple tables at once
-                     </small>
-                </div>
 
-                <!-- TASK 1: Source Filter for Incremental Validation -->
-                  <div style="margin-bottom: 20px;">
-                       <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
-                         🔍 Source Filter (WHERE clause) 
-                       <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
-                       </label>
-                       <textarea id="oracle-source-filter" placeholder="e.g., CREATED_DATE >= TO_DATE('2024-01-01', 'YYYY-MM-DD')&#10;or: STATUS = 'ACTIVE' AND DEPARTMENT_ID = 10" 
-                       style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
-                       <small style="color: #856404; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #fff3cd; border-radius: 4px; border-left: 3px solid #ffc107;">
-                      💡 Filter Oracle source data for incremental validation (do not include WHERE keyword)
-                       </small>
-                   </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Oracle Table</label>
+                    <input type="text" id="oracle-table" placeholder="table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e8f4fd; border-radius: 4px;">
+                        Enter the Oracle table to validate
+                    </small>
+                </div>
 
                 <button id="testOracleConnection" class="btn-secondary" onclick="testDatabaseConnection('oracle')"
                         style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
@@ -1937,43 +1924,22 @@
                 </h3>
 
                 <div style="margin-bottom: 15px;">
-                   <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Dataset</label>
-                   <input type="text" id="oracle-bq-table" placeholder="project.dataset" 
-                   style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
-                   <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
-                   Tables will auto-match: SCHEMA.TABLE → dataset.table (lowercase)
-                   </small>
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Table</label>
+                    <input type="text" id="oracle-bq-table" placeholder="project.dataset.table_name" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                 </div>
 
                 <div style="margin-bottom: 15px;">
-                     <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key(s)</label>
-                     <textarea id="oracle-primary-key" placeholder="obj_id0&#10;bill_id&#10;config_id" 
-                      style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
-                     <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
-                     💡 One primary key per line (must match Oracle tables order)
-                     </small>
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key Field</label>
+                    <input type="text" id="oracle-primary-key" placeholder="id, user_id, etc" 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                 </div>
-				<div style="margin-bottom: 15px;">
-                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
-                        <input type="text" id="oracle-comparison-fields" placeholder="field1, field2, field3" 
-                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
-                        <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
-                               Leave empty to compare all fields, or specify fields to compare (comma-separated)
-                        </small>
-                  </div>
 
-                <!-- TASK 1: Target Filter for Incremental Validation -->
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
-                    🔍 Target Filter (WHERE clause)
-                    <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
-                    </label>
-                    <textarea id="oracle-target-filter" placeholder="e.g., created_date >= '2024-01-01'&#10;or: status = 'ACTIVE' AND department_id = 10" 
-                    style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
-                    <small style="color: #155724; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #d4edda; border-radius: 4px; border-left: 3px solid #28a745;">
-                   💡 Filter BigQuery target data to match source filter (do not include WHERE keyword)
-                    </small>
-               </div>
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
+                    <textarea id="oracle-comparison-fields" placeholder="field1, field2, field3" 
+                              style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; resize: vertical; font-family: monospace;"></textarea>
+                </div>
 
                 <button class="btn-primary" onclick="startRDBMSComparison('oracle')"
                         style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
@@ -1982,13 +1948,6 @@
             </div>
         </div>
     </div>
-	<!-- Close oracle-config-section and add results section -->
-    
-    <!-- Results Section - hidden by default, shown after comparison -->
-    <div id="oracle-comparison-results" class="comparison-results" style="display: none;">
-    </div>
-    
-</div>
 
     <!-- SQL Server Configuration Tab -->
     <div id="sqlserver-rdbms-tab" class="results-tab-content">
@@ -2740,10 +2699,8 @@
             const bqUnique = recordCounts?.bqDetails?.uniquePrimaryKeys || 0;
             const jsonNulls = recordCounts?.jsonDetails?.nullPrimaryKeys || 0;
             const bqNulls = recordCounts?.bqDetails?.nullPrimaryKeys || 0;
-            const jsonDuplicates = (summary && summary.duplicateRecordsInFile !== undefined && summary.duplicateRecordsInFile !== null) 
-             ? summary.duplicateRecordsInFile 
-             : (recordCounts?.jsonDetails?.duplicateRecords || 0);
- 
+            const jsonDuplicates = recordCounts?.jsonDetails?.duplicateRecords || summary?.duplicateRecordsInFile || 0;
+
             const recordCountSummary = document.getElementById('record-count-summary');
             if (recordCountSummary) {
                 recordCountSummary.innerHTML = `
@@ -2915,51 +2872,27 @@
             const comparisonSummary = document.getElementById('comparison-summary');
             if (comparisonSummary) {
                 comparisonSummary.innerHTML = `
-                <div class="summary-card">
-                    <div class="summary-number">${uniqueCount}</div>
-                    <div class="summary-label">Unique Source Records</div>
-                </div>
-                
-                <!-- NEW: Identical Records -->
-                <div class="summary-card matches">
-                    <div class="summary-number">${summary.identicalRecords || summary.recordsReachedTarget || matchCount || 0}</div>
-                    <div class="summary-label">Identical Records</div>
-                    <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">Same PK, Same Data</div>
-                </div>
-                
-                <!-- NEW: Mismatched Records -->
-                <div class="summary-card ${(summary.mismatchedRecords || 0) > 0 ? 'warning' : 'pass'}">
-                    <div class="summary-number">${summary.mismatchedRecords || 0}</div>
-                    <div class="summary-label">Mismatched Records</div>
-                    <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">Same PK, Different Data</div>
-                </div>
-                
-                <!-- Card: Missing in Target -->
-                <div class="summary-card missing">
-                    <div class="summary-number">${failedCount}</div>
-                    <div class="summary-label">Missing in Target</div>
-                    <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">In Source Only</div>
-                </div>
-                
-                <!-- NEW: Extra in Target -->
-                <div class="summary-card ${(summary.recordsOnlyInTarget || 0) > 0 ? 'warning' : 'pass'}">
-                    <div class="summary-number">${summary.recordsOnlyInTarget || 0}</div>
-                    <div class="summary-label">Extra in Target</div>
-                    <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">In Target Only</div>
-                </div>
-                
-                <!-- NEW: NULL Primary Keys -->
-                <div class="summary-card ${((summary.nullPrimaryKeysSource || 0) + (summary.nullPrimaryKeysTarget || 0)) > 0 ? 'warning' : 'pass'}">
-                    <div class="summary-number">${(summary.nullPrimaryKeysSource || 0) + (summary.nullPrimaryKeysTarget || 0)}</div>
-                    <div class="summary-label">NULL Primary Keys</div>
-                    <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">Source: ${summary.nullPrimaryKeysSource || 0}, Target: ${summary.nullPrimaryKeysTarget || 0}</div>
-                </div>
-                
-                <div class="summary-card ${parseFloat(successRate) >= 80 ? 'matches' : 'warning'}">
-                    <div class="summary-number">${successRate}%</div>
-                    <div class="summary-label">Pipeline Success Rate</div>
-                </div>
-            `;
+                    <div class="summary-card">
+                        <div class="summary-number">${uniqueCount}</div>
+                        <div class="summary-label">Unique Source Records</div>
+                    </div>
+                    <div class="summary-card matches">
+                        <div class="summary-number">${matchCount}</div>
+                        <div class="summary-label">Found in Target</div>
+                    </div>
+                    <div class="summary-card missing">
+                        <div class="summary-number">${failedCount}</div>
+                        <div class="summary-label">Not in Target</div>
+                    </div>
+                    <div class="summary-card differences">
+                        <div class="summary-number">${summary.totalFieldIssues || 0}</div>
+                        <div class="summary-label">Field Quality Issues</div>
+                    </div>
+                    <div class="summary-card ${parseFloat(successRate) >= 80 ? 'matches' : 'warning'}">
+                        <div class="summary-number">${successRate}%</div>
+                        <div class="summary-label">Pipeline Success Rate</div>
+                    </div>
+                `;
             }
 
             const comparisonDetails = document.getElementById('comparison-details');
@@ -3145,11 +3078,11 @@
             if (duplicatesSummary) {
                 duplicatesSummary.innerHTML = `
                     <div class="summary-card ${jsonDuplicates.duplicateCount > 0 ? 'warning' : 'pass'}">
-                        <div class="summary-number">${jsonDuplicates.totalDuplicateRecords || jsonDuplicates.duplicateCount}</div>
+                        <div class="summary-number">${jsonDuplicates.duplicateCount}</div>
                         <div class="summary-label">JSON Duplicate Keys</div>
                     </div>
                     <div class="summary-card ${bqDuplicates.duplicateCount > 0 ? 'warning' : 'pass'}">
-                        <div class="summary-number">${bqDuplicates.totalDuplicateRecords || bqDuplicates.duplicateCount}</div>
+                        <div class="summary-number">${bqDuplicates.duplicateCount}</div>
                         <div class="summary-label">BigQuery Duplicate Keys</div>
                     </div>
                     <div class="summary-card ${crossSystem.commonDuplicateKeys?.length > 0 ? 'missing' : 'pass'}">
@@ -4203,21 +4136,9 @@ async function startRDBMSComparison(dbType) {
         
         // Get table configuration
         const prefix = dbType === 'postgresql' ? 'pg' : dbType;
-        // Get Oracle tables (multiple, one per line)
-        const sourceTablesRaw = document.getElementById(`${prefix}-table`)?.value?.trim() || '';
-        const sourceTables = sourceTablesRaw.split('\n').map(t => t.trim()).filter(t => t.length > 0);
-        
-        // Get BigQuery dataset
-        const bqDataset = document.getElementById(`${prefix}-bq-table`)?.value?.trim() || '';
-        
-        // For validation, use first table
-        const sourceTable = sourceTables[0] || '';
-        const tableNameOnly = sourceTable.includes('.') ? sourceTable.split('.').pop().toLowerCase() : sourceTable.toLowerCase();
-        const bqTable = `${bqDataset}.${tableNameOnly}`;
-        // Get primary keys (multiple, one per line)
-        const primaryKeysRaw = document.getElementById(`${prefix}-primary-key`)?.value?.trim() || '';
-        const primaryKeys = primaryKeysRaw.split('\n').map(k => k.trim()).filter(k => k.length > 0);
-        const primaryKey = primaryKeys[0] || ''; // For validation, use first one
+        const sourceTable = document.getElementById(`${prefix}-table`)?.value?.trim() || '';
+        const bqTable = document.getElementById(`${prefix}-bq-table`)?.value?.trim() || '';
+        const primaryKey = document.getElementById(`${prefix}-primary-key`)?.value?.trim() || '';
         const comparisonFields = document.getElementById(`${prefix}-comparison-fields`)?.value?.trim() || '';
         
         // Parse comparison fields
@@ -4228,7 +4149,7 @@ async function startRDBMSComparison(dbType) {
         // Validation
         const missingFields = [];
         if (!sourceTable) missingFields.push('Source Table');
-        if (!bqDataset) missingFields.push('BigQuery Dataset');
+        if (!bqTable) missingFields.push('BigQuery Table');
         if (!primaryKey) missingFields.push('Primary Key');
         if (!connectionData.host && !connectionData.server) missingFields.push('Host/Server');
         if (!connectionData.username) missingFields.push('Username');
@@ -4244,142 +4165,58 @@ async function startRDBMSComparison(dbType) {
             return;
         }
         
-        // Validate BigQuery dataset format (project.dataset)
-        if (!bqDataset.match(/^[\w-]+\.[\w-]+$/)) {
+        // Validate BigQuery table format
+        if (!bqTable.match(/^[\w-]+\.[\w-]+\.[\w-]+$/)) {
             resultsDiv.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
-                    ❌ <strong>Invalid BigQuery Dataset Format</strong><br>
-                    Must be: <strong>project.dataset</strong><br>
-                    Example: rax-landing-qa.brm_ods
+                    ❌ <strong>Invalid BigQuery Table Format</strong><br>
+                    Must be: <strong>project.dataset.table</strong><br>
+                    Example: rax-landing-qa.brm_ods.deal_t
                 </div>
             `;
             return;
         }
         
-      // Process multiple tables sequentially
-        const allResults = [];
-        const totalTables = sourceTables.length;
+        resultsDiv.innerHTML = '<div class="loading" style="text-align: center; padding: 40px;">🔄 Running validation... Please wait...</div>';
         
-        // Hide config section and show results section for progress display
-        const configSection = document.getElementById('oracle-config-section');
-        const resultsSection = document.getElementById('oracle-comparison-results');
+        // Build request
+        const requestData = {
+            dbType: dbType,
+            host: connectionData.host || connectionData.server,
+            port: connectionData.port,
+            database: connectionData.database,
+            server: connectionData.server,
+            service: connectionData.service,
+            username: connectionData.username,
+            password: connectionData.password,
+            sourceTable: sourceTable,
+            bqTable: bqTable,
+            primaryKey: primaryKey,
+            comparisonFields: comparisonFieldsArray
+        };
         
-        if (configSection) {
-            configSection.style.display = 'none';
-        }
-       if (resultsSection) {
-            resultsSection.style.display = 'block';
-            resultsDiv = resultsSection;
-            console.log('Results section displayed, resultsDiv:', resultsDiv);
+        console.log('Sending request:', { dbType, sourceTable, bqTable, primaryKey });
+        
+        // Call API
+        const response = await fetch('/api/rdbms-vs-bq', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestData)
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            // PASS dbType to display function
+            displayRDBMSResults(result, dbType, resultsDiv);
         } else {
-            console.log('ERROR: resultsSection not found!');
-        }
-        
-        for (let i = 0; i < totalTables; i++) {
-            const currentSourceTable = sourceTables[i];
-            const currentTableName = currentSourceTable.includes('.') ? currentSourceTable.split('.').pop().toLowerCase() : currentSourceTable.toLowerCase();
-            const currentBqTable = `${bqDataset}.${currentTableName}`;
-            
-            // Update progress with animated spinner
             resultsDiv.innerHTML = `
-                <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
-                    <div class="spinner" style="margin: 0 auto 20px; width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                    <div style="font-size: 22px; font-weight: bold; margin-bottom: 10px;">🔄 Validating Tables...</div>
-                    <div style="font-size: 16px; margin-bottom: 15px;">Table ${i + 1} of ${totalTables}</div>
-                    <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        <div style="font-size: 14px; opacity: 0.9;">Currently processing:</div>
-                        <div style="font-size: 16px; font-weight: bold; margin-top: 5px;">${currentSourceTable}</div>
-                        <div style="font-size: 13px; opacity: 0.8; margin-top: 5px;">↓</div>
-                        <div style="font-size: 14px; opacity: 0.9;">${currentBqTable}</div>
-                    </div>
-                    <div style="background: rgba(255,255,255,0.3); border-radius: 10px; height: 24px; overflow: hidden; margin-bottom: 10px;">
-                        <div style="background: rgba(255,255,255,0.9); height: 100%; width: ${((i + 1) / totalTables) * 100}%; transition: width 0.5s; display: flex; align-items: center; justify-content: center; color: #764ba2; font-weight: bold; font-size: 12px;">
-                            ${Math.round(((i + 1) / totalTables) * 100)}%
-                        </div>
-                    </div>
-                    <div style="font-size: 13px; opacity: 0.8;">${i} completed • ${totalTables - i - 1} remaining</div>
+                <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                    ❌ <strong>Validation Failed</strong><br>
+                    ${result.error}<br><br>
+                    ${result.suggestions ? `<strong>Suggestions:</strong><ul>${result.suggestions.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
                 </div>
-                <style>
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                </style>
             `;
-            
-            // Build request for current table
-            const requestData = {
-                dbType: dbType,
-                host: connectionData.host || connectionData.server,
-                port: connectionData.port,
-                database: connectionData.database,
-                server: connectionData.server,
-                service: connectionData.service,
-                username: connectionData.username,
-                password: connectionData.password,
-                sourceTable: currentSourceTable,
-                bqTable: currentBqTable,
-                primaryKey: primaryKeys[i] || primaryKeys[0] || '',
-                comparisonFields: comparisonFieldsArray,
-                sourceFilter: document.getElementById(`${prefix}-source-filter`)?.value?.trim() || '',
-                targetFilter: document.getElementById(`${prefix}-target-filter`)?.value?.trim() || '',
-            };
-            
-            console.log(`Validating table ${i + 1}/${totalTables}:`, { sourceTable: currentSourceTable, bqTable: currentBqTable });
-            
-            try {
-                // Call API
-                const response = await fetch('/api/rdbms-vs-bq', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestData)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    allResults.push({
-                        sourceTable: currentSourceTable,
-                        bqTable: currentBqTable,
-                        success: true,
-                        data: result
-                    });
-                } else {
-                    allResults.push({
-                        sourceTable: currentSourceTable,
-                        bqTable: currentBqTable,
-                        success: false,
-                        error: result.error,
-                        suggestions: result.suggestions
-                    });
-                }
-            } catch (error) {
-                allResults.push({
-                    sourceTable: currentSourceTable,
-                    bqTable: currentBqTable,
-                    success: false,
-                    error: error.message
-                });
-            }
-        }
-        
-        // Display results
-        if (allResults.length === 1) {
-            // Single table - use existing display
-            if (allResults[0].success) {
-                displayRDBMSResults(allResults[0].data, dbType, resultsDiv);
-            } else {
-                resultsDiv.innerHTML = `
-                    <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
-                        ❌ <strong>Validation Failed</strong><br>
-                        ${allResults[0].error}<br><br>
-                        ${allResults[0].suggestions ? `<strong>Suggestions:</strong><ul>${allResults[0].suggestions.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
-                    </div>
-                `;
-            }
-        } else {
-            // Multiple tables - display with tabs
-            displayMultiTableResults(allResults, dbType, resultsDiv);
         }
         
     } catch (error) {
@@ -4428,8 +4265,7 @@ function displayRDBMSResults(result, dbType, targetDiv) {
     const targetTotal = summary.targetRecords || 0;
     const sourceUnique = summary.uniqueSourceRecords || 0;
     const targetUnique = recordCounts.bqDetails?.uniquePrimaryKeys || 0;
-    // To prioritize summary first, and be more explicit:
-    const sourceDuplicates = (summary && summary.duplicateRecordsInFile !== undefined) ? summary.duplicateRecordsInFile : (duplicatesAnalysis.jsonDuplicates?.duplicateCount || 0);
+    const sourceDuplicates = duplicatesAnalysis.jsonDuplicates?.duplicateCount || 0;
     const targetDuplicates = duplicatesAnalysis.bqDuplicates?.duplicateCount || 0;
     const nullKeys = (recordCounts.jsonDetails?.nullPrimaryKeys || 0) + (recordCounts.bqDetails?.nullPrimaryKeys || 0);
     const successRate = summary.pipelineSuccessRate || '0.0';
@@ -4568,470 +4404,7 @@ function displayRDBMSResults(result, dbType, targetDiv) {
     
     console.log('=== RESULTS DISPLAYED FOR', dbName, '===');
 }
-// ========== MULTI-TABLE RESULTS DISPLAY ==========
-// Display results for multiple tables with tabs
-function displayMultiTableResults(allResults, dbType, targetDiv) {
-    console.log('=== DISPLAYING MULTI-TABLE RESULTS ===', allResults.length, 'tables');
-    
-    // Store results globally for export
-    window.multiTableResults = allResults;
-    window.multiTableDbType = dbType;
-    
-    // Calculate summary stats
-    const successCount = allResults.filter(r => r.success).length;
-    const failCount = allResults.length - successCount;
-    const totalSourceRecords = allResults.reduce((sum, r) => {
-        if (r.success) {
-            const data = r.data.data || r.data;
-            return sum + (data.summary?.totalRecordsInSource || 0);
-        }
-        return sum;
-    }, 0);
-    const totalMatches = allResults.reduce((sum, r) => {
-        if (r.success) {
-            const data = r.data.data || r.data;
-            return sum + (data.summary?.recordsReachedTarget || 0);
-        }
-        return sum;
-    }, 0);
-    
-    // Build tabs HTML
-    const tabsHtml = allResults.map((result, idx) => {
-        const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
-        const statusIcon = result.success ? '✅' : '❌';
-        const activeClass = idx === 0 ? 'active' : '';
-        return `<button class="multi-table-tab ${activeClass}" onclick="showMultiTableTab(${idx})" data-tab="${idx}">
-            ${statusIcon} ${tableName}
-        </button>`;
-    }).join('');
-    
-    // Build content for each table
-    const contentsHtml = allResults.map((result, idx) => {
-        const displayStyle = idx === 0 ? 'block' : 'none';
-        const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
-        
-        if (result.success) {
-            const data = result.data.data || result.data;
-            const summary = data.summary || {};
-            const matchRate = summary.pipelineSuccessRate || '0';
-            const sourceTotal = summary.totalRecordsInSource || 0;
-            const matches = summary.recordsReachedTarget || 0;
-            const mismatches = summary.recordsFailedToReachTarget || 0;
-            
-            return `
-                <div class="multi-table-content" id="multi-table-content-${idx}" style="display: ${displayStyle};">
-                    <div style="background: #d4edda; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745;">
-                        <h4 style="margin: 0 0 15px 0; color: #155724;">
-                            ✅ Table ${idx + 1}: ${tableName}
-                        </h4>
-                        <div style="color: #666; margin-bottom: 15px; font-size: 13px;">
-                            <strong>Source:</strong> ${result.sourceTable} → <strong>Target:</strong> ${result.bqTable}
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
-                            <div style="background: white; padding: 15px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                <div style="font-size: 28px; font-weight: bold; color: #007bff;">${sourceTotal.toLocaleString()}</div>
-                                <div style="font-size: 12px; color: #666;">Source Records</div>
-                            </div>
-                            <div style="background: white; padding: 15px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                <div style="font-size: 28px; font-weight: bold; color: #28a745;">${matches.toLocaleString()}</div>
-                                <div style="font-size: 12px; color: #666;">Matches</div>
-                            </div>
-                            <div style="background: white; padding: 15px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                <div style="font-size: 28px; font-weight: bold; color: #dc3545;">${mismatches.toLocaleString()}</div>
-                                <div style="font-size: 12px; color: #666;">Mismatches</div>
-                            </div>
-                            <div style="background: white; padding: 15px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                <div style="font-size: 28px; font-weight: bold; color: #17a2b8;">${matchRate}%</div>
-                                <div style="font-size: 12px; color: #666;">Success Rate</div>
-                            </div>
-                        </div>
-                    </div>
-                    <button onclick="viewDetailedResults(${idx})" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                        📊 View Detailed Analysis
-                    </button>
-                    <button onclick="exportSingleTable(${idx})" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; margin-left: 10px;">
-                        📥 Export This Table
-                    </button>
-                </div>
-            `;
-        } else {
-            return `
-                <div class="multi-table-content" id="multi-table-content-${idx}" style="display: ${displayStyle};">
-                    <div style="background: #f8d7da; padding: 20px; border-radius: 8px; border-left: 4px solid #dc3545;">
-                        <h4 style="margin: 0 0 10px 0; color: #721c24;">❌ Table ${idx + 1}: ${tableName}</h4>
-                        <div style="color: #666; margin-bottom: 10px; font-size: 13px;">
-                            <strong>Source:</strong> ${result.sourceTable} → <strong>Target:</strong> ${result.bqTable}
-                        </div>
-                        <p style="color: #721c24; margin: 10px 0;">${result.error}</p>
-                        ${result.suggestions ? `<ul style="color: #721c24;">${result.suggestions.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
-                    </div>
-                </div>
-            `;
-        }
-    }).join('');
-    
-    // Build export dropdown options
-    const exportOptions = allResults.filter(r => r.success).map((result, idx) => {
-        const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
-        const actualIdx = allResults.indexOf(result);
-        return `<option value="${actualIdx}">${tableName}</option>`;
-    }).join('');
-    
-    targetDiv.innerHTML = `
-        <div style="padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 style="color: #495057; margin: 0;">📊 Multi-Table Validation Results</h3>
-                <button onclick="startNewMultiComparison('${dbType}')" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                    🔄 New Comparison
-                </button>
-            </div>
-            
-            <!-- Overall Summary -->
-            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 25px;">
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; text-align: center; color: white;">
-                    <div style="font-size: 32px; font-weight: bold;">${allResults.length}</div>
-                    <div style="font-size: 13px; opacity: 0.9;">Total Tables</div>
-                </div>
-                <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 20px; border-radius: 10px; text-align: center; color: white;">
-                    <div style="font-size: 32px; font-weight: bold;">${successCount}</div>
-                    <div style="font-size: 13px; opacity: 0.9;">Successful</div>
-                </div>
-                <div style="background: ${failCount > 0 ? 'linear-gradient(135deg, #eb3349 0%, #f45c43 100%)' : 'linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%)'}; padding: 20px; border-radius: 10px; text-align: center; color: white;">
-                    <div style="font-size: 32px; font-weight: bold;">${failCount}</div>
-                    <div style="font-size: 13px; opacity: 0.9;">Failed</div>
-                </div>
-                <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 20px; border-radius: 10px; text-align: center; color: white;">
-                    <div style="font-size: 32px; font-weight: bold;">${totalSourceRecords.toLocaleString()}</div>
-                    <div style="font-size: 13px; opacity: 0.9;">Total Records</div>
-                </div>
-                <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); padding: 20px; border-radius: 10px; text-align: center; color: white;">
-                    <div style="font-size: 32px; font-weight: bold;">${totalMatches.toLocaleString()}</div>
-                    <div style="font-size: 13px; opacity: 0.9;">Total Matches</div>
-                </div>
-            </div>
-            
-            <!-- Export Dropdown -->
-            <div style="margin-bottom: 20px;">
-                <select id="exportTableSelect" onchange="exportSelectedTable(this.value)" style="padding: 12px 20px; border: 2px solid #28a745; border-radius: 6px; background: white; cursor: pointer; font-size: 14px; min-width: 250px;">
-                    <option value="">📥 Export Results...</option>
-                    <option value="all">📦 Export All Tables (Combined Excel)</option>
-                    <optgroup label="Individual Tables">
-                        ${exportOptions}
-                    </optgroup>
-                </select>
-            </div>
-            
-            <!-- Table Tabs -->
-            <div style="border-bottom: 2px solid #dee2e6; margin-bottom: 20px;">
-                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                    ${tabsHtml}
-                </div>
-            </div>
-            
-            <!-- Table Contents -->
-            ${contentsHtml}
-        </div>
-        
-        <style>
-            .multi-table-tab {
-                padding: 12px 20px;
-                border: none;
-                background: #f8f9fa;
-                cursor: pointer;
-                border-radius: 8px 8px 0 0;
-                font-size: 13px;
-                font-weight: 500;
-                transition: all 0.2s;
-                border: 1px solid #dee2e6;
-                border-bottom: none;
-            }
-            .multi-table-tab:hover {
-                background: #e9ecef;
-            }
-            .multi-table-tab.active {
-                background: #007bff;
-                color: white;
-                border-color: #007bff;
-            }
-        </style>
-    `;
-}
 
-// Switch between table tabs
-function showMultiTableTab(tabIndex) {
-    document.querySelectorAll('.multi-table-content').forEach(el => el.style.display = 'none');
-    document.getElementById(`multi-table-content-${tabIndex}`).style.display = 'block';
-    document.querySelectorAll('.multi-table-tab').forEach(el => el.classList.remove('active'));
-    document.querySelector(`.multi-table-tab[data-tab="${tabIndex}"]`).classList.add('active');
-}
-
-// View detailed results for a specific table
-function viewDetailedResults(tabIndex) {
-    const result = window.multiTableResults[tabIndex];
-    if (result && result.success) {
-        const resultsDiv = document.getElementById('oracle-comparison-results');
-        if (resultsDiv) {
-            // Store current multi-table HTML to restore later
-            window.multiTableHTML = resultsDiv.innerHTML;
-            
-            // Add back button before detailed results
-            const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
-            const backButton = `
-                <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                    <button onclick="backToMultiTableSummary()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                        ← Back to Multi-Table Summary
-                    </button>
-                    <span style="font-weight: 600; color: #495057;">📊 Detailed Results: ${tableName}</span>
-                </div>
-            `;
-            
-            // Display detailed results with back button
-            displayRDBMSResults(result.data, window.multiTableDbType || 'oracle', resultsDiv);
-            
-            // Prepend back button to results
-            resultsDiv.innerHTML = backButton + resultsDiv.innerHTML;
-        }
-    }
-}
-
-// Back to multi-table summary
-function backToMultiTableSummary() {
-    const resultsDiv = document.getElementById('oracle-comparison-results');
-    if (resultsDiv && window.multiTableHTML) {
-        resultsDiv.innerHTML = window.multiTableHTML;
-    }
-}
-// Start new comparison
-function startNewMultiComparison(dbType) {
-    const prefix = dbType === 'postgresql' ? 'pg' : dbType;
-    const configSection = document.getElementById(`${prefix}-config-section`) || document.getElementById('oracle-config-section');
-    const resultsSection = document.getElementById(`${prefix}-comparison-results`) || document.getElementById('oracle-comparison-results');
-    
-    // Also check for detailed results (single table view)
-    const detailedResults = document.getElementById('oracle-comparison-results');
-    
-    // Show config form
-    if (configSection) configSection.style.display = 'block';
-    
-    // Hide all results sections
-    if (resultsSection) resultsSection.style.display = 'none';
-    if (detailedResults) detailedResults.style.display = 'none';
-    
-    // Scroll to top so user sees the form
-    window.scrollTo({top: 0, behavior: 'smooth'});
-}
-
-// Export single table
-function exportSingleTable(tabIndex) {
-    const result = window.multiTableResults[tabIndex];
-    if (!result || !result.success) {
-        alert('No valid results to export');
-        return;
-    }
-    
-    if (typeof XLSX === 'undefined') {
-        alert('Excel export library not loaded. Please refresh and try again.');
-        return;
-    }
-    
-    const data = result.data.data || result.data;
-    const summary = data.summary || {};
-    const schemaAnalysis = data.schemaAnalysis || {};
-    const fieldWiseAnalysis = data.fieldWiseAnalysis || {};
-    const duplicatesAnalysis = data.duplicatesAnalysis || {};
-    
-    const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
-    
-    const wb = XLSX.utils.book_new();
-    
-    // Sheet 1: Summary
-    const summaryData = [
-        ['Validation Results: ' + tableName],
-        [''],
-        ['Source Table:', result.sourceTable],
-        ['BigQuery Table:', result.bqTable],
-        [''],
-        ['=== SUMMARY ==='],
-        ['Source Records:', summary.totalRecordsInSource || 0],
-        ['Target Records:', summary.targetRecords || 0],
-        ['Matches:', summary.recordsReachedTarget || 0],
-        ['Mismatches:', summary.recordsFailedToReachTarget || 0],
-        ['Success Rate:', (summary.pipelineSuccessRate || '0') + '%'],
-        [''],
-        ['=== SCHEMA ==='],
-        ['Common Fields:', (schemaAnalysis.commonFields || []).length],
-        ['Source Only Fields:', (schemaAnalysis.jsonOnlyFields || []).length],
-        ['Target Only Fields:', (schemaAnalysis.bqOnlyFields || []).length],
-        [''],
-        ['=== FIELD ANALYSIS ==='],
-        ['Fields Analyzed:', fieldWiseAnalysis.fieldsAnalyzed || 0],
-        ['Fields with Issues:', (fieldWiseAnalysis.fieldComparison || []).filter(f => f.mismatchCount > 0).length],
-        [''],
-        ['=== DUPLICATES ==='],
-        ['Source Duplicates:', duplicatesAnalysis.jsonDuplicates?.duplicateCount || 0],
-        ['Target Duplicates:', duplicatesAnalysis.bqDuplicates?.duplicateCount || 0]
-    ];
-    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
-    
-    // Sheet 2: Schema Details
-    const schemaData = [
-        ['Schema Analysis'],
-        [''],
-        ['Common Fields:'],
-        ...(schemaAnalysis.commonFields || []).map(f => ['  ' + f]),
-        [''],
-        ['Source Only Fields:'],
-        ...(schemaAnalysis.jsonOnlyFields || []).map(f => ['  ' + f]),
-        [''],
-        ['Target Only Fields:'],
-        ...(schemaAnalysis.bqOnlyFields || []).map(f => ['  ' + f])
-    ];
-    const schemaSheet = XLSX.utils.aoa_to_sheet(schemaData);
-    XLSX.utils.book_append_sheet(wb, schemaSheet, 'Schema');
-    
-    // Sheet 3: Field Analysis
-    const fieldData = [
-        ['Field Name', 'Match Count', 'Mismatch Count', 'Null in Source', 'Null in Target', 'Match Rate']
-    ];
-    (fieldWiseAnalysis.fieldComparison || []).forEach(field => {
-        fieldData.push([
-            field.field || field.fieldName,
-            field.matchCount || 0,
-            field.mismatchCount || 0,
-            field.nullInSource || 0,
-            field.nullInTarget || 0,
-            field.matchRate || '0%'
-        ]);
-    });
-    const fieldSheet = XLSX.utils.aoa_to_sheet(fieldData);
-    XLSX.utils.book_append_sheet(wb, fieldSheet, 'Field Analysis');
-    
-    // Sheet 4: Duplicates
-    const dupData = [
-        ['Duplicates Analysis'],
-        [''],
-        ['Source Duplicates:', duplicatesAnalysis.jsonDuplicates?.duplicateCount || 0],
-        ['Target Duplicates:', duplicatesAnalysis.bqDuplicates?.duplicateCount || 0],
-        [''],
-        ['Source Duplicate Keys:'],
-        ...(duplicatesAnalysis.jsonDuplicates?.duplicateKeys || []).slice(0, 100).map(k => ['  ' + k]),
-        [''],
-        ['Target Duplicate Keys:'],
-        ...(duplicatesAnalysis.bqDuplicates?.duplicateKeys || []).slice(0, 100).map(k => ['  ' + k])
-    ];
-    const dupSheet = XLSX.utils.aoa_to_sheet(dupData);
-    XLSX.utils.book_append_sheet(wb, dupSheet, 'Duplicates');
-    
-    // Download
-    const timestamp = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `${tableName}_validation_${timestamp}.xlsx`);
-}
-
-// Export selected table or all tables
-function exportSelectedTable(value) {
-    if (!value) return;
-    
-    if (value === 'all') {
-        exportAllTablesToExcel();
-    } else {
-        exportSingleTable(parseInt(value));
-    }
-    document.getElementById('exportTableSelect').value = '';
-}
-
-// Export all tables to a combined Excel file
-function exportAllTablesToExcel() {
-    const results = window.multiTableResults;
-    if (!results || results.length === 0) {
-        alert('No results to export');
-        return;
-    }
-    
-    // Check if SheetJS is available
-    if (typeof XLSX === 'undefined') {
-        alert('Excel export library not loaded. Please refresh and try again.');
-        return;
-    }
-    
-    const wb = XLSX.utils.book_new();
-    
-    // Add summary sheet first
-    const summaryData = [
-        ['Multi-Table Validation Report'],
-        ['Generated:', new Date().toLocaleString()],
-        [''],
-        ['Table Name', 'Source Table', 'BigQuery Table', 'Status', 'Source Records', 'Matches', 'Mismatches', 'Success Rate']
-    ];
-    
-    results.forEach((result, idx) => {
-        const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
-        if (result.success) {
-            const data = result.data.data || result.data;
-            const summary = data.summary || {};
-            summaryData.push([
-                tableName,
-                result.sourceTable,
-                result.bqTable,
-                'Success',
-                summary.totalRecordsInSource || 0,
-                summary.recordsReachedTarget || 0,
-                summary.recordsFailedToReachTarget || 0,
-                (summary.pipelineSuccessRate || '0') + '%'
-            ]);
-        } else {
-            summaryData.push([
-                tableName,
-                result.sourceTable,
-                result.bqTable,
-                'Failed',
-                '-',
-                '-',
-                '-',
-                result.error || 'Unknown error'
-            ]);
-        }
-    });
-    
-    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
-    
-    // Add individual sheets for each successful table
-    results.forEach((result, idx) => {
-        if (result.success) {
-            const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
-            const sheetName = tableName.substring(0, 31); // Excel sheet name limit
-            
-            const data = result.data.data || result.data;
-            const summary = data.summary || {};
-            const schemaAnalysis = data.schemaAnalysis || {};
-            
-            const sheetData = [
-                [`Validation Results: ${tableName}`],
-                ['Source Table:', result.sourceTable],
-                ['BigQuery Table:', result.bqTable],
-                [''],
-                ['=== SUMMARY ==='],
-                ['Source Records:', summary.totalRecordsInSource || 0],
-                ['Matches:', summary.recordsReachedTarget || 0],
-                ['Mismatches:', summary.recordsFailedToReachTarget || 0],
-                ['Success Rate:', (summary.pipelineSuccessRate || '0') + '%'],
-                [''],
-                ['=== SCHEMA ==='],
-                ['Common Fields:', (schemaAnalysis.commonFields || []).length],
-                ['Source Only Fields:', (schemaAnalysis.jsonOnlyFields || []).length],
-                ['Target Only Fields:', (schemaAnalysis.bqOnlyFields || []).length]
-            ];
-            
-            const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-            XLSX.utils.book_append_sheet(wb, sheet, sheetName);
-        }
-    });
-    
-    // Download the file
-    const timestamp = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `multi_table_validation_${timestamp}.xlsx`);
-}
 // Helper functions - EXACT SAME AS JSON VS BQ
 function populateColumnNamesContent(schemaAnalysis, dbName) {
     const commonFields = schemaAnalysis.commonFields || [];
@@ -5106,48 +4479,22 @@ function populateComparisonContent(summary, schemaAnalysis, matchCount, failedCo
         </div>
 
         <div class="tab-summary-cards">
-            <!-- Card 1: Total Source Records -->
             <div class="summary-card">
                 <div class="summary-number">${summary.uniqueSourceRecords || 0}</div>
                 <div class="summary-label">Unique Source Records</div>
             </div>
-            
-            <!-- Card 2: Identical Records (NEW) -->
             <div class="summary-card matches">
-                <div class="summary-number">${summary.identicalRecords || summary.recordsReachedTarget || matchCount || 0}</div>
-                <div class="summary-label">Identical Records</div>
-                <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">Same PK, Same Data</div>
+                <div class="summary-number">${matchCount}</div>
+                <div class="summary-label">Found in Target</div>
             </div>
-            
-            <!-- Card 3: Mismatched Records (NEW) -->
-            <div class="summary-card ${(summary.mismatchedRecords || 0) > 0 ? 'warning' : 'pass'}">
-                <div class="summary-number">${summary.mismatchedRecords || 0}</div>
-                <div class="summary-label">Mismatched Records</div>
-                <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">Same PK, Different Data</div>
-            </div>
-            
-            <!-- Card 4: Missing in Target (NEW) -->
             <div class="summary-card missing">
                 <div class="summary-number">${failedCount}</div>
-                <div class="summary-label">Missing in Target</div>
-                <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">In Source Only</div>
+                <div class="summary-label">Not in Target</div>
             </div>
-            
-            <!-- Card 5: Extra in Target (NEW) -->
-            <div class="summary-card ${(summary.recordsOnlyInTarget || 0) > 0 ? 'warning' : 'pass'}">
-                <div class="summary-number">${summary.recordsOnlyInTarget || 0}</div>
-                <div class="summary-label">Extra in Target</div>
-                <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">In Target Only</div>
+            <div class="summary-card differences">
+                <div class="summary-number">${summary.totalFieldIssues || 0}</div>
+                <div class="summary-label">Field Quality Issues</div>
             </div>
-            
-            <!-- Card 6: NULL Primary Keys (NEW) -->
-            <div class="summary-card ${((summary.nullPrimaryKeysSource || 0) + (summary.nullPrimaryKeysTarget || 0)) > 0 ? 'warning' : 'pass'}">
-                <div class="summary-number">${(summary.nullPrimaryKeysSource || 0) + (summary.nullPrimaryKeysTarget || 0)}</div>
-                <div class="summary-label">NULL Primary Keys</div>
-                <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">Source: ${summary.nullPrimaryKeysSource || 0}, Target: ${summary.nullPrimaryKeysTarget || 0}</div>
-            </div>
-            
-            <!-- Card 7: Pipeline Success Rate -->
             <div class="summary-card ${parseFloat(successRate) >= 80 ? 'matches' : 'warning'}">
                 <div class="summary-number">${successRate}%</div>
                 <div class="summary-label">Pipeline Success Rate</div>
@@ -5417,194 +4764,6 @@ function generateColumnNamesTab(schemaAnalysis, dbName) {
             </div>
         </div>
     `;
-}
-// ============================================
-// TASK 2: Oracle Validation with Results Page
-// ============================================
-
-async function startOracleValidation() {
-    const configSection = document.getElementById('oracle-config-section');
-    const resultsSection = document.getElementById('oracle-comparison-results');
-    
-    // Get values
-    const host = document.getElementById('oracle-host')?.value?.trim();
-    const port = document.getElementById('oracle-port')?.value || 1521;
-    const service = document.getElementById('oracle-service')?.value?.trim();
-    const username = document.getElementById('oracle-username')?.value?.trim();
-    const password = document.getElementById('oracle-password')?.value;
-    const sourceTable = document.getElementById('oracle-table')?.value?.trim();
-    const bqTable = document.getElementById('oracle-bq-table')?.value?.trim();
-    const primaryKey = document.getElementById('oracle-primary-key')?.value?.trim();
-    const comparisonFieldsRaw = document.getElementById('oracle-comparison-fields')?.value?.trim() || '';
-    
-    const comparisonFields = comparisonFieldsRaw
-        ? comparisonFieldsRaw.split(',').map(f => f.trim()).filter(f => f)
-        : [];
-    
-    // Validation
-    if (!sourceTable || !bqTable || !primaryKey || !host || !service || !username || !password) {
-        alert('Please fill in all required fields');
-        return;
-    }
-    
-    if (!bqTable.match(/^[\w-]+\.[\w-]+\.[\w-]+$/)) {
-        alert('BigQuery table must be in format: project.dataset.table');
-        return;
-    }
-    
-    try {
-        // Hide config, show results with loading
-        configSection.style.display = 'none';
-        resultsSection.style.display = 'block';
-        resultsSection.innerHTML = `
-            <div class="processing-state" style="text-align: center; padding: 60px 30px;">
-                <div class="processing-spinner"></div>
-                <div class="processing-text">Running Oracle vs BigQuery Validation...</div>
-                <div class="processing-subtext">Analyzing data and comparing records</div>
-            </div>
-        `;
-        
-        const response = await fetch('/api/rdbms-vs-bq', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                dbType: 'oracle',
-                host, port, service, username, password,
-                sourceTable, bqTable, primaryKey, comparisonFields
-            })
-        });
-
-        const result = await response.json();
-        
-        if (result.success) {
-            globalComparisonResults = result.data || result;
-            displayOracleComparisonResults(result);
-        } else {
-            throw new Error(result.error || 'Validation failed');
-        }
-        
-    } catch (error) {
-        console.error('Oracle validation error:', error);
-        resultsSection.innerHTML = `
-            <div style="padding: 30px;">
-                <div class="error-container">
-                    <div class="error-header">
-                        <div class="error-icon">❌</div>
-                        <div class="error-title">Validation Failed</div>
-                    </div>
-                    <div class="error-message">${error.message}</div>
-                </div>
-                <button class="btn-secondary" onclick="startNewOracleComparison()" style="margin-top: 20px;">
-                    🔄 Try Again
-                </button>
-            </div>
-        `;
-    }
-}
-
-// New Comparison - go back to config
-function startNewOracleComparison() {
-    document.getElementById('oracle-comparison-results').style.display = 'none';
-    document.getElementById('oracle-config-section').style.display = 'block';
-    document.getElementById('oracle-comparison-results').innerHTML = '';
-}
-// Display Oracle Results - Same structure as JSON vs BQ
-function displayOracleComparisonResults(results) {
-    const resultsSection = document.getElementById('oracle-comparison-results');
-    const data = results.data || results;
-    
-    // Store globally for export
-    globalComparisonResults = data;
-    
-    resultsSection.innerHTML = `
-        <div class="results-header">
-            <div class="results-title">
-                <span>📊</span> Comprehensive Analysis Results
-            </div>
-            <div class="results-actions">
-                <button class="btn-export" onclick="exportResultsToExcel()">
-                    📊 Export to Excel
-                </button>
-                <button class="btn-secondary" onclick="startNewOracleComparison()">
-                    New Comparison
-                </button>
-            </div>
-        </div>
-
-        <div class="results-navigation-tabs">
-            <button class="results-tab-button active" onclick="showOracleResultsTab('record-count')">
-                <span class="results-tab-icon">📊</span>
-                <span class="results-tab-label">Record Count</span>
-            </button>
-            <button class="results-tab-button" onclick="showOracleResultsTab('column-names')">
-                <span class="results-tab-icon">📋</span>
-                <span class="results-tab-label">Column Names</span>
-            </button>
-            <button class="results-tab-button" onclick="showOracleResultsTab('comparison')">
-                <span class="results-tab-icon">🔍</span>
-                <span class="results-tab-label">Comparison</span>
-            </button>
-            <button class="results-tab-button" onclick="showOracleResultsTab('field-wise')">
-                <span class="results-tab-icon">🔬</span>
-                <span class="results-tab-label">Field Analysis</span>
-            </button>
-            <button class="results-tab-button" onclick="showOracleResultsTab('duplicates')">
-                <span class="results-tab-icon">🔄</span>
-                <span class="results-tab-label">Duplicates</span>
-            </button>
-        </div>
-
-        <div id="oracle-record-count-tab" class="results-tab-content active"></div>
-        <div id="oracle-column-names-tab" class="results-tab-content"></div>
-        <div id="oracle-comparison-tab" class="results-tab-content"></div>
-        <div id="oracle-field-wise-tab" class="results-tab-content"></div>
-        <div id="oracle-duplicates-tab" class="results-tab-content"></div>
-    `;
-
-    // Populate tabs using existing functions from JSON vs BQ
-    populateRecordCountTab(data.recordCounts, data.summary);
-    populateColumnNamesTabComplete(data.schemaAnalysis);
-    populateComparisonTabComplete(data.comparisonResults, data.summary, data.metadata);
-    populateFieldWiseTabComplete(data.fieldWiseAnalysis, data.summary);
-    populateDuplicatesTabEnhanced(data.duplicatesAnalysis, data.summary);
-
-    // Copy content to Oracle tabs
-    const recordCountContent = document.getElementById('record-count-tab');
-    const columnNamesContent = document.getElementById('column-names-tab');
-    const comparisonContent = document.getElementById('comparison-tab');
-    const fieldWiseContent = document.getElementById('field-wise-tab');
-    const duplicatesContent = document.getElementById('duplicates-tab');
-
-    if (recordCountContent) document.getElementById('oracle-record-count-tab').innerHTML = recordCountContent.innerHTML;
-    if (columnNamesContent) document.getElementById('oracle-column-names-tab').innerHTML = columnNamesContent.innerHTML;
-    if (comparisonContent) document.getElementById('oracle-comparison-tab').innerHTML = comparisonContent.innerHTML;
-    if (fieldWiseContent) document.getElementById('oracle-field-wise-tab').innerHTML = fieldWiseContent.innerHTML;
-    if (duplicatesContent) document.getElementById('oracle-duplicates-tab').innerHTML = duplicatesContent.innerHTML;
-}
-
-// Tab switching for Oracle results
-function showOracleResultsTab(tabId) {
-    // Hide all Oracle tabs
-    document.querySelectorAll('#oracle-comparison-results .results-tab-content').forEach(tab => {
-        tab.classList.remove('active');
-    });
-
-    // Remove active from all buttons
-    document.querySelectorAll('#oracle-comparison-results .results-tab-button').forEach(btn => {
-        btn.classList.remove('active');
-    });
-
-    // Show selected tab
-    const selectedTab = document.getElementById('oracle-' + tabId + '-tab');
-    if (selectedTab) {
-        selectedTab.classList.add('active');
-    }
-
-    // Activate clicked button
-    if (event && event.target) {
-        const btn = event.target.closest('.results-tab-button');
-        if (btn) btn.classList.add('active');
-    }
 }
     </script>
 </body>
