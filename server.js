@@ -16,7 +16,7 @@ try {
     libDir: 'C:\\oracle\\instantclient_19_29'
   });
   console.log('✅ Oracle thick mode initialized successfully');
-  console.log('🏛️ Oracle Client Version:', oracledb.oracleClientVersionString);
+  console.log('🛠️ Oracle Client Version:', oracledb.oracleClientVersionString);
 } catch (err) {
   console.error('⚠️ Oracle thick mode initialization failed:', err.message);
   console.log('Continuing with thin mode - some Oracle features may be limited');
@@ -37,6 +37,7 @@ app.use('/api', jsonUploadRouter);
 const bigquery = new BigQuery({
     projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
 });
+
 // Add these RDBMS endpoints after line 20 in your server.js file
 
 // RDBMS Connection Testing
@@ -118,10 +119,58 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
     }
 });
 
+// NEW: Standalone RDBMS Data Fetch (Step 3 - ADDED)
+app.post('/api/fetch-rdbms-data', async (req, res) => {
+    try {
+        const { dbType, connectionConfig, query } = req.body;
+        
+        if (!dbType || !connectionConfig || !query) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required parameters: dbType, connectionConfig, and query are required',
+                suggestions: [
+                    'dbType: postgresql, mysql, oracle, or sqlserver',
+                    'connectionConfig: {host, port, database/service, username, password}',
+                    'query: SQL query string'
+                ]
+            });
+        }
+        
+        console.log(`📡 Fetching ${dbType.toUpperCase()} data...`);
+        console.log(`📋 Query: ${query.substring(0, 150)}${query.length > 150 ? '...' : ''}`);
+        
+        // Use the generic fetchData method from rdbms-integration.js
+        const result = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
+        
+        console.log(`✅ ${dbType.toUpperCase()} fetch successful: ${result.recordCount} records`);
+        
+        res.json({
+            success: true,
+            data: result.records,
+            recordCount: result.recordCount,
+            dbType: dbType.toUpperCase(),
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ RDBMS data fetch failed:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            suggestions: [
+                'Check database connection parameters',
+                'Verify SQL query syntax for your database type',
+                'Ensure table exists and has data',
+                'Check if user has SELECT privileges'
+            ]
+        });
+    }
+});
+
 // RDBMS vs BigQuery Comparison (using proven JSON vs BQ pattern)
 app.post('/api/rdbms-vs-bq', async (req, res) => {
     try {
-        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [] } = req.body;
+        const { dbType, host, port, database , service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [] } = req.body;
         
         console.log(`Starting ${dbType} vs BigQuery comparison using proven JSON vs BQ pattern...`);
         console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
@@ -130,6 +179,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
         const connectionConfig = { 
             host, 
             port: parseInt(port) || (dbType === 'oracle' ? 1521 : 5432), 
+			database,
             service, 
             username, 
             password 
@@ -184,25 +234,32 @@ try {
 const SAMPLE_SIZE = 2000;
 console.log(`📦 Fetching ${SAMPLE_SIZE} sample records for validation...`);
 
-const fields = [primaryKey, ...comparisonFields].filter(f => f?.trim());
+// FIXED: If comparisonFields is empty, fetch ALL columns using SELECT *
+const hasComparisonFields = comparisonFields && comparisonFields.length > 0 && comparisonFields.some(f => f?.trim());
+const fieldSelection = hasComparisonFields 
+    ? [primaryKey, ...comparisonFields].filter(f => f?.trim()).join(', ')
+    : '*';  // SELECT ALL columns when no comparison fields specified
+
 let query;
 
 switch(dbType.toLowerCase()) {
     case 'oracle':
-        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} WHERE ROWNUM <= ${SAMPLE_SIZE}`;
+        query = `SELECT ${fieldSelection} FROM ${sourceTable} WHERE ROWNUM <= ${SAMPLE_SIZE}`;
         break;
     case 'postgresql':
-        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+        query = `SELECT ${fieldSelection} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
         break;
     case 'mysql':
-        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+        query = `SELECT ${fieldSelection} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
         break;
     case 'sqlserver':
-        query = `SELECT TOP ${SAMPLE_SIZE} ${fields.join(', ')} FROM ${sourceTable}`;
+        query = `SELECT TOP ${SAMPLE_SIZE} ${fieldSelection} FROM ${sourceTable}`;
         break;
     default:
-        query = `SELECT ${fields.join(', ')} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
+        query = `SELECT ${fieldSelection} FROM ${sourceTable} LIMIT ${SAMPLE_SIZE}`;
 }
+
+console.log(`FIXED: Query will fetch ${fieldSelection === '*' ? 'ALL columns' : fieldSelection}`);
 
         console.log(`Executing query: ${query}`);
         
@@ -226,11 +283,36 @@ switch(dbType.toLowerCase()) {
         }
 
         // Step 2: Create temp BigQuery table from RDBMS data (exact same as JSON vs BQ)
-		console.log('=== RDBMS DATA DEBUG ===');
-        console.log('RDBMS data sample:', JSON.stringify(rdbmsResult.records[0], null, 2));
-        console.log('Records count:', rdbmsResult.records.length);
-        console.log('Primary key:', primaryKey);
-        console.log('=======================');
+		console.log('=== MYSQL DATA FETCH DEBUG ===');
+console.log('✅ MySQL fetch returned:', rdbmsResult.recordCount, 'records');
+console.log('📋 First record structure:', JSON.stringify(rdbmsResult.records[0], null, 2));
+
+// CRITICAL: Extract and log column names
+const mysqlColumns = Object.keys(rdbmsResult.records[0] || {});
+console.log('🔑 COLUMN NAMES DETECTED FROM MYSQL:', mysqlColumns);
+console.log('🔢 TOTAL COLUMNS DETECTED:', mysqlColumns.length);
+console.log('📊 Expected columns: [id, sha1sum_ipv6, cluster_type]');
+
+// Check each expected column
+console.log('🔍 Column verification:');
+console.log('  - "id" exists?', mysqlColumns.includes('id'));
+console.log('  - "sha1sum_ipv6" exists?', mysqlColumns.includes('sha1sum_ipv6'));
+console.log('  - "cluster_type" exists?', mysqlColumns.includes('cluster_type'));
+
+// Check for case sensitivity issues
+console.log('🔍 Column names (case check):', mysqlColumns.map(col => `"${col}"`).join(', '));
+
+// Check data types of values
+console.log('🔍 Sample values:');
+mysqlColumns.forEach(col => {
+    const value = rdbmsResult.records[0][col];
+    console.log(`  - ${col}: ${value} (type: ${typeof value})`);
+});
+
+console.log('🔑 Primary key field:', primaryKey);
+console.log('🔑 Primary key exists in data?', primaryKey in rdbmsResult.records[0]);
+console.log('🔑 Primary key value:', rdbmsResult.records[0]?.[primaryKey]);
+console.log('================================');
         const bqService = new BigQueryIntegrationService();
         const tempTableResult = await bqService.createTempTableFromJSON(
             rdbmsResult.records, 
@@ -1340,7 +1422,12 @@ app.get('/api/health', (req, res) => {
             maxFileSize: '100MB',
             batchSize: '1000 records per batch',
             supportedFileFormats: ['JSON Array', 'JSONL', 'Single JSON Object'],
-            supportedDataSources: ['ServiceNow', 'AWS Partner Central', 'Monitor Details', 'Pool Details', 'Any JSON/JSONL']
+            supportedDataSources: ['ServiceNow', 'AWS Partner Central', 'Monitor Details', 'Pool Details', 'Any JSON/JSONL'],
+            
+            // RDBMS Support
+            rdbmsIntegration: true,
+            supportedDatabases: ['PostgreSQL', 'MySQL', 'Oracle', 'SQL Server'],
+            rdbmsStandaloneDataFetch: true
         },
         capabilities: {
             comparison: {
@@ -1354,6 +1441,12 @@ app.get('/api/health', (req, res) => {
                 checks: ['Null values', 'Duplicates', 'Composite keys', 'Special characters'],
                 tableValidation: 'BigQuery stored procedures',
                 errorHandling: 'Enhanced with detailed suggestions'
+            },
+            rdbms: {
+                connectionTesting: true,
+                schemaAnalysis: true,
+                dataComparison: true,
+                standaloneDataFetch: true
             }
         },
         fixes: [
@@ -1363,7 +1456,8 @@ app.get('/api/health', (req, res) => {
             'UI rebranding - Table Validation renamed to Sanity Test',
             'Enhanced error messages with data type guidance',
             'Automatic type casting for accurate comparisons',
-            'Cross-system duplicate key detection'
+            'Cross-system duplicate key detection',
+            'RDBMS standalone data fetch endpoint added'
         ]
     });
 });
@@ -1390,9 +1484,15 @@ app.listen(port, '0.0.0.0', () => {
     console.log(`✅ UI ENHANCEMENTS:`);
     console.log(`   - Table Validation renamed to Sanity Test`);
     console.log(`   - Enhanced error handling and suggestions`);
+    console.log(`✅ RDBMS INTEGRATION:`);
+    console.log(`   - PostgreSQL, MySQL, Oracle, SQL Server support`);
+    console.log(`   - Connection testing and schema analysis`);
+    console.log(`   - Standalone data fetch endpoint: /api/fetch-rdbms-data`);
+    console.log(`   - RDBMS to BigQuery comparison`);
     console.log(`=== ALL FIXES IMPLEMENTED ===`);
     console.log(`🎯 Issue #1: Universal data type support - FIXED`);
     console.log(`🎯 Issue #2: Dual-system duplicates analysis - FIXED`);
     console.log(`🎯 Issue #3: Excel export functionality - READY`);
     console.log(`🎯 Issue #4: Sanity Test rebranding - IMPLEMENTED`);
+    console.log(`🎯 Issue #5: RDBMS standalone fetch endpoint - ADDED`);
 });

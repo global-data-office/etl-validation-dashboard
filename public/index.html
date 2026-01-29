@@ -12,6 +12,17 @@
             padding: 0;
             box-sizing: border-box;
         }
+		
+		@keyframes pulse {
+            0%, 100% { 
+                opacity: 1; 
+                transform: scale(1); 
+            }
+            50% { 
+                opacity: 0.8; 
+                transform: scale(0.98); 
+            }
+        }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -1404,19 +1415,19 @@
 
         <!-- Navigation Tabs - UPDATED: Sanity Test -->
         <div class="navigation-tabs">
-            <button class="tab-button active" onclick="showPage('table-validation')">
+            <button class="tab-button active" onclick="showPage('table-validation', this)">
                 <span class="tab-icon">🔬</span>
                 <span class="tab-label">Sanity Test</span>
             </button>
-            <button class="tab-button" onclick="showPage('json-comparison')">
+            <button class="tab-button" onclick="showPage('json-comparison', this)">
                 <span class="tab-icon">🆚</span>
                 <span class="tab-label">JSON vs BQ</span>
             </button>
-            <button class="tab-button" onclick="showPage('api-comparison')">
+            <button class="tab-button" onclick="showPage('api-comparison', this)">
                 <span class="tab-icon">🔗</span>
                 <span class="tab-label">API vs BQ</span>
             </button>
-            <button class="tab-button" onclick="showPage('rdbms-comparison')">
+            <button class="tab-button" onclick="showPage('rdbms-comparison', this)">
                 <span class="tab-icon">🗄️</span>
                 <span class="tab-label">RDBMS vs BQ</span>
             </button>
@@ -1821,7 +1832,7 @@
                     </small>
                 </div>
 
-                <button id="testMySQLConnection" class="btn-secondary" onclick="testDatabaseConnection('mysql')"
+                <button id="testMysqlConnection" class="btn-secondary" onclick="testDatabaseConnection('mysql')"
                         style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
                     🔍 Test MySQL Connection
                 </button>
@@ -1852,7 +1863,7 @@
                               style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; resize: vertical; font-family: monospace;"></textarea>
                 </div>
 
-                <button class="btn-primary" onclick="startRDBMSComparison('mysql')"
+                <button id="startMysqlValidation" class="btn-primary" onclick="startRDBMSComparison('mysql')"
                         style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
                     🚀 Start MySQL vs BigQuery Validation
                 </button>
@@ -2050,22 +2061,24 @@
         let globalComparisonResults = null;
         let currentFileId = null;
 
-        function showPage(pageId) {
-            const pages = document.querySelectorAll('.page-content');
-            pages.forEach(page => page.classList.remove('active'));
+ function showPage(pageId, clickedButton) {
+    const pages = document.querySelectorAll('.page-content');
+    pages.forEach(page => page.classList.remove('active'));
 
-            const tabs = document.querySelectorAll('.tab-button');
-            tabs.forEach(tab => tab.classList.remove('active'));
+    const tabs = document.querySelectorAll('.tab-button');
+    tabs.forEach(tab => tab.classList.remove('active'));
 
-            const selectedPage = document.getElementById(pageId + '-page');
-            if (selectedPage) selectedPage.classList.add('active');
+    const selectedPage = document.getElementById(pageId + '-page');
+    if (selectedPage) selectedPage.classList.add('active');
 
-            const activeTab = event.target.closest('.tab-button');
-            if (activeTab) activeTab.classList.add('active');
+    // Use the passed button instead of event.target
+    if (clickedButton) {
+        clickedButton.classList.add('active');
+    }
 
-            clearErrorMessages();
-            console.log(`Navigated to page: ${pageId}`);
-        }
+    clearErrorMessages();
+    console.log(`Navigated to page: ${pageId}`);
+}
 
         function setAsPrimaryKey(fieldName) {
             const primaryKeyInput = document.getElementById('primaryKey');
@@ -2693,7 +2706,7 @@
         }
 
         function populateRecordCountTab(recordCounts, summary) {
-            const jsonTotal = recordCounts?.jsonDetails?.totalRecords || summary?.totalRecordsInFile || 0;
+            const jsonTotal = recordCounts?.jsonDetails?.totalRecords || summary?.totalRecordsInSource || summary?.totalRecordsInFile || 0;
             const bqTotal = recordCounts?.bqDetails?.totalRecords || summary?.targetRecords || 0;
             const jsonUnique = recordCounts?.jsonDetails?.uniquePrimaryKeys || summary?.uniqueSourceRecords || 0;
             const bqUnique = recordCounts?.bqDetails?.uniquePrimaryKeys || 0;
@@ -4083,14 +4096,53 @@ function exportRdbmsToExcel(dbType) {
     }
 }
 // Reset function
+// Reset function - ENHANCED TO RESTORE FORM
 function resetRdbmsComparison(dbType) {
     if (confirm(`Start a new ${dbType.toUpperCase()} comparison? This will clear current results.`)) {
         const currentTab = document.getElementById(`${dbType}-rdbms-tab`);
         if (currentTab) {
+            // Show the configuration form again
+            const configSections = currentTab.querySelectorAll('[style*="grid-template-columns: 1fr 1fr"]');
+            configSections.forEach(section => {
+                section.style.display = '';
+            });
+            
+            // Show the validation button again
+            const buttonId = `start${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Validation`;
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.style.display = '';
+                button.disabled = false;
+                button.textContent = button.dataset.originalText || `🚀 Start ${dbType.charAt(0).toUpperCase() + dbType.slice(1)} vs BigQuery Validation`;
+                button.style.background = '';
+                button.style.cursor = '';
+                button.style.animation = '';
+                button.style.opacity = '1';
+            }
+            
+            // Show the test connection button again
+            const testButtonId = `test${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Connection`;
+            const testButton = document.getElementById(testButtonId);
+            if (testButton) {
+                testButton.style.display = '';
+            }
+            
+            // Show connection status messages
+            const statusDiv = document.getElementById(`${dbType}-connection-status`);
+            if (statusDiv) {
+                statusDiv.style.display = '';
+            }
+            
+            // Clear results
             const resultsDiv = currentTab.querySelector('.rdbms-results-container');
             if (resultsDiv) {
                 resultsDiv.innerHTML = '';
             }
+            
+            // Scroll back to top of form
+            currentTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            console.log(`Reset ${dbType} comparison - form restored`);
         }
     }
 }
@@ -4119,13 +4171,13 @@ async function startRDBMSComparison(dbType) {
     try {
         // Disable button and show processing state
         if (button) {
-            button.disabled = true;
-            button.dataset.originalText = button.textContent;
-            button.textContent = '⏳ Processing...';
-            button.style.opacity = '0.6';
-            button.style.cursor = 'not-allowed';
-        }
-        
+    button.disabled = true;
+    button.dataset.originalText = button.textContent;
+    button.textContent = '⏳ Validating... Please wait';
+    button.style.background = 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)';
+    button.style.cursor = 'not-allowed';
+    button.style.animation = 'pulse 1.5s infinite';
+}
         resultsDiv.innerHTML = '<div class="loading" style="text-align: center; padding: 40px;">🔄 Starting validation process...</div>';
         
         // Scroll to results
@@ -4209,6 +4261,7 @@ async function startRDBMSComparison(dbType) {
         if (result.success) {
             // PASS dbType to display function
             displayRDBMSResults(result, dbType, resultsDiv);
+			resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });  // ← ADD THIS
         } else {
             resultsDiv.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
@@ -4228,17 +4281,50 @@ async function startRDBMSComparison(dbType) {
             </div>
         `;
     } finally {
-        // ALWAYS re-enable button, even if there was an error
-        if (button) {
+// Only re-enable button if validation failed
+        // (successful validation hides the button, so don't restore it)
+        if (button && !document.querySelector('.rdbms-results-container')?.innerHTML) {
             button.disabled = false;
             button.textContent = button.dataset.originalText || 'Start Validation';
             button.style.opacity = '1';
             button.style.cursor = 'pointer';
+            button.style.animation = 'none';
+            button.style.background = '';
         }
-    }
+}
 }
 function displayRDBMSResults(result, dbType, targetDiv) {
     console.log('=== DISPLAYING RESULTS FOR:', dbType.toUpperCase(), '===');
+	// ✅ HIDE CONFIGURATION FORM WHEN RESULTS DISPLAY
+    const currentTab = document.getElementById(`${dbType}-rdbms-tab`);
+    if (currentTab) {
+        // Hide all configuration grid sections
+        const configGrids = currentTab.querySelectorAll('[style*="grid-template-columns: 1fr 1fr"]');
+        configGrids.forEach(grid => {
+            grid.style.display = 'none';
+        });
+        
+        // Hide both buttons
+        const buttonId = `start${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Validation`;
+        const startButton = document.getElementById(buttonId);
+        if (startButton) {
+            startButton.style.display = 'none';
+        }
+
+        const testButtonId = `test${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Connection`;
+        const testButton = document.getElementById(testButtonId);
+        if (testButton) {
+            testButton.style.display = 'none';
+        }
+
+        // Hide connection status messages
+        const statusDiv = document.getElementById(`${dbType}-connection-status`);
+        if (statusDiv) {
+            statusDiv.style.display = 'none';
+        }
+        
+        console.log('Configuration form and buttons hidden for clean results view');
+    }
     
     // Get database-specific display name
     const dbDisplayNames = {
@@ -4261,7 +4347,7 @@ function displayRDBMSResults(result, dbType, targetDiv) {
     window[`globalRdbmsResults_${dbType}`] = data;
     
     // Calculate metrics - EXACTLY like JSON vs BQ
-    const sourceTotal = summary.totalRecordsInFile || 0;
+    const sourceTotal = summary.totalRecordsInSource || summary.totalRecordsInFile || 0;
     const targetTotal = summary.targetRecords || 0;
     const sourceUnique = summary.uniqueSourceRecords || 0;
     const targetUnique = recordCounts.bqDetails?.uniquePrimaryKeys || 0;
@@ -4332,7 +4418,7 @@ function displayRDBMSResults(result, dbType, targetDiv) {
                     </div>
                     <div class="summary-card matches">
                         <div class="summary-number">${sourceUnique.toLocaleString()}</div>
-                        <div class="summary-label">${dbName} Unique Keys</div>
+                        <div class="summary-label">${dbName} Unique Keys (2K Sample)</div>
                     </div>
                     <div class="summary-card matches">
                         <div class="summary-number">${targetUnique.toLocaleString()}</div>
@@ -4403,6 +4489,10 @@ function displayRDBMSResults(result, dbType, targetDiv) {
     `;
     
     console.log('=== RESULTS DISPLAYED FOR', dbName, '===');
+	// Auto-scroll to results
+    setTimeout(() => {
+        targetDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
 }
 
 // Helper functions - EXACT SAME AS JSON VS BQ
