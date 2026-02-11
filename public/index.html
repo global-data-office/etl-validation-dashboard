@@ -595,7 +595,7 @@
 
         .tab-summary-cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Wider minimum */
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -894,6 +894,8 @@
             text-align: center;
             box-shadow: 0 8px 25px rgba(0,0,0,0.1);
             border-left: 5px solid #3498db;
+			overflow: hidden;
+            min-width: 0;
         }
 
         .summary-card.matches {
@@ -917,10 +919,14 @@
         }
 
         .summary-number {
-            font-size: 2.5rem;
+            font-size: clamp(1.5rem, 4vw, 2.5rem); /* Responsive sizing */
             font-weight: bold;
             margin-bottom: 10px;
             color: #2c3e50;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.2;
+            max-width: 100%;
         }
 
         .summary-label {
@@ -1314,9 +1320,9 @@
         .results-tabs {
             display: flex;
             gap: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 8px;
             border-bottom: 2px solid #e9ecef;
-            padding-bottom: 10px;
+            padding-bottom: 5px;
             flex-wrap: wrap;
             background: #f8f9fa;
             padding: 15px;
@@ -4370,11 +4376,14 @@ async function startRDBMSComparison(dbType) {
                 displayRDBMSResults(allResults[0].data, dbType, resultsDiv);
             } else {
                 resultsDiv.innerHTML = `
-                    <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
-                        ❌ <strong>Validation Failed</strong><br>
-                        ${allResults[0].error}<br><br>
-                        ${allResults[0].suggestions ? `<strong>Suggestions:</strong><ul>${allResults[0].suggestions.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
-                    </div>
+                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                    ❌ <strong>Validation Failed</strong><br>
+                    ${allResults[0].error}<br><br>
+                    ${allResults[0].suggestions ? `<strong>Suggestions:</strong><ul>${allResults[0].suggestions.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
+                    <button class="btn-secondary" onclick="startNewMultiComparison('${dbType}')" style="margin-top: 15px;">
+                    🔄 New Comparison
+                    </button>
+                 </div>
                 `;
             }
         } else {
@@ -4387,9 +4396,12 @@ async function startRDBMSComparison(dbType) {
         resultsDiv.innerHTML = `
             <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
                 ❌ <strong>Network Error</strong><br>
-                ${error.message}
+                 ${error.message}
+                <button class="btn-secondary" onclick="startNewMultiComparison('${dbType}')" style="margin-top: 15px;">
+                🔄 New Comparison
+                 </button>
             </div>
-        `;
+           `;
     } finally {
         // ALWAYS re-enable button, even if there was an error
         if (button) {
@@ -4438,8 +4450,9 @@ function displayRDBMSResults(result, dbType, targetDiv) {
     const primaryKey = summary.primaryKeyUsed || 'unknown';
     
     // Build interface - EXACTLY like JSON vs BQ structure
-    targetDiv.innerHTML = `
-        <!-- EXACT SAME STRUCTURE AS JSON VS BQ -->
+   targetDiv.innerHTML = `
+    <!-- SCROLLABLE WRAPPER -->
+    <div style="padding: 10px; background: #f8f9fa;">
         <div class="comparison-results" style="display: block;">
             <!-- Header - SAME AS JSON VS BQ -->
             <div class="results-header">
@@ -4481,10 +4494,14 @@ function displayRDBMSResults(result, dbType, targetDiv) {
                     <span class="results-tab-icon">🔄</span>
                     <span class="results-tab-label">Duplicates</span>
                 </button>
-            </div>
+          </div>
 
-            <!-- TAB 1: RECORD COUNT - EXACT SAME STRUCTURE -->
-            <div id="rdbms-tab-${dbType}-record-count" class="results-tab-content active">
+            <!-- SCROLLABLE CONTENT AREA -->
+                <div style="max-height: calc(100vh - 350px); overflow-y: auto; overflow-x: hidden; padding: 20px;">
+                <!-- INNER CONTENT WRAPPER -->
+                <div style="max-width: 1400px; margin: 0 auto; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <!-- TAB 1: RECORD COUNT - EXACT SAME STRUCTURE -->
+                <div id="rdbms-tab-${dbType}-record-count" class="results-tab-content active">
                 <div class="tab-summary-cards">
                     <div class="summary-card">
                         <div class="summary-number">${sourceTotal.toLocaleString()}</div>
@@ -4562,8 +4579,11 @@ function displayRDBMSResults(result, dbType, targetDiv) {
             <!-- TAB 5: DUPLICATES - EXACT SAME STRUCTURE -->
             <div id="rdbms-tab-${dbType}-duplicates" class="results-tab-content" style="display: none;">
                 ${populateDuplicatesContent(duplicatesAnalysis, dbName, sourceDuplicates, targetDuplicates)}
-            </div>
-        </div>
+            </div>  <!-- Close last tab -->
+                </div>  <!-- Close: INNER CONTENT WRAPPER -->
+            </div>  <!-- Close: SCROLLABLE CONTENT AREA -->
+        </div>  <!-- Close: comparison-results -->
+    </div>  <!-- Close: SCROLLABLE WRAPPER -->
     `;
     
     console.log('=== RESULTS DISPLAYED FOR', dbName, '===');
@@ -5494,7 +5514,7 @@ async function startOracleValidation() {
                     </div>
                     <div class="error-message">${error.message}</div>
                 </div>
-                <button class="btn-secondary" onclick="startNewOracleComparison()" style="margin-top: 20px;">
+                <button class="btn-secondary" onclick="startNewMultiComparison('oracle')" style="margin-top: 20px;">
                     🔄 Try Again
                 </button>
             </div>

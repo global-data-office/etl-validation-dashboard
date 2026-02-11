@@ -314,8 +314,13 @@ class ComparisonEngineService {
                             COUNT(*) as total_count, 
                             COUNT(${primaryKey}) as non_null_count,
                             COUNT(DISTINCT ${primaryKey}) as unique_count
-                        FROM \`${sourceTableName}\`
-                    `
+                        FROM \`${sourceTableName}\` 
+                        WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
+                            SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
+                            FROM \`${tempTableId}\`
+                            WHERE ${primaryKey} IS NOT NULL
+                        )
+    `
                 }
             ];
             
@@ -570,14 +575,18 @@ class ComparisonEngineService {
             // Analyze BigQuery duplicates  
             const bqDuplicateQuery = `
                 SELECT 
-                    ${sourceCast} as duplicate_key,
-                    COUNT(*) as occurrence_count
+                ${sourceCast} as duplicate_key,
+                COUNT(*) as occurrence_count
+            FROM \`${sourceTableName}\`                           // ✅ Query BQ table
+            WHERE SAFE_CAST(${primaryKey} AS STRING) IN (         // ✅ Filter to sample
+                SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
                 FROM \`${tempTableId}\`
                 WHERE ${primaryKey} IS NOT NULL
-                GROUP BY ${sourceCast}
-                HAVING COUNT(*) > 1
-                ORDER BY occurrence_count DESC
-              `;
+            )
+            GROUP BY ${sourceCast}
+            HAVING COUNT(*) > 1
+            ORDER BY occurrence_count DESC
+            `;
 
             const [jsonDuplicateResult, bqDuplicateResult] = await Promise.all([
                 this.bigquery.query(jsonDuplicateQuery).catch(error => {
@@ -823,10 +832,11 @@ class ComparisonEngineService {
  * Get record counts using dynamic primary key
  * NOW SUPPORTS: Passing actual source total (for Oracle with sampling)
  */
-    async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actualSourceTotal = null) {
+async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actualSourceTotal = null) {
     try {
         console.log(`Getting record counts using: ${primaryKey}`);
 
+        // Query 1: Temp table (sample) details
         const jsonDetailQuery = `
             SELECT 
                 COUNT(*) as total_records,
@@ -837,7 +847,14 @@ class ComparisonEngineService {
             FROM \`${tempTableId}\`
         `;
 
-        const bqDetailQuery = `
+        // Query 2: FULL BigQuery table count (for display)
+        const bqTotalQuery = `
+            SELECT COUNT(*) as total_records
+            FROM \`${sourceTableName}\`
+        `;
+
+        // Query 3: BigQuery SAMPLE records (filtered to match temp table keys)
+        const bqSampleQuery = `
             SELECT 
                 COUNT(*) as total_records,
                 COUNT(DISTINCT ${primaryKey}) as unique_primary_keys,
@@ -845,17 +862,24 @@ class ComparisonEngineService {
                 COUNT(*) - COUNT(${primaryKey}) as null_primary_keys,
                 COUNT(*) - COUNT(DISTINCT ${primaryKey}) as duplicate_records
             FROM \`${sourceTableName}\`
+            WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
+               SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
+               FROM \`${tempTableId}\`
+               WHERE ${primaryKey} IS NOT NULL
+            )
         `;
 
-        const [jsonResult, bqResult] = await Promise.all([
+        const [jsonResult, bqTotalResult, bqSampleResult] = await Promise.all([
             this.bigquery.query(jsonDetailQuery),
-            this.bigquery.query(bqDetailQuery)
+            this.bigquery.query(bqTotalQuery),
+            this.bigquery.query(bqSampleQuery)
         ]);
 
         const jsonDetails = jsonResult[0][0];
-        const bqDetails = bqResult[0][0];
+        const bqTotal = bqTotalResult[0][0];
+        const bqSampleDetails = bqSampleResult[0][0];
 
-        // NEW: If actualSourceTotal provided, use it instead of temp table count
+        // Use actualSourceTotal if provided (Oracle full count)
         const actualTotalRecords = actualSourceTotal || parseInt(jsonDetails.total_records);
         const sampleSize = actualSourceTotal ? parseInt(jsonDetails.total_records) : null;
 
@@ -867,12 +891,13 @@ class ComparisonEngineService {
             console.log(`JSON analysis: ${actualTotalRecords} total, ${jsonDetails.unique_primary_keys} unique, ${jsonDetails.duplicate_records} duplicates`);
         }
         
-        console.log(`BigQuery analysis: ${bqDetails.total_records} total, ${bqDetails.unique_primary_keys} unique`);
+        console.log(`BigQuery FULL table: ${bqTotal.total_records} total records`);
+        console.log(`BigQuery SAMPLE: ${bqSampleDetails.total_records} matched records from sample`);
 
         return {
             jsonDetails: {
-                totalRecords: actualTotalRecords,  // ✅ NOW USES ACTUAL TOTAL IF PROVIDED
-                sampleSize: sampleSize,  // ✅ TRACKS SAMPLE SIZE
+                totalRecords: actualTotalRecords,  // Full Oracle count
+                sampleSize: sampleSize,
                 uniquePrimaryKeys: parseInt(jsonDetails.unique_primary_keys),
                 nonNullPrimaryKeys: parseInt(jsonDetails.non_null_primary_keys),
                 nullPrimaryKeys: parseInt(jsonDetails.null_primary_keys),
@@ -880,11 +905,12 @@ class ComparisonEngineService {
                 primaryKeyField: primaryKey
             },
             bqDetails: {
-                totalRecords: parseInt(bqDetails.total_records),
-                uniquePrimaryKeys: parseInt(bqDetails.unique_primary_keys),
-                nonNullPrimaryKeys: parseInt(bqDetails.non_null_primary_keys),
-                nullPrimaryKeys: parseInt(bqDetails.null_primary_keys),
-                duplicateRecords: parseInt(bqDetails.duplicate_records),
+                totalRecords: parseInt(bqTotal.total_records),  // ✅ FULL BQ TABLE COUNT
+                totalSampleRecords: parseInt(bqSampleDetails.total_records),  // Sample matched count
+                uniquePrimaryKeys: parseInt(bqSampleDetails.unique_primary_keys),
+                nonNullPrimaryKeys: parseInt(bqSampleDetails.non_null_primary_keys),
+                nullPrimaryKeys: parseInt(bqSampleDetails.null_primary_keys),
+                duplicateRecords: parseInt(bqSampleDetails.duplicate_records),
                 primaryKeyField: primaryKey
             }
         };
@@ -1149,27 +1175,27 @@ class ComparisonEngineService {
     async findMissingRecords(tempTableId, sourceTableName, primaryKey) {
         try {
             const jsonOnlyQuery = `
-                SELECT DISTINCT ${primaryKey}
+                SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) as ${primaryKey}
                 FROM \`${tempTableId}\`
                 WHERE ${primaryKey} IS NOT NULL
-                  AND ${primaryKey} NOT IN (
-                    SELECT DISTINCT ${primaryKey} 
-                    FROM \`${sourceTableName}\` 
-                    WHERE ${primaryKey} IS NOT NULL
-                  )
-                LIMIT 10
+                    AND SAFE_CAST(${primaryKey} AS STRING) NOT IN (
+                 SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
+                FROM \`${sourceTableName}\` 
+                WHERE ${primaryKey} IS NOT NULL
+                )
+               LIMIT 10
             `;
 
             const bqOnlyQuery = `
-                SELECT DISTINCT ${primaryKey}
+                SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) as ${primaryKey}
                 FROM \`${sourceTableName}\`
                 WHERE ${primaryKey} IS NOT NULL
-                  AND ${primaryKey} NOT IN (
-                    SELECT DISTINCT ${primaryKey} 
-                    FROM \`${tempTableId}\` 
-                    WHERE ${primaryKey} IS NOT NULL
-                  )
-                LIMIT 10
+                     AND SAFE_CAST(${primaryKey} AS STRING) NOT IN (
+                    SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
+                   FROM \`${tempTableId}\` 
+                WHERE ${primaryKey} IS NOT NULL
+                )
+               LIMIT 10
             `;
 
             const [jsonOnlyResult, bqOnlyResult] = await Promise.all([
