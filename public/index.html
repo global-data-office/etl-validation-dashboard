@@ -119,10 +119,10 @@
         }
 
         .page-header {
-            background: linear-gradient(135deg, #34495e 0%, #2980b9 100%);
-            color: white;
-            padding: 25px 30px;
-            margin: 0;
+               background: linear-gradient(135deg, #34495e 0%, #2980b9 100%);
+               color: white;
+               padding: 12px 30px;  /* ✅ Reduced from 25px to 12px (about 1/2) */
+               margin: 0;
         }
 
         .page-header h2 {
@@ -139,10 +139,23 @@
             line-height: 1.5;
         }
 
+        /* ✅ ADD THESE LINES HERE - Reduce spacing for RDBMS page */
+        #rdbms-comparison-page .page-header {
+           padding: 12px 30px;
+           margin-bottom: 0;
+        }
+
+        #rdbms-comparison-page .results-tabs {
+           margin-top: 0;
+           padding: 6px 15px;
+           margin-bottom: 0;
+        }
+        /* ✅ END OF NEW CODE */
+
         .coming-soon-section {
-            padding: 60px 30px;
-            text-align: center;
-            background: #f8f9fa;
+           padding: 60px 30px;
+           text-align: center;
+           background: #f8f9fa;
         }
 
         .coming-soon-icon {
@@ -1318,16 +1331,27 @@
         }
         /* RDBMS Tab Styles - ADD HERE */
         .results-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 8px;
-            border-bottom: 2px solid #e9ecef;
-            padding-bottom: 5px;
-            flex-wrap: wrap;
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px 8px 0 0;
+               display: flex;
+               gap: 10px;
+               margin-bottom: 0;  /* ✅ Removed margin */
+               border-bottom: 2px solid #e9ecef;
+               padding-bottom: 5px;
+               flex-wrap: wrap;
+               background: #f8f9fa;
+               padding: 6px 15px;  /* ✅ Reduced from 15px to 6px */
+               border-radius: 8px 8px 0 0;
         }
+		
+		/* ✅ ADD THIS NEW CSS HERE */
+        #rdbms-comparison-page .results-tabs {
+            margin-bottom: 0 !important;
+            padding: 6px 15px 2px 15px !important;
+        }
+
+        #rdbms-comparison-page .results-tab-content {
+            padding-top: 10px !important;
+        }
+        /* ✅ END OF NEW CSS */
 
         .results-tabs .results-tab-button {
             padding: 12px 20px;
