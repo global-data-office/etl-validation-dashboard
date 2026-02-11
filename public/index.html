@@ -3180,6 +3180,31 @@
                                     </div>
                                     <div class="duplicate-count">${dup.count} occurrences</div>
                                 </div>
+								
+								<!-- ✨ NEW: SAMPLE RECORDS TABLE -->
+                                ${dup.sampleRecords && dup.sampleRecords.length > 0 ? `
+                                <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #e9ecef;">
+                                    <h6 style="color: #2c3e50; margin-bottom: 10px; font-size: 0.9rem;">📋 Sample Records (up to 5):</h6>
+                                    <table class="sample-comparison-table" style="font-size: 0.8rem;">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Name</th>
+                                                <th>Username</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${dup.sampleRecords.map(record => `
+                                                <tr style="background: rgba(52, 152, 219, 0.05);">
+                                                    <td style="font-family: monospace;">${record.id || 'N/A'}</td>
+                                                    <td>${record.name || 'N/A'}</td>
+                                                    <td style="font-family: monospace;">${record.username || 'N/A'}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                ` : ''}
                             </div>
                         `;
                     });
@@ -3204,6 +3229,31 @@
                                     </div>
                                     <div class="duplicate-count">${dup.count} occurrences</div>
                                 </div>
+								
+								<!-- ✨ NEW: SAMPLE RECORDS TABLE -->
+                                ${dup.sampleRecords && dup.sampleRecords.length > 0 ? `
+                                <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #e9ecef;">
+                                    <h6 style="color: #2c3e50; margin-bottom: 10px; font-size: 0.9rem;">📋 Sample Records (up to 5):</h6>
+                                    <table class="sample-comparison-table" style="font-size: 0.8rem;">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Name</th>
+                                                <th>Username</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${dup.sampleRecords.map(record => `
+                                                <tr style="background: rgba(41, 128, 185, 0.05);">
+                                                    <td style="font-family: monospace;">${record.id || 'N/A'}</td>
+                                                    <td>${record.name || 'N/A'}</td>
+                                                    <td style="font-family: monospace;">${record.username || 'N/A'}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                ` : ''}
                             </div>
                         `;
                     });
@@ -4717,10 +4767,11 @@ function populateFieldWiseContent(fieldWiseAnalysis) {
 
 function populateDuplicatesContent(duplicatesAnalysis, dbName, sourceDuplicates, targetDuplicates) {
     const bothClean = (sourceDuplicates === 0 && targetDuplicates === 0);
+    const jsonDuplicates = duplicatesAnalysis.jsonDuplicates || { duplicateCount: 0, duplicateKeys: [] };
+    const bqDuplicates = duplicatesAnalysis.bqDuplicates || { duplicateCount: 0, duplicateKeys: [] };
     const crossSystem = duplicatesAnalysis.crossSystemAnalysis || {};
-    const duplicatesSummaryData = duplicatesAnalysis.summary || {};
     
-    return `
+    let html = `
         <div class="tab-summary-cards">
             <div class="summary-card ${sourceDuplicates > 0 ? 'warning' : 'pass'}">
                 <div class="summary-number">${sourceDuplicates}</div>
@@ -4734,28 +4785,134 @@ function populateDuplicatesContent(duplicatesAnalysis, dbName, sourceDuplicates,
                 <div class="summary-number">${crossSystem.commonDuplicateKeys?.length || 0}</div>
                 <div class="summary-label">Common Duplicates</div>
             </div>
-            <div class="summary-card ${duplicatesSummaryData.bothSystemsClean ? 'matches' : 'warning'}">
-                <div class="summary-number">${duplicatesSummaryData.dataQualityScore || 'Unknown'}</div>
+            <div class="summary-card ${bothClean ? 'matches' : 'warning'}">
+                <div class="summary-number">${bothClean ? 'Good' : 'Review'}</div>
                 <div class="summary-label">Data Quality Score</div>
             </div>
         </div>
 
         <div class="tab-detail-section">
             <div class="tab-detail-header">🔄 Comprehensive Duplicate Records Analysis</div>
-            ${bothClean ? `
-                <div style="text-align: center; padding: 40px; background: #d4edda; border-radius: 8px; color: #155724;">
-                    <h3 style="margin-bottom: 15px;">✅ Excellent Data Quality in Both Systems!</h3>
-                    <p style="margin-bottom: 10px;">Both ${dbName} source and BigQuery target have clean, unique primary key values.</p>
-                    <p style="font-style: italic;">This is ideal for data processing and ensures accurate comparisons across systems.</p>
-                </div>
-            ` : `
-                <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
-                    <h5 style="color: #856404; margin-bottom: 15px;">⚠️ Duplicates Detected</h5>
-                    <p>Review duplicate records for data quality issues.</p>
-                </div>
-            `}
-        </div>
     `;
+    
+    if (bothClean) {
+        html += `
+            <div style="text-align: center; padding: 40px; background: #d4edda; border-radius: 8px; color: #155724;">
+                <h3 style="margin-bottom: 15px;">✅ Excellent Data Quality in Both Systems!</h3>
+                <p style="margin-bottom: 10px;">Both ${dbName} source and BigQuery target have clean, unique primary key values.</p>
+                <p style="font-style: italic;">This is ideal for data processing and ensures accurate comparisons across systems.</p>
+            </div>
+        `;
+    } else {
+        // Show warning
+        html += `
+            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #ffc107;">
+                <h5 style="color: #856404; margin-bottom: 15px;">⚠️ Duplicates Detected</h5>
+                <p style="margin-bottom: 15px;"><strong>Impact:</strong> Data quality issues detected in one or both systems.</p>
+            </div>
+        `;
+        
+        // Show BigQuery duplicates if any
+        if (bqDuplicates.duplicateKeys && bqDuplicates.duplicateKeys.length > 0) {
+            html += `
+                <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2980b9;">
+                    <h5 style="color: #2c3e50; margin-bottom: 15px;">🗄️ BigQuery Target Duplicates</h5>
+                    <p style="margin-bottom: 15px;">Found ${bqDuplicates.duplicateKeys.length} duplicate key values in the BigQuery target table.</p>
+            `;
+            
+            bqDuplicates.duplicateKeys.forEach((dup, index) => {
+                html += `
+                    <div style="margin-bottom: 12px; background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #f39c12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div>
+                                <strong>🔑 Key ${index + 1}:</strong>
+                                <div style="font-family: monospace; background: #f8f9fa; padding: 6px 10px; border-radius: 4px; color: #2c3e50; font-weight: 600; display: inline-block; margin-left: 10px;">${dup.key}</div>
+                            </div>
+                            <div style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">${dup.count} occurrences</div>
+                        </div>
+                        
+                        ${dup.sampleRecords && dup.sampleRecords.length > 0 ? `
+                        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #e9ecef;">
+                            <h6 style="color: #2c3e50; margin-bottom: 10px; font-size: 0.9rem;">📋 Sample Records (up to 5):</h6>
+                            <table style="width: 100%; font-size: 0.8rem; border-collapse: collapse; background: white; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <thead>
+                                    <tr>
+                                        <th style="padding: 8px 10px; border: 1px solid #e9ecef; text-align: left; background: #f8f9fa; font-weight: 600;">ID</th>
+                                        <th style="padding: 8px 10px; border: 1px solid #e9ecef; text-align: left; background: #f8f9fa; font-weight: 600;">Name</th>
+                                        <th style="padding: 8px 10px; border: 1px solid #e9ecef; text-align: left; background: #f8f9fa; font-weight: 600;">Username</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${dup.sampleRecords.map(record => `
+                                        <tr style="background: rgba(41, 128, 185, 0.05);">
+                                            <td style="padding: 8px 10px; border: 1px solid #e9ecef; font-family: monospace;">${record.id || 'N/A'}</td>
+                                            <td style="padding: 8px 10px; border: 1px solid #e9ecef;">${record.name || 'N/A'}</td>
+                                            <td style="padding: 8px 10px; border: 1px solid #e9ecef; font-family: monospace;">${record.username || 'N/A'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+        }
+        
+        // Show source duplicates if any
+        if (jsonDuplicates.duplicateKeys && jsonDuplicates.duplicateKeys.length > 0) {
+            html += `
+                <div style="background: #e8f4fd; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                    <h5 style="color: #2c3e50; margin-bottom: 15px;">📄 ${dbName} Source Duplicates</h5>
+                    <p style="margin-bottom: 15px;">Found ${jsonDuplicates.duplicateKeys.length} duplicate key values in the ${dbName} source data.</p>
+            `;
+            
+            jsonDuplicates.duplicateKeys.forEach((dup, index) => {
+                html += `
+                    <div style="margin-bottom: 12px; background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #f39c12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div>
+                                <strong>🔑 Key ${index + 1}:</strong>
+                                <div style="font-family: monospace; background: #f8f9fa; padding: 6px 10px; border-radius: 4px; color: #2c3e50; font-weight: 600; display: inline-block; margin-left: 10px;">${dup.key}</div>
+                            </div>
+                            <div style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">${dup.count} occurrences</div>
+                        </div>
+                        
+                        ${dup.sampleRecords && dup.sampleRecords.length > 0 ? `
+                        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #e9ecef;">
+                            <h6 style="color: #2c3e50; margin-bottom: 10px; font-size: 0.9rem;">📋 Sample Records (up to 5):</h6>
+                            <table style="width: 100%; font-size: 0.8rem; border-collapse: collapse; background: white; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <thead>
+                                    <tr>
+                                        <th style="padding: 8px 10px; border: 1px solid #e9ecef; text-align: left; background: #f8f9fa; font-weight: 600;">ID</th>
+                                        <th style="padding: 8px 10px; border: 1px solid #e9ecef; text-align: left; background: #f8f9fa; font-weight: 600;">Name</th>
+                                        <th style="padding: 8px 10px; border: 1px solid #e9ecef; text-align: left; background: #f8f9fa; font-weight: 600;">Username</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${dup.sampleRecords.map(record => `
+                                        <tr style="background: rgba(52, 152, 219, 0.05);">
+                                            <td style="padding: 8px 10px; border: 1px solid #e9ecef; font-family: monospace;">${record.id || 'N/A'}</td>
+                                            <td style="padding: 8px 10px; border: 1px solid #e9ecef;">${record.name || 'N/A'}</td>
+                                            <td style="padding: 8px 10px; border: 1px solid #e9ecef; font-family: monospace;">${record.username || 'N/A'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+        }
+    }
+    
+    html += `</div>`;
+    return html;
 }
 
 // Tab switching - EXACT SAME AS JSON VS BQ
