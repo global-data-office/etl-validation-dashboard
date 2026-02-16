@@ -1906,18 +1906,30 @@
                            style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                    <div>
-                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Port</label>
-                        <input type="number" id="oracle-port" value="1521" 
-                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
-                    </div>
-                    <div>
-                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Service Name</label>
-                        <input type="text" id="oracle-service" placeholder="ORCL" 
-                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
-                    </div>
+                <div style="display: grid; grid-template-columns: 100px 150px 1fr; gap: 15px; margin-bottom: 5px; align-items: end;">
+                     <div>
+                     <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Port</label>
+                     <input type="number" id="oracle-port" value="1521" 
+                     style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                 </div>
+                <div>
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Type</label>
+                    <select id="oracle-connection-type" style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
+                    <option value="service">Service Name</option>
+                    <option value="sid">SID</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                    <span id="oracle-identifier-label">Service Name</span>
+                    </label>
+                    <input type="text" id="oracle-identifier" placeholder="e.g., RACQA0" 
+                    style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                </div>
+                </div>
+                    <small id="oracle-identifier-hint" style="color: #17a2b8; font-size: 11px; display: block; margin-top: 5px; margin-bottom: 15px; padding: 5px 10px; background: #e8f4fd; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                   💡 Connection format: host:port/servicename
+                    </small>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div>
@@ -1949,7 +1961,7 @@
                        <textarea id="oracle-source-filter" placeholder="e.g., CREATED_DATE >= TO_DATE('2024-01-01', 'YYYY-MM-DD')&#10;or: STATUS = 'ACTIVE' AND DEPARTMENT_ID = 10" 
                        style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
                        <small style="color: #856404; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #fff3cd; border-radius: 4px; border-left: 3px solid #ffc107;">
-                      💡 Filter Oracle source data for incremental validation (do not include WHERE keyword)
+                      💡 Filter Oracle source data for incremental validation. BigQuery records will be automatically matched by primary key from filtered Oracle results. (Do not include WHERE keyword)
                        </small>
                    </div>
 
@@ -1987,23 +1999,11 @@
                         <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
                         <input type="text" id="oracle-comparison-fields" placeholder="field1, field2, field3" 
                                 style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
-                        <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
-                               Leave empty to compare all fields, or specify fields to compare (comma-separated)
+                        <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                              💡 Leave empty to compare all fields, or specify fields to compare (one per line). 
+                              <span style="color: #dc3545; font-weight: 600;">Note: Automatically disabled for multi-table validation (2+ tables).</span>
                         </small>
                   </div>
-
-                <!-- TASK 1: Target Filter for Incremental Validation -->
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
-                    🔍 Target Filter (WHERE clause)
-                    <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
-                    </label>
-                    <textarea id="oracle-target-filter" placeholder="e.g., created_date >= '2024-01-01'&#10;or: status = 'ACTIVE' AND department_id = 10" 
-                    style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
-                    <small style="color: #155724; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #d4edda; border-radius: 4px; border-left: 3px solid #28a745;">
-                   💡 Filter BigQuery target data to match source filter (do not include WHERE keyword)
-                    </small>
-               </div>
 
                 <button class="btn-primary" onclick="startRDBMSComparison('oracle')"
                         style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
@@ -3585,12 +3585,23 @@ function getConnectionData(dbType) {
             break;
             
         case 'oracle':
-            data.host = document.getElementById('oracle-host')?.value?.trim() || '';
-            data.port = document.getElementById('oracle-port')?.value || 1521;
-            data.service = document.getElementById('oracle-service')?.value?.trim() || '';
-            data.username = document.getElementById('oracle-username')?.value?.trim() || '';
-            data.password = document.getElementById('oracle-password')?.value || '';
-            break;
+           const connectionType = document.getElementById('oracle-connection-type')?.value;
+           const identifier = document.getElementById('oracle-identifier')?.value?.trim() || '';
+    
+           data.host = document.getElementById('oracle-host')?.value?.trim() || '';
+           data.port = document.getElementById('oracle-port')?.value || 1521;
+           data.username = document.getElementById('oracle-username')?.value?.trim() || '';
+           data.password = document.getElementById('oracle-password')?.value || '';
+    
+           // Set either SID or serviceName based on dropdown selection
+           if (connectionType === 'sid') {
+           data.sid = identifier;
+           data.serviceName = '';
+           } else {
+           data.serviceName = identifier;
+           data.sid = '';
+           }
+           break;
             
         case 'sqlserver':
             data.server = document.getElementById('sqlserver-host')?.value?.trim() || '';
@@ -3632,18 +3643,27 @@ async function testDatabaseConnection(dbType) {
         
         // Client-side validation
         const requiredFields = {
-            postgresql: ['host', 'port', 'database', 'username', 'password'],
-            mysql: ['host', 'port', 'database', 'username', 'password'],
-            oracle: ['host', 'port', 'service', 'username', 'password'],
-            sqlserver: ['server', 'port', 'database', 'username', 'password']
+        postgresql: ['host', 'port', 'database', 'username', 'password'],
+        mysql: ['host', 'port', 'database', 'username', 'password'],
+        oracle: ['host', 'port', 'username', 'password'],  // ✅ FIXED - removed 'service'
+        sqlserver: ['server', 'port', 'database', 'username', 'password']
         };
         
         const required = requiredFields[dbType] || [];
         const missing = required.filter(field => !connectionData[field] || connectionData[field].toString().trim() === '');
         
         if (missing.length > 0) {
-            throw new Error(`Please fill in all ${dbType.toUpperCase()} connection fields: ${missing.join(', ')}`);
+        throw new Error(`Please fill in all ${dbType.toUpperCase()} connection fields: ${missing.join(', ')}`);
         }
+
+        // ✅ ADD THIS SPECIAL ORACLE CHECK
+       if (dbType === 'oracle') {
+       // Oracle needs EITHER serviceName OR sid (but not both empty)
+       if ((!connectionData.serviceName || connectionData.serviceName.trim() === '') && 
+        (!connectionData.sid || connectionData.sid.trim() === '')) {
+        throw new Error('Please fill in all ORACLE connection fields: service name or SID is required');
+        }
+       }
         
         // Test connection via API
         const response = await fetch('/api/test-rdbms-connection', {
@@ -4352,7 +4372,6 @@ async function startRDBMSComparison(dbType) {
                 primaryKey: primaryKeys[i] || primaryKeys[0] || '',
                 comparisonFields: comparisonFieldsArray,
                 sourceFilter: document.getElementById(`${prefix}-source-filter`)?.value?.trim() || '',
-                targetFilter: document.getElementById(`${prefix}-target-filter`)?.value?.trim() || '',
             };
             
             console.log(`Validating table ${i + 1}/${totalTables}:`, { sourceTable: currentSourceTable, bqTable: currentBqTable });
@@ -4436,6 +4455,39 @@ async function startRDBMSComparison(dbType) {
         }
     }
 }
+// ============================================
+// DISABLE COMPARISON FIELDS FOR MULTI-TABLE
+// ============================================
+document.getElementById('oracle-table')?.addEventListener('input', function(e) {
+    const tables = e.target.value.split('\n').filter(t => t.trim().length > 0);
+    const comparisonFieldsInput = document.getElementById('oracle-comparison-fields');
+    const comparisonFieldsLabel = comparisonFieldsInput?.previousElementSibling;
+    
+    if (tables.length > 1) {
+        // Multiple tables detected - disable comparison fields
+        comparisonFieldsInput.disabled = true;
+        comparisonFieldsInput.style.background = '#f0f0f0';
+        comparisonFieldsInput.style.cursor = 'not-allowed';
+        comparisonFieldsInput.value = '';
+        comparisonFieldsInput.placeholder = '🚫 Disabled for multi-table validation (all common fields will be compared)';
+        
+        // Update label color
+        if (comparisonFieldsLabel) {
+            comparisonFieldsLabel.style.color = '#999';
+        }
+    } else {
+        // Single table - enable comparison fields
+        comparisonFieldsInput.disabled = false;
+        comparisonFieldsInput.style.background = '';
+        comparisonFieldsInput.style.cursor = '';
+        comparisonFieldsInput.placeholder = 'field1, field2, field3';
+        
+        // Reset label color
+        if (comparisonFieldsLabel) {
+            comparisonFieldsLabel.style.color = '#495057';
+        }
+    }
+});
 function displayRDBMSResults(result, dbType, targetDiv) {
     console.log('=== DISPLAYING RESULTS FOR:', dbType.toUpperCase(), '===');
     
@@ -4649,8 +4701,8 @@ function displayMultiTableResults(allResults, dbType, targetDiv) {
         </button>`;
     }).join('');
     
-    // Build content for each table
-    const contentsHtml = allResults.map((result, idx) => {
+                // Build content for each table
+             const contentsHtml = allResults.map((result, idx) => {
         const displayStyle = idx === 0 ? 'block' : 'none';
         const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
         
@@ -5650,6 +5702,23 @@ function showOracleResultsTab(tabId) {
         if (btn) btn.classList.add('active');
     }
 }
+// Oracle Connection Type Selector Handler
+document.getElementById('oracle-connection-type')?.addEventListener('change', function(e) {
+    const isSID = e.target.value === 'sid';
+    const label = document.getElementById('oracle-identifier-label');
+    const input = document.getElementById('oracle-identifier');
+    const hint = document.getElementById('oracle-identifier-hint');
+    
+    if (isSID) {
+        label.textContent = 'SID';
+        input.placeholder = 'e.g., ORCL';
+        hint.innerHTML = '💡 Connection format: host:port:SID';
+    } else {
+        label.textContent = 'Service Name';
+        input.placeholder = 'e.g., RACQA0';
+        hint.innerHTML = '💡 Connection format: host:port/servicename';
+    }
+});
     </script>
 </body>
 </html>

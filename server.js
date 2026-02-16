@@ -29,7 +29,10 @@ const bigquery = new BigQuery({
 // RDBMS Connection Testing
 app.post('/api/test-rdbms-connection', async (req, res) => {
     try {
-        const { dbType, ...connectionConfig } = req.body;
+    const { dbType, ...connectionConfig } = req.body;
+    
+    // ADD THIS DEBUG LINE
+    console.log('🔍 TEST CONNECTION REQUEST:', { dbType, ...connectionConfig, password: '***' });
         
         console.log(`Testing ${dbType} connection:`, {
             host: connectionConfig.host || connectionConfig.server,
@@ -108,19 +111,39 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
 // ENHANCED: RDBMS vs BigQuery Comparison with comprehensive metrics
 app.post('/api/rdbms-vs-bq', async (req, res) => {
     try {
-        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '', targetFilter = '' } = req.body;
+        const { dbType, host, port, sid, serviceName, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '' } = req.body;
+
+        // ✅ SAFETY: Ignore comparison fields for multi-table validation
+        const sourceTablesArray = Array.isArray(sourceTable) 
+            ? sourceTable 
+            : (sourceTable.includes('\n') ? sourceTable.split('\n').map(t => t.trim()).filter(t => t) : [sourceTable]);
         
+        if (sourceTablesArray.length > 1 && comparisonFields && comparisonFields.length > 0) {
+            console.warn(`⚠️ Multi-table validation with ${sourceTablesArray.length} tables - ignoring comparison fields for safety`);
+            comparisonFields = []; // Force empty for multi-table
+        }
+
         console.log(`Starting ENHANCED ${dbType} vs BigQuery comparison...`);
-        console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
+        console.log('Request parameters:', { dbType, host, port, sid, serviceName, sourceTable, bqTable, primaryKey });
         
         // Step 1: Test connection
-        const connectionConfig = { 
-            host, 
-            port: parseInt(port) || (dbType === 'oracle' ? 1521 : 5432), 
-            service, 
-            username, 
-            password 
+           const connectionConfig = {
+           host,
+           port: parseInt(port) || (dbType === 'oracle' ? 1521 : 5432),
+           username,
+           password
         };
+
+        // Add Oracle-specific connection identifier
+        if (dbType === 'oracle') {
+           if (sid) {
+           connectionConfig.sid = sid;
+           console.log(`Oracle using SID: ${sid}`);
+        } else if (serviceName) {
+        connectionConfig.serviceName = serviceName;
+        console.log(`Oracle using Service Name: ${serviceName}`);
+    }
+}
         
         const connectionTest = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
         
@@ -251,7 +274,6 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             sampleRecordsValidated: rdbmsResult.recordCount,
             validationApproach: 'sample-based-enhanced',
             sourceFilter: sourceFilter || 'None',
-            targetFilter: targetFilter || 'None',
             samplingNote: totalRecordCount > 0 
                 ? `Total: ${totalRecordCount.toLocaleString()} records. Validated ${rdbmsResult.recordCount} sample with comprehensive metrics.`
                 : `Validated ${rdbmsResult.recordCount} sample records with comprehensive metrics.`,

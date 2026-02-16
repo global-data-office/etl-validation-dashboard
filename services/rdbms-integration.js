@@ -24,6 +24,45 @@ class RDBMSIntegrationService {
             // Uses Application Default Credentials from environment
         });
     }
+	/**
+    * Build Oracle connection string based on SID or Service Name
+    * Users provide EITHER serviceName OR sid in config
+    * 
+    * IMPORTANT: Both formats now use forward slash (/) for Easy Connect syntax
+    * - Service Name: host:port/servicename
+    * - SID: host:port/sid
+    */
+    /**
+ * Build Oracle connection string based on SID or Service Name
+ * Uses TNS descriptor format for maximum compatibility with thick client
+ */
+buildOracleConnectString(config) {
+    const host = config.host;
+    const port = config.port || 1521;
+    
+    // Check which format user provided
+    if (config.sid && config.sid.trim() !== '') {
+        // TNS Descriptor format for SID (most compatible with thick client)
+        const connectString = `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${host})(PORT=${port}))(CONNECT_DATA=(SID=${config.sid})))`;
+        console.log('🔧 Oracle: Using TNS descriptor SID format ->', connectString);
+        return connectString;
+    } 
+    else if (config.serviceName && config.serviceName.trim() !== '') {
+        // TNS Descriptor format for Service Name
+        const connectString = `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${host})(PORT=${port}))(CONNECT_DATA=(SERVICE_NAME=${config.serviceName})))`;
+        console.log('🔧 Oracle: Using TNS descriptor Service Name format ->', connectString);
+        return connectString;
+    }
+    // Fallback for backward compatibility with old 'service' field
+    else if (config.service && config.service.trim() !== '') {
+        const connectString = `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${host})(PORT=${port}))(CONNECT_DATA=(SERVICE_NAME=${config.service})))`;
+        console.log('🔧 Oracle: Using TNS descriptor legacy service format ->', connectString);
+        return connectString;
+    }
+    else {
+        throw new Error('Oracle connection requires either Service Name or SID');
+    }
+}
 
     // MAIN METHOD: Test database connection
     async testConnection(dbType, connectionConfig) {
@@ -66,7 +105,7 @@ class RDBMSIntegrationService {
         const requiredFields = {
             postgresql: ['host', 'port', 'database', 'username', 'password'],
             mysql: ['host', 'port', 'database', 'username', 'password'],
-            oracle: ['host', 'port', 'service', 'username', 'password'],
+            oracle: ['host', 'port', 'username', 'password'], // SID or serviceName checked separately
             sqlserver: ['server', 'port', 'database', 'username', 'password']
         };
 
@@ -78,6 +117,18 @@ class RDBMSIntegrationService {
                 valid: false,
                 error: `Missing required fields: ${missing.join(', ')}`
             };
+        }
+    // Oracle-specific validation: require either SID or Service Name
+        if (dbType.toLowerCase() === 'oracle') {
+            const hasServiceName = config.serviceName && config.serviceName.trim() !== '';
+            const hasSID = config.sid && config.sid.trim() !== '';
+            
+            if (!hasServiceName && !hasSID) {
+                return {
+                    valid: false,
+                    error: 'Oracle connection requires either Service Name or SID'
+                };
+            }
         }
 
         return { valid: true };
@@ -180,7 +231,7 @@ class RDBMSIntegrationService {
         const connectionConfig = {
             user: config.username,
             password: config.password,
-            connectString: `${config.host}:${config.port || 1521}/${config.service}`,
+            connectString: this.buildOracleConnectString(config),
             connectTimeout: 15000,
             callTimeout: 15000
         };
@@ -213,7 +264,7 @@ class RDBMSIntegrationService {
                     database: result.rows[0] ? result.rows[0][1] : config.service,
                     user: result.rows[0] ? result.rows[0][2] : config.username,
                     hostname: result.rows[0] ? result.rows[0][3] : config.host,
-                    service: config.service,
+                    service: config.sid ? `SID: ${config.sid}` : `Service: ${config.serviceName}`,
                     clientMode: oracledb.thin ? 'Thin' : 'Thick',
                     clientVersion: oracledb.oracleClientVersionString || 'Unknown'
                 }
@@ -424,7 +475,7 @@ class RDBMSIntegrationService {
             connection = await oracledb.getConnection({
                 user: config.username,
                 password: config.password,
-                connectString: `${config.host}:${config.port || 1521}/${config.service}`,
+                connectString: this.buildOracleConnectString(config),
                 connectTimeout: 15000
             });
 
