@@ -4359,19 +4359,21 @@ async function startRDBMSComparison(dbType) {
             
             // Build request for current table
             const requestData = {
-                dbType: dbType,
-                host: connectionData.host || connectionData.server,
-                port: connectionData.port,
-                database: connectionData.database,
-                server: connectionData.server,
-                service: connectionData.service,
-                username: connectionData.username,
-                password: connectionData.password,
-                sourceTable: currentSourceTable,
-                bqTable: currentBqTable,
-                primaryKey: primaryKeys[i] || primaryKeys[0] || '',
-                comparisonFields: comparisonFieldsArray,
-                sourceFilter: document.getElementById(`${prefix}-source-filter`)?.value?.trim() || '',
+            dbType: dbType,
+            host: connectionData.host || connectionData.server,
+            port: connectionData.port,
+            database: connectionData.database,
+            server: connectionData.server,
+            service: connectionData.service,
+            serviceName: connectionData.serviceName,   // ← ADD THIS
+            sid: connectionData.sid,                    // ← ADD THIS
+            username: connectionData.username,
+            password: connectionData.password,
+            sourceTable: currentSourceTable,
+            bqTable: currentBqTable,
+            primaryKey: primaryKeys[i] || primaryKeys[0] || '',
+            comparisonFields: comparisonFieldsArray,
+            sourceFilter: document.getElementById(`${prefix}-source-filter`)?.value?.trim() || '',
             };
             
             console.log(`Validating table ${i + 1}/${totalTables}:`, { sourceTable: currentSourceTable, bqTable: currentBqTable });
