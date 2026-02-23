@@ -26,41 +26,45 @@ class RDBMSIntegrationService {
     }
 
     // MAIN METHOD: Test database connection
-    async testConnection(dbType, connectionConfig) {
-        try {
-            console.log(`Testing ${dbType.toUpperCase()} connection...`);
-
-            const validationResult = this.validateConnectionConfig(dbType, connectionConfig);
-            if (!validationResult.valid) {
-                return {
-                    success: false,
-                    error: validationResult.error,
-                    suggestions: ['Please fill in all required connection fields']
-                };
-            }
-
-            switch (dbType.toLowerCase()) {
-                case 'postgresql':
-                    return await this.testPostgreSQLConnection(connectionConfig);
-                case 'mysql':
-                    return await this.testMySQLConnection(connectionConfig);
-                case 'oracle':
-                    return await this.testOracleConnection(connectionConfig);
-                case 'sqlserver':
-                    return await this.testSQLServerConnection(connectionConfig);
-                default:
-                    throw new Error(`Unsupported database type: ${dbType}`);
-            }
-        } catch (error) {
-            console.error(`${dbType} connection test failed:`, error.message);
+    // In rdbms-integration.js - PostgreSQL test connection
+// MAIN METHOD: Test database connection
+async testConnection(dbType, connectionConfig) {
+    try {
+        // Validate config first
+        const validation = this.validateConnectionConfig(dbType, connectionConfig);
+        if (!validation.valid) {
             return {
                 success: false,
-                error: error.message,
-                suggestions: this.getConnectionSuggestions(dbType, error.message)
+                error: validation.error,
+                suggestions: ['Fill in all required connection fields']
             };
         }
-    }
 
+        switch (dbType.toLowerCase()) {
+            case 'postgresql':
+                return await this.testPostgreSQLConnection(connectionConfig);
+            case 'mysql':
+                return await this.testMySQLConnection(connectionConfig);
+            case 'oracle':
+                return await this.testOracleConnection(connectionConfig);
+            case 'sqlserver':
+                return await this.testSQLServerConnection(connectionConfig);
+            default:
+                return {
+                    success: false,
+                    error: `Unsupported database type: ${dbType}`,
+                    suggestions: ['Use postgresql, mysql, oracle, or sqlserver']
+                };
+        }
+    } catch (error) {
+        console.error(`${dbType} connection test failed:`, error.message);
+        return {
+            success: false,
+            error: error.message,
+            suggestions: this.getConnectionSuggestions(dbType, error.message)
+        };
+    }
+}
     // Validate connection config
     validateConnectionConfig(dbType, config) {
         const requiredFields = {
@@ -83,52 +87,49 @@ class RDBMSIntegrationService {
         return { valid: true };
     }
 
-    // PostgreSQL connection test
-    async testPostgreSQLConnection(config) {
-        const pool = new Pool({
-            host: config.host,
-            port: parseInt(config.port) || 5432,
-            database: config.database,
-            user: config.username,
-            password: config.password,
-            connectionTimeoutMillis: 10000,
-            idleTimeoutMillis: 5000,
-            max: 1,
-            ssl: false
-        });
+  // PostgreSQL connection test
+async testPostgreSQLConnection(config) {
+    const { host, port, database, username, password } = config;
 
-        try {
-            const client = await pool.connect();
-            
-            const result = await client.query(`
-                SELECT 
-                    version() as version,
-                    current_database() as database,
-                    current_user as user,
-                    inet_server_addr() as server_ip,
-                    inet_server_port() as server_port
-            `);
-            
-            client.release();
-            await pool.end();
+    // Use connection string format (works better with PAM auth)
+    const connectionString = `postgres://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port || 5432}/${database}`;
 
-            return {
-                success: true,
-                message: 'PostgreSQL connection successful',
-                details: {
-                    version: result.rows[0].version.split(' ')[0] + ' ' + result.rows[0].version.split(' ')[1],
-                    database: result.rows[0].database,
-                    user: result.rows[0].user,
-                    server_ip: result.rows[0].server_ip || config.host,
-                    server_port: result.rows[0].server_port || config.port
-                }
-            };
-        } catch (error) {
-            await pool.end().catch(() => {});
-            throw error;
-        }
+    console.log(`🐘 PostgreSQL connecting to: ${host}:${port || 5432}/${database}`);
+
+    const pool = new Pool({
+        connectionString: connectionString,
+        ssl: false,
+        connectionTimeoutMillis: 15000
+    });
+
+    try {
+        const client = await pool.connect();
+
+        const result = await client.query(`
+            SELECT
+                version() as version,
+                current_database() as database,
+                current_user as user
+        `);
+
+        client.release();
+        await pool.end();
+
+        return {
+            success: true,
+            message: 'PostgreSQL connection successful',
+            details: {
+                version: result.rows[0].version.split(',')[0],
+                database: result.rows[0].database,
+                user: result.rows[0].user
+            }
+        };
+    } catch (error) {
+        await pool.end().catch(() => {});
+        console.error('PostgreSQL connection error:', error.message);
+        throw error;
     }
-
+}
     // MySQL connection test
     async testMySQLConnection(config) {
         const connection = await mysql.createConnection({
@@ -372,52 +373,52 @@ class RDBMSIntegrationService {
         }
     }
 
-    // Fetch data from source RDBMS
-	async fetchSourceData(dbType, connectionConfig, tableName, primaryKey, comparisonFields) {
-    try {
-        const fields = [primaryKey, ...comparisonFields].join(', ');
-        let query;
-        
-        // Database-specific query syntax
-        switch (dbType.toLowerCase()) {
-            case 'oracle':
-                // Oracle uses ROWNUM instead of LIMIT
-                query = `SELECT ${fields} FROM ${tableName} WHERE ROWNUM <= 1000 ORDER BY ${primaryKey}`;
-                break;
-            case 'postgresql':
-            case 'mysql':
-                // PostgreSQL and MySQL use LIMIT
-                query = `SELECT ${fields} FROM ${tableName} ORDER BY ${primaryKey} LIMIT 1000`;
-                break;
-            case 'sqlserver':
-                // SQL Server uses TOP
-                query = `SELECT TOP 1000 ${fields} FROM ${tableName} ORDER BY ${primaryKey}`;
-                break;
-            default:
-                // Default to LIMIT syntax
-                query = `SELECT ${fields} FROM ${tableName} ORDER BY ${primaryKey} LIMIT 1000`;
-        }
-        
-        console.log(`📋 ${dbType.toUpperCase()} query: ${query}`);
+  // Fetch data from source RDBMS
+    async fetchSourceData(dbType, connectionConfig, tableName, primaryKey, comparisonFields, sourceFilter = '', SAMPLE_SIZE = 1000) {
+        try {
+            // Build fields list - remove the duplicate declaration
+            const fields = comparisonFields.length > 0
+                ? [primaryKey, ...comparisonFields].filter(f => f?.trim())
+                : ['*'];
 
-        switch (dbType.toLowerCase()) {
-            case 'oracle':
-                return await this.fetchOracleData(connectionConfig, query);
-            case 'postgresql':
-                return await this.fetchPostgreSQLData(connectionConfig, query);
-            case 'mysql':
-                return await this.fetchMySQLData(connectionConfig, query);
-            case 'sqlserver':
-                return await this.fetchSQLServerData(connectionConfig, query);
-            default:
-                throw new Error(`Unsupported database type: ${dbType}`);
-        }
-    } catch (error) {
-        console.error(`Failed to fetch ${dbType} data:`, error.message);
-        throw error;
+            // Build query based on database type
+            let query;
+            switch(dbType.toLowerCase()) {
+                case 'oracle':
+                    query = `SELECT ${fields.join(', ')} FROM ${tableName} WHERE ${sourceFilter ? `${sourceFilter} AND ` : ''}ROWNUM <= ${SAMPLE_SIZE}`;
+                    break;
+                case 'postgresql':
+                    query = `SELECT ${fields.join(', ')} FROM ${tableName}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
+                    break;
+                case 'mysql':
+                    query = `SELECT ${fields.join(', ')} FROM ${tableName}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
+                    break;
+                case 'sqlserver':
+                    query = `SELECT TOP ${SAMPLE_SIZE} ${fields.join(', ')} FROM ${tableName}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
+                    break;
+                default:
+                    query = `SELECT ${fields.join(', ')} FROM ${tableName}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
+            }
+
+            console.log(`📋 ${dbType.toUpperCase()} query: ${query}`);
+
+            switch (dbType.toLowerCase()) {
+                case 'oracle':
+                    return await this.fetchOracleData(connectionConfig, query);
+                case 'postgresql':
+                    return await this.fetchPostgreSQLData(connectionConfig, query);
+                case 'mysql':
+                    return await this.fetchMySQLData(connectionConfig, query);
+                case 'sqlserver':
+                    return await this.fetchSQLServerData(connectionConfig, query);
+                default:
+                    throw new Error(`Unsupported database type: ${dbType}`);
+            }
+        } catch (error) {
+            console.error(`Failed to fetch ${dbType} data:`, error.message);
+            throw error;
         }
     }
-    // Fetch Oracle data
     async fetchOracleData(config, query) {
         let connection;
         try {
@@ -448,33 +449,36 @@ class RDBMSIntegrationService {
     }
 
     // Fetch PostgreSQL data
-    async fetchPostgreSQLData(config, query) {
-        const pool = new Pool({
-            host: config.host,
-            port: parseInt(config.port) || 5432,
-            database: config.database,
-            user: config.username,
-            password: config.password,
-            connectionTimeoutMillis: 10000,
-            max: 1,
-            ssl: false
-        });
+    // Fetch PostgreSQL data
+async fetchPostgreSQLData(config, query) {
+    const { host, port, database, username, password } = config;
 
-        try {
-            const client = await pool.connect();
-            const result = await client.query(query);
-            client.release();
-            await pool.end();
+    // Use connection string format (same as test connection)
+    const connectionString = `postgres://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port || 5432}/${database}`;
 
-            return {
-                records: result.rows,
-                recordCount: result.rows.length
-            };
-        } catch (error) {
-            await pool.end().catch(() => {});
-            throw error;
-        }
+  const pool = new Pool({
+    connectionString: connectionString,
+    ssl: false,
+    connectionTimeoutMillis: 15000,
+    query_timeout: 120000,
+    statement_timeout: 120000
+});
+
+    try {
+        const client = await pool.connect();
+        const result = await client.query(query);
+        client.release();
+        await pool.end();
+
+        return {
+            records: result.rows,
+            recordCount: result.rows.length
+        };
+    } catch (error) {
+        await pool.end().catch(() => {});
+        throw error;
     }
+}
 
     // Fetch MySQL data
     async fetchMySQLData(config, query) {

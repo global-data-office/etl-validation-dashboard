@@ -7,10 +7,11 @@ const jsonUploadRouter = require('./routes/json-upload');
 const BigQueryIntegrationService = require('./services/bq-integration');
 const RDBMSIntegrationService = require('./services/rdbms-integration');
 const RDBMSComparisonEngineService = require('./services/rdbms-comparison-engine'); // NEW: RDBMS-specific comparison engine
+const PG_PROXY_URL = 'http://YOUR_LINUX_SERVER_IP:3001';  // ← Change this!
 require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
@@ -107,20 +108,22 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
 
 // ENHANCED: RDBMS vs BigQuery Comparison with comprehensive metrics
 app.post('/api/rdbms-vs-bq', async (req, res) => {
+    req.setTimeout(300000); // 5 minute timeout per request
     try {
-        const { dbType, host, port, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '', targetFilter = '' } = req.body;
+        const { dbType, host, port, database, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '', targetFilter = '' } = req.body;
         
         console.log(`Starting ENHANCED ${dbType} vs BigQuery comparison...`);
         console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
         
         // Step 1: Test connection
-        const connectionConfig = { 
-            host, 
-            port: parseInt(port) || (dbType === 'oracle' ? 1521 : 5432), 
-            service, 
-            username, 
-            password 
-        };
+   const connectionConfig = {
+    host,
+    port: parseInt(port) || { oracle: 1521, postgresql: 5432, mysql: 3306, sqlserver: 1433 }[dbType.toLowerCase()] || 5432,
+    database,
+    service,
+    username,
+    password
+};
         
         const connectionTest = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
         
@@ -153,18 +156,34 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             default:
                 countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
         }
-
-        try {
+try {
+            // Get count based on database type
             let countResult;
-            if (dbType.toLowerCase() === 'oracle') {
-                countResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, countQuery);
-            } else {
-                countResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, countQuery);
+            switch(dbType.toLowerCase()) {
+                case 'oracle':
+                    countResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, countQuery);
+                    break;
+                case 'postgresql':
+                    countResult = await RDBMSIntegrationService.fetchPostgreSQLData(connectionConfig, countQuery);
+                    break;
+                case 'mysql':
+                    countResult = await RDBMSIntegrationService.fetchMySQLData(connectionConfig, countQuery);
+                    break;
+                case 'sqlserver':
+                    countResult = await RDBMSIntegrationService.fetchSQLServerData(connectionConfig, countQuery);
+                    break;
+                default:
+                    countResult = { records: [{ total_count: 0 }] };
             }
-            totalRecordCount = countResult.records[0]?.total_count || countResult.records[0]?.TOTAL_COUNT || 0;
-            console.log(`✅ Total records: ${totalRecordCount.toLocaleString()}`);
+
+            // Extract count from result
+            totalRecordCount = countResult.records?.[0]?.total_count || countResult.records?.[0]?.TOTAL_COUNT || 0;
+            console.log(`✅ Total records in source table: ${totalRecordCount.toLocaleString()}`);
+
         } catch (countError) {
-            console.warn('Count query failed:', countError.message);
+            console.warn(`⚠️ Failed to get total count: ${countError.message}`);
+            console.log(`Proceeding without total count...`);
+            totalRecordCount = 0;
         }
 
         // STEP 2: Fetch sample data (2000 records)
@@ -192,15 +211,25 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
         }
 
         console.log(`Executing query: ${query}`);
-        
-        // Fetch data
-        let rdbmsResult;
-        if (dbType.toLowerCase() === 'oracle') {
-            rdbmsResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, query);
-        } else {
-            rdbmsResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
-        }
-        
+        // Fetch data based on database type
+let rdbmsResult;
+switch(dbType.toLowerCase()) {
+    case 'oracle':
+        rdbmsResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, query);
+        break;
+    case 'postgresql':
+        rdbmsResult = await RDBMSIntegrationService.fetchPostgreSQLData(connectionConfig, query);
+        break;
+    case 'mysql':
+        rdbmsResult = await RDBMSIntegrationService.fetchMySQLData(connectionConfig, query);
+        break;
+    case 'sqlserver':
+        rdbmsResult = await RDBMSIntegrationService.fetchSQLServerData(connectionConfig, query);
+        break;
+    default:
+        throw new Error(`Unsupported database type: ${dbType}`);
+}
+
         console.log(`✅ Retrieved ${rdbmsResult.recordCount} sample records from ${dbType.toUpperCase()}`);
         
         if (!rdbmsResult.records || rdbmsResult.records.length === 0) {

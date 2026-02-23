@@ -1711,31 +1711,31 @@
         <button class="results-tab-button" onclick="showRDBMSTab('mysql')">🐬 MySQL to BQ</button>
         <button class="results-tab-button" onclick="showRDBMSTab('sqlserver')">🟦 SQL Server to BQ</button>
     </div>
-
-    <!-- PostgreSQL Configuration Tab -->
-    <div id="postgresql-rdbms-tab" class="results-tab-content">
+<!-- PostgreSQL Configuration Tab -->
+<div id="postgresql-rdbms-tab" class="results-tab-content">
+    <div id="postgresql-config-section">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
             <!-- Left Side: PostgreSQL Configuration -->
             <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
                 <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
                     🐘 PostgreSQL Configuration
                 </h3>
-                
+
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">PostgreSQL Host</label>
-                    <input type="text" id="pg-host" placeholder="localhost" value="localhost" 
+                    <input type="text" id="pg-host" placeholder="localhost or IP address" value="localhost"
                            style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div>
                         <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Port</label>
-                        <input type="number" id="pg-port" value="5432" 
+                        <input type="number" id="pg-port" value="5432"
                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                     </div>
                     <div>
                         <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Database Name</label>
-                        <input type="text" id="pg-database" placeholder="your_database" 
+                        <input type="text" id="pg-database" placeholder="your_database"
                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                     </div>
                 </div>
@@ -1743,26 +1743,40 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div>
                         <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Username</label>
-                        <input type="text" id="pg-username" placeholder="postgres" 
+                        <input type="text" id="pg-username" placeholder="postgres"
                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                     </div>
                     <div>
                         <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Password</label>
-                        <input type="password" id="pg-password" placeholder="your_password" 
+                        <input type="password" id="pg-password" placeholder="your_password"
                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                     </div>
                 </div>
 
+                <!-- Multi-table support like Oracle -->
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">PostgreSQL Table</label>
-                    <input type="text" id="pg-table" placeholder="table_name" 
-                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
-                    <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e8f4fd; border-radius: 4px;">
-                        Enter the PostgreSQL table to validate
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">PostgreSQL Table(s)</label>
+                    <textarea id="pg-table" placeholder="schema.table1&#10;schema.table2&#10;schema.table3"
+                              style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                    <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                        💡 Enter one table per line to validate multiple tables at once (e.g., public.users)
                     </small>
                 </div>
 
-                <button id="testPostgreSQLConnection" class="btn-secondary" onclick="testDatabaseConnection('postgresql')"
+                <!-- Source Filter for Incremental Validation -->
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                        🔍 Source Filter (WHERE clause)
+                        <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+                    </label>
+                    <textarea id="pg-source-filter" placeholder="e.g., created_date >= '2024-01-01'&#10;or: status = 'ACTIVE' AND department_id = 10"
+                              style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
+                    <small style="color: #856404; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #fff3cd; border-radius: 4px; border-left: 3px solid #ffc107;">
+                        💡 Filter PostgreSQL source data for incremental validation (do not include WHERE keyword)
+                    </small>
+                </div>
+
+                <button id="testPostgresqlConnection" class="btn-secondary" onclick="testDatabaseConnection('postgresql')"
                         style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
                     🔍 Test PostgreSQL Connection
                 </button>
@@ -1776,21 +1790,43 @@
                 </h3>
 
                 <div style="margin-bottom: 15px;">
-                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Table</label>
-                    <input type="text" id="pg-bq-table" placeholder="project.dataset.table_name" 
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Dataset</label>
+                    <input type="text" id="pg-bq-table" placeholder="project.dataset"
                            style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                        Tables will auto-match: schema.table → dataset.table (lowercase)
+                    </small>
                 </div>
 
                 <div style="margin-bottom: 15px;">
-                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key Field</label>
-                    <input type="text" id="pg-primary-key" placeholder="id, user_id, etc" 
-                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key(s)</label>
+                    <textarea id="pg-primary-key" placeholder="id&#10;user_id&#10;config_id"
+                              style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                    <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                        💡 One primary key per line (must match PostgreSQL tables order)
+                    </small>
                 </div>
 
-                <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 15px;">
                     <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
-                    <textarea id="pg-comparison-fields" placeholder="field1, field2, field3" 
-                              style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; resize: vertical; font-family: monospace;"></textarea>
+                    <input type="text" id="pg-comparison-fields" placeholder="field1, field2, field3"
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                        Leave empty to compare all fields, or specify fields to compare (comma-separated)
+                    </small>
+                </div>
+
+                <!-- Target Filter for Incremental Validation -->
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                        🔍 Target Filter (WHERE clause)
+                        <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+                    </label>
+                    <textarea id="pg-target-filter" placeholder="e.g., created_date >= '2024-01-01'&#10;or: status = 'ACTIVE' AND department_id = 10"
+                              style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
+                    <small style="color: #155724; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #d4edda; border-radius: 4px; border-left: 3px solid #28a745;">
+                        💡 Filter BigQuery target data to match source filter (do not include WHERE keyword)
+                    </small>
                 </div>
 
                 <button class="btn-primary" onclick="startRDBMSComparison('postgresql')"
@@ -1800,6 +1836,11 @@
             </div>
         </div>
     </div>
+
+    <!-- Results Section - hidden by default, shown after comparison -->
+    <div id="postgresql-comparison-results" class="comparison-results" style="display: none;">
+    </div>
+</div>
 
     <!-- MySQL Configuration Tab -->
     <div id="mysql-rdbms-tab" class="results-tab-content">
@@ -3573,9 +3614,7 @@ function getConnectionData(dbType) {
             data.database = document.getElementById('pg-database')?.value?.trim() || '';
             data.username = document.getElementById('pg-username')?.value?.trim() || '';
             data.password = document.getElementById('pg-password')?.value || '';
-            data.schema = document.getElementById('pg-schema')?.value?.trim() || 'public';
             break;
-            
         case 'mysql':
             data.host = document.getElementById('mysql-host')?.value?.trim() || '';
             data.port = document.getElementById('mysql-port')?.value || 3306;
@@ -3607,7 +3646,17 @@ function getConnectionData(dbType) {
 
 // Test Database Connection - PRODUCTION READY
 async function testDatabaseConnection(dbType) {
-    const button = document.getElementById(`test${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Connection`);
+
+ let buttonId;
+    if (dbType === 'postgresql') {
+        buttonId = 'testPostgresqlConnection';
+    } else if (dbType === 'sqlserver') {
+        buttonId = 'testSQLServerConnection';
+    } else {
+        buttonId = `test${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Connection`;
+    }
+
+    const button = document.getElementById(buttonId);
     const statusDiv = document.getElementById(`${dbType}-connection-status`);
     
     if (!button || !statusDiv) {
@@ -4191,79 +4240,63 @@ function resetRdbmsComparison(dbType) {
         }
     }
 }
-// RDBMS Connection Test Function
 async function startRDBMSComparison(dbType) {
-    // Get the button that triggered this
-    const buttonId = `start${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Validation`;
-    const button = document.getElementById(buttonId);
-    
-    // IMPORTANT: Results should be in the CURRENT tab, not shared
+    // Get the correct prefix based on database type
+    const prefix = dbType === 'postgresql' ? 'pg' : dbType;
+
+    // Find or create results container INSIDE current tab
     const currentTab = document.getElementById(`${dbType}-rdbms-tab`);
     if (!currentTab) {
         alert('Current tab not found');
         return;
     }
-    
-    // Find or create results container INSIDE current tab
+
     let resultsDiv = currentTab.querySelector('.rdbms-results-container');
     if (!resultsDiv) {
-        // Create results container at the end of current tab if it doesn't exist
         resultsDiv = document.createElement('div');
         resultsDiv.className = 'rdbms-results-container';
         currentTab.appendChild(resultsDiv);
     }
-    
+
     try {
-        // Disable button and show processing state
-        if (button) {
-            button.disabled = true;
-            button.dataset.originalText = button.textContent;
-            button.textContent = '⏳ Processing...';
-            button.style.opacity = '0.6';
-            button.style.cursor = 'not-allowed';
-        }
-        
+        // Show loading state
         resultsDiv.innerHTML = '<div class="loading" style="text-align: center; padding: 40px;">🔄 Starting validation process...</div>';
-        
-        // Scroll to results
         resultsDiv.scrollIntoView({ behavior: 'smooth' });
-        
+
         // Get connection data
-        const connectionData = getConnectionData(dbType);
-        
-        // Get table configuration
-        const prefix = dbType === 'postgresql' ? 'pg' : dbType;
-        // Get Oracle tables (multiple, one per line)
+        const connectionConfig = getConnectionData(dbType);
+
+        // Get table configuration - handle multi-table support
         const sourceTablesRaw = document.getElementById(`${prefix}-table`)?.value?.trim() || '';
         const sourceTables = sourceTablesRaw.split('\n').map(t => t.trim()).filter(t => t.length > 0);
-        
+
         // Get BigQuery dataset
         const bqDataset = document.getElementById(`${prefix}-bq-table`)?.value?.trim() || '';
-        
-        // For validation, use first table
-        const sourceTable = sourceTables[0] || '';
-        const tableNameOnly = sourceTable.includes('.') ? sourceTable.split('.').pop().toLowerCase() : sourceTable.toLowerCase();
-        const bqTable = `${bqDataset}.${tableNameOnly}`;
+
         // Get primary keys (multiple, one per line)
         const primaryKeysRaw = document.getElementById(`${prefix}-primary-key`)?.value?.trim() || '';
         const primaryKeys = primaryKeysRaw.split('\n').map(k => k.trim()).filter(k => k.length > 0);
-        const primaryKey = primaryKeys[0] || ''; // For validation, use first one
+
+        // Get comparison fields
         const comparisonFields = document.getElementById(`${prefix}-comparison-fields`)?.value?.trim() || '';
-        
-        // Parse comparison fields
-        const comparisonFieldsArray = comparisonFields 
-            ? comparisonFields.split('\n').map(f => f.trim()).filter(f => f.length > 0)
+        const comparisonFieldsArray = comparisonFields
+            ? comparisonFields.split(',').map(f => f.trim()).filter(f => f.length > 0)
             : [];
-        
+
+        // Get filters
+        const sourceFilter = document.getElementById(`${prefix}-source-filter`)?.value?.trim() || '';
+        const targetFilter = document.getElementById(`${prefix}-target-filter`)?.value?.trim() || '';
+
         // Validation
         const missingFields = [];
-        if (!sourceTable) missingFields.push('Source Table');
+        if (sourceTables.length === 0) missingFields.push('Source Table(s)');
         if (!bqDataset) missingFields.push('BigQuery Dataset');
-        if (!primaryKey) missingFields.push('Primary Key');
-        if (!connectionData.host && !connectionData.server) missingFields.push('Host/Server');
-        if (!connectionData.username) missingFields.push('Username');
-        if (!connectionData.password) missingFields.push('Password');
-        
+        if (primaryKeys.length === 0) missingFields.push('Primary Key(s)');
+        if (!connectionConfig.host && !connectionConfig.server) missingFields.push('Host');
+        if (!connectionConfig.database && !connectionConfig.service) missingFields.push('Database/Service');
+        if (!connectionConfig.username) missingFields.push('Username');
+        if (!connectionConfig.password) missingFields.push('Password');
+
         if (missingFields.length > 0) {
             resultsDiv.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
@@ -4273,44 +4306,43 @@ async function startRDBMSComparison(dbType) {
             `;
             return;
         }
-        
+
         // Validate BigQuery dataset format (project.dataset)
         if (!bqDataset.match(/^[\w-]+\.[\w-]+$/)) {
             resultsDiv.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
                     ❌ <strong>Invalid BigQuery Dataset Format</strong><br>
                     Must be: <strong>project.dataset</strong><br>
-                    Example: rax-landing-qa.brm_ods
+                    Example: my-project.my_dataset
                 </div>
             `;
             return;
         }
-        
-      // Process multiple tables sequentially
-        const allResults = [];
-        const totalTables = sourceTables.length;
-        
+
         // Hide config section and show results section for progress display
-        const configSection = document.getElementById('oracle-config-section');
-        const resultsSection = document.getElementById('oracle-comparison-results');
-        
-        if (configSection) {
-            configSection.style.display = 'none';
-        }
-       if (resultsSection) {
+        const configSection = document.getElementById(`${prefix}-config-section`) ||
+                             document.getElementById(`${dbType}-config-section`);
+        const resultsSection = document.getElementById(`${prefix}-comparison-results`) ||
+                              document.getElementById(`${dbType}-comparison-results`);
+
+        if (configSection) configSection.style.display = 'none';
+        if (resultsSection) {
             resultsSection.style.display = 'block';
             resultsDiv = resultsSection;
-            console.log('Results section displayed, resultsDiv:', resultsDiv);
-        } else {
-            console.log('ERROR: resultsSection not found!');
         }
-        
+
+        // Process tables
+        const allResults = [];
+        const totalTables = sourceTables.length;
+
         for (let i = 0; i < totalTables; i++) {
             const currentSourceTable = sourceTables[i];
-            const currentTableName = currentSourceTable.includes('.') ? currentSourceTable.split('.').pop().toLowerCase() : currentSourceTable.toLowerCase();
-            const currentBqTable = `${bqDataset}.${currentTableName}`;
-            
-            // Update progress with animated spinner
+         const currentTableName = currentSourceTable.includes('.')
+    ? currentSourceTable.split('.').pop().toLowerCase().replace(/["'`]/g, '')
+    : currentSourceTable.toLowerCase().replace(/["'`]/g, '');
+       const currentBqTable = `${bqDataset}.${currentTableName}`;
+
+            // Update progress
             resultsDiv.innerHTML = `
                 <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
                     <div class="spinner" style="margin: 0 auto 20px; width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
@@ -4322,12 +4354,9 @@ async function startRDBMSComparison(dbType) {
                         <div style="font-size: 13px; opacity: 0.8; margin-top: 5px;">↓</div>
                         <div style="font-size: 14px; opacity: 0.9;">${currentBqTable}</div>
                     </div>
-                    <div style="background: rgba(255,255,255,0.3); border-radius: 10px; height: 24px; overflow: hidden; margin-bottom: 10px;">
-                        <div style="background: rgba(255,255,255,0.9); height: 100%; width: ${((i + 1) / totalTables) * 100}%; transition: width 0.5s; display: flex; align-items: center; justify-content: center; color: #764ba2; font-weight: bold; font-size: 12px;">
-                            ${Math.round(((i + 1) / totalTables) * 100)}%
-                        </div>
+                    <div style="background: rgba(255,255,255,0.3); border-radius: 10px; height: 24px; overflow: hidden;">
+                        <div style="background: rgba(255,255,255,0.9); height: 100%; width: ${((i + 1) / totalTables) * 100}%; transition: width 0.5s;"></div>
                     </div>
-                    <div style="font-size: 13px; opacity: 0.8;">${i} completed • ${totalTables - i - 1} remaining</div>
                 </div>
                 <style>
                     @keyframes spin {
@@ -4336,53 +4365,51 @@ async function startRDBMSComparison(dbType) {
                     }
                 </style>
             `;
-            
-            // Build request for current table
+
+            // Build request
             const requestData = {
                 dbType: dbType,
-                host: connectionData.host || connectionData.server,
-                port: connectionData.port,
-                database: connectionData.database,
-                server: connectionData.server,
-                service: connectionData.service,
-                username: connectionData.username,
-                password: connectionData.password,
+                host: connectionConfig.host || connectionConfig.server,
+                port: connectionConfig.port,
+                database: connectionConfig.database,
+                service: connectionConfig.service,
+                username: connectionConfig.username,
+                password: connectionConfig.password,
                 sourceTable: currentSourceTable,
                 bqTable: currentBqTable,
                 primaryKey: primaryKeys[i] || primaryKeys[0] || '',
                 comparisonFields: comparisonFieldsArray,
-                sourceFilter: document.getElementById(`${prefix}-source-filter`)?.value?.trim() || '',
-                targetFilter: document.getElementById(`${prefix}-target-filter`)?.value?.trim() || '',
+                sourceFilter: sourceFilter,
+                targetFilter: targetFilter
             };
-            
-            console.log(`Validating table ${i + 1}/${totalTables}:`, { sourceTable: currentSourceTable, bqTable: currentBqTable });
-            
-            try {
-                // Call API
+
+            console.log(`Validating table ${i + 1}/${totalTables}:`, {
+                sourceTable: currentSourceTable,
+                bqTable: currentBqTable
+            });
+
+           try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min timeout
                 const response = await fetch('/api/rdbms-vs-bq', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestData)
+                    body: JSON.stringify(requestData),
+                    signal: controller.signal
                 });
-                
+                clearTimeout(timeoutId);
+
                 const result = await response.json();
-                
-                if (result.success) {
-                    allResults.push({
-                        sourceTable: currentSourceTable,
-                        bqTable: currentBqTable,
-                        success: true,
-                        data: result
-                    });
-                } else {
-                    allResults.push({
-                        sourceTable: currentSourceTable,
-                        bqTable: currentBqTable,
-                        success: false,
-                        error: result.error,
-                        suggestions: result.suggestions
-                    });
-                }
+
+                allResults.push({
+                    sourceTable: currentSourceTable,
+                    bqTable: currentBqTable,
+                    success: result.success,
+                    data: result.success ? result : null,
+                    error: result.success ? null : result.error,
+                    suggestions: result.suggestions
+                });
+
             } catch (error) {
                 allResults.push({
                     sourceTable: currentSourceTable,
@@ -4392,50 +4419,41 @@ async function startRDBMSComparison(dbType) {
                 });
             }
         }
-        
+
         // Display results
         if (allResults.length === 1) {
-            // Single table - use existing display
             if (allResults[0].success) {
                 displayRDBMSResults(allResults[0].data, dbType, resultsDiv);
             } else {
                 resultsDiv.innerHTML = `
-                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
-                    ❌ <strong>Validation Failed</strong><br>
-                    ${allResults[0].error}<br><br>
-                    ${allResults[0].suggestions ? `<strong>Suggestions:</strong><ul>${allResults[0].suggestions.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
-                    <button class="btn-secondary" onclick="startNewMultiComparison('${dbType}')" style="margin-top: 15px;">
-                    🔄 New Comparison
-                    </button>
-                 </div>
+                    <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                        ❌ <strong>Validation Failed</strong><br>
+                        ${allResults[0].error}<br><br>
+                        ${allResults[0].suggestions ? `<strong>Suggestions:</strong><ul>${allResults[0].suggestions.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
+                        <button class="btn-secondary" onclick="startNewMultiComparison('${dbType}')" style="margin-top: 15px;">
+                            🔄 New Comparison
+                        </button>
+                    </div>
                 `;
             }
         } else {
-            // Multiple tables - display with tabs
             displayMultiTableResults(allResults, dbType, resultsDiv);
         }
-        
+
     } catch (error) {
         console.error(`${dbType} validation error:`, error);
         resultsDiv.innerHTML = `
             <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
                 ❌ <strong>Network Error</strong><br>
-                 ${error.message}
+                ${error.message}
                 <button class="btn-secondary" onclick="startNewMultiComparison('${dbType}')" style="margin-top: 15px;">
-                🔄 New Comparison
-                 </button>
+                    🔄 New Comparison
+                </button>
             </div>
-           `;
-    } finally {
-        // ALWAYS re-enable button, even if there was an error
-        if (button) {
-            button.disabled = false;
-            button.textContent = button.dataset.originalText || 'Start Validation';
-            button.style.opacity = '1';
-            button.style.cursor = 'pointer';
-        }
+        `;
     }
 }
+
 function displayRDBMSResults(result, dbType, targetDiv) {
     console.log('=== DISPLAYING RESULTS FOR:', dbType.toUpperCase(), '===');
     
@@ -4627,14 +4645,14 @@ function displayMultiTableResults(allResults, dbType, targetDiv) {
     const totalSourceRecords = allResults.reduce((sum, r) => {
         if (r.success) {
             const data = r.data.data || r.data;
-            return sum + (data.summary?.totalRecordsInSource || 0);
+            return sum + parseInt(data.summary?.totalRecordsInSource || 0);
         }
         return sum;
     }, 0);
     const totalMatches = allResults.reduce((sum, r) => {
         if (r.success) {
             const data = r.data.data || r.data;
-            return sum + (data.summary?.recordsReachedTarget || 0);
+          return sum + parseInt(data.summary?.recordsReachedTarget || 0);
         }
         return sum;
     }, 0);
@@ -4813,7 +4831,10 @@ function showMultiTableTab(tabIndex) {
 function viewDetailedResults(tabIndex) {
     const result = window.multiTableResults[tabIndex];
     if (result && result.success) {
-        const resultsDiv = document.getElementById('oracle-comparison-results');
+       const dbType = window.multiTableDbType || 'oracle';
+       const prefix = dbType === 'postgresql' ? 'pg' : dbType;
+        const resultsDiv = document.getElementById(`${prefix}-comparison-results`) ||
+                   document.getElementById(`${dbType}-comparison-results`);
         if (resultsDiv) {
             // Store current multi-table HTML to restore later
             window.multiTableHTML = resultsDiv.innerHTML;
@@ -4840,31 +4861,35 @@ function viewDetailedResults(tabIndex) {
 
 // Back to multi-table summary
 function backToMultiTableSummary() {
-    const resultsDiv = document.getElementById('oracle-comparison-results');
+   const dbType = window.multiTableDbType || 'oracle';
+    const prefix = dbType === 'postgresql' ? 'pg' : dbType;
+    const resultsDiv = document.getElementById(`${prefix}-comparison-results`) ||
+                   document.getElementById(`${dbType}-comparison-results`);
     if (resultsDiv && window.multiTableHTML) {
         resultsDiv.innerHTML = window.multiTableHTML;
     }
 }
-// Start new comparison
 function startNewMultiComparison(dbType) {
     const prefix = dbType === 'postgresql' ? 'pg' : dbType;
-    const configSection = document.getElementById(`${prefix}-config-section`) || document.getElementById('oracle-config-section');
-    const resultsSection = document.getElementById(`${prefix}-comparison-results`) || document.getElementById('oracle-comparison-results');
-    
+
+    const configSection = document.getElementById(`${prefix}-config-section`) ||
+                         document.getElementById(`${dbType}-config-section`);
+    const resultsSection = document.getElementById(`${prefix}-comparison-results`) ||
+                          document.getElementById(`${dbType}-comparison-results`);
+
     // Also check for detailed results (single table view)
     const detailedResults = document.getElementById('oracle-comparison-results');
-    
+
     // Show config form
     if (configSection) configSection.style.display = 'block';
-    
+
     // Hide all results sections
     if (resultsSection) resultsSection.style.display = 'none';
     if (detailedResults) detailedResults.style.display = 'none';
-    
+
     // Scroll to top so user sees the form
     window.scrollTo({top: 0, behavior: 'smooth'});
 }
-
 // Export single table
 function exportSingleTable(tabIndex) {
     const result = window.multiTableResults[tabIndex];
