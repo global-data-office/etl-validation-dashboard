@@ -1450,6 +1450,10 @@
                 <span class="tab-icon">🗄️</span>
                 <span class="tab-label">RDBMS vs BQ</span>
             </button>
+			<button class="tab-button" onclick="showPage('bq-comparison')">
+                <span class="tab-icon">🔄</span>
+                <span class="tab-label">BQ vs BQ</span>
+            </button>
         </div>
 
         <!-- Page 1: Sanity Test -->
@@ -2117,6 +2121,98 @@
         </div>
     </div>
 </div>
+<!-- Page 5: BQ vs BQ Comparison -->
+    <div id="bq-comparison-page" class="page-content">
+        <div class="page-header">
+            <h2><span class="tab-icon">🔄</span> BigQuery vs BigQuery Comparison</h2>
+            <p>Cross-dataset validation between BigQuery source and target tables</p>
+        </div>
+
+        <div id="bq-vs-bq-config-section">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
+                <!-- Left Side: BigQuery Source Configuration -->
+                <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
+                    <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                        🔵 BigQuery Source Configuration
+                    </h3>
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Source Dataset</label>
+                        <input type="text" id="bqvsbq-source-dataset" placeholder="project.dataset"
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                        <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                            Tables will auto-match: project.dataset + table_name
+                        </small>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Source Table(s)</label>
+                        <textarea id="bqvsbq-source-tables" placeholder="table_name1&#10;table_name2&#10;table_name3"
+                                  style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                        <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                            💡 Enter one table per line to validate multiple tables at once. Use short table names (without project.dataset prefix).
+                        </small>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                            🔍 Source Filter (WHERE clause)
+                            <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+                        </label>
+                        <textarea id="bqvsbq-source-filter" placeholder="e.g., created_date >= '2024-01-01'&#10;or: status = 'ACTIVE' AND department_id = 10"
+                                  style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
+                        <small style="color: #856404; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #fff3cd; border-radius: 4px; border-left: 3px solid #ffc107;">
+                            💡 Filter source data for incremental validation. Target records will be automatically matched by primary key. (Do not include WHERE keyword)
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Right Side: BigQuery Target Configuration -->
+                <div style="background: #e8f4fd; padding: 25px; border-radius: 12px; border: 1px solid #bee5eb;">
+                    <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                        🗄️ BigQuery Target Configuration
+                    </h3>
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Target Dataset</label>
+                        <input type="text" id="bqvsbq-target-dataset" placeholder="project.dataset"
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                        <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                            Tables will auto-match: source table_name → target dataset.table_name
+                        </small>
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key(s)</label>
+                        <textarea id="bqvsbq-primary-keys" placeholder="obj_id0&#10;bill_id&#10;config_id"
+                                  style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                        <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                            💡 One primary key per line (must match source tables order)
+                        </small>
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
+                        <input type="text" id="bqvsbq-comparison-fields" placeholder="field1, field2, field3"
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                        <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                            💡 Leave empty to compare all fields, or specify fields to compare.
+                            <span style="color: #dc3545; font-weight: 600;">Note: Automatically disabled for multi-table validation (2+ tables).</span>
+                        </small>
+                    </div>
+
+                    <button class="btn-primary" onclick="startBQvsBQComparison()"
+                            style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 15px; cursor: pointer;">
+                        🚀 Start BigQuery vs BigQuery Validation
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- BQ vs BQ Results Section -->
+        <div id="bqvsbq-comparison-results" class="comparison-results" style="display: none;">
+        </div>
+    </div>
     <script>
         let globalComparisonResults = null;
         let currentFileId = null;
@@ -5719,6 +5815,231 @@ document.getElementById('oracle-connection-type')?.addEventListener('change', fu
         label.textContent = 'Service Name';
         input.placeholder = 'e.g., RACQA0';
         hint.innerHTML = '💡 Connection format: host:port/servicename';
+    }
+});
+// ============================================
+// BQ vs BQ Comparison Function
+// ============================================
+async function startBQvsBQComparison() {
+    const sourceDataset = document.getElementById('bqvsbq-source-dataset')?.value?.trim() || '';
+    const sourceTablesRaw = document.getElementById('bqvsbq-source-tables')?.value?.trim() || '';
+    const targetDataset = document.getElementById('bqvsbq-target-dataset')?.value?.trim() || '';
+    const primaryKeysRaw = document.getElementById('bqvsbq-primary-keys')?.value?.trim() || '';
+    const sourceFilter = document.getElementById('bqvsbq-source-filter')?.value?.trim() || '';
+
+    // Parse multi-line inputs
+    const sourceTables = sourceTablesRaw.split('\n').map(t => t.trim()).filter(t => t.length > 0);
+    const primaryKeys = primaryKeysRaw.split('\n').map(k => k.trim()).filter(k => k.length > 0);
+
+    // Disable comparison fields for multi-table (2+ tables)
+    const comparisonFieldsInput = document.getElementById('bqvsbq-comparison-fields');
+    if (!comparisonFieldsInput) return;
+
+    if (sourceTables.length > 1) {
+        comparisonFieldsInput.disabled = true;
+        comparisonFieldsInput.style.background = '#f0f0f0';
+        comparisonFieldsInput.style.cursor = 'not-allowed';
+        comparisonFieldsInput.value = '';
+        comparisonFieldsInput.placeholder = '🚫 Disabled for multi-table validation (all common fields will be compared)';
+    }
+
+    const comparisonFieldsRaw = comparisonFieldsInput?.value?.trim() || '';
+    const comparisonFieldsArray = comparisonFieldsRaw ? comparisonFieldsRaw.split(',').map(f => f.trim()).filter(f => f.length > 0) : [];
+
+    // Validation
+    const missingFields = [];
+    if (!sourceDataset) missingFields.push('Source Dataset');
+    if (sourceTables.length === 0) missingFields.push('Source Table(s)');
+    if (!targetDataset) missingFields.push('Target Dataset');
+    if (primaryKeys.length === 0) missingFields.push('Primary Key(s)');
+
+    if (missingFields.length > 0) {
+        alert('Please fill in: ' + missingFields.join(', '));
+        return;
+    }
+
+    // Validate dataset format (project.dataset)
+    if (!sourceDataset.match(/^[\w-]+\.[\w-]+$/)) {
+        alert('Source BigQuery Dataset must be in format: project.dataset\nExample: my-project.my_dataset');
+        return;
+    }
+    if (!targetDataset.match(/^[\w-]+\.[\w-]+$/)) {
+        alert('Target BigQuery Dataset must be in format: project.dataset\nExample: my-project.my_dataset');
+        return;
+    }
+
+    // Get config and results sections
+    const configSection = document.getElementById('bq-vs-bq-config-section');
+    const resultsSection = document.getElementById('bqvsbq-comparison-results');
+
+    if (configSection) configSection.style.display = 'none';
+    if (resultsSection) resultsSection.style.display = 'block';
+
+    // Process tables
+    const allResults = [];
+    const totalTables = sourceTables.length;
+
+    for (let i = 0; i < totalTables; i++) {
+        const currentTableName = sourceTables[i];
+        const currentSourceTable = `${sourceDataset}.${currentTableName}`;
+        const currentTargetTable = `${targetDataset}.${currentTableName}`;
+        const currentPrimaryKey = primaryKeys[i] || primaryKeys[0] || '';
+
+        // Show progress
+        resultsSection.innerHTML = `
+            <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+                <div class="spinner" style="margin: 0 auto 20px; width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div style="font-size: 22px; font-weight: bold; margin-bottom: 10px;">🔄 Validating BQ vs BQ...</div>
+                <div style="font-size: 16px; margin-bottom: 15px;">Table ${i + 1} of ${totalTables}</div>
+                <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-size: 14px; opacity: 0.9;">Source:</div>
+                    <div style="font-size: 16px; font-weight: bold; margin-top: 5px;">${currentSourceTable}</div>
+                    <div style="font-size: 13px; opacity: 0.8; margin-top: 5px;">↕</div>
+                    <div style="font-size: 14px; opacity: 0.9;">Target:</div>
+                    <div style="font-size: 16px; font-weight: bold; margin-top: 5px;">${currentTargetTable}</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.3); border-radius: 10px; height: 24px; overflow: hidden; margin-bottom: 10px;">
+                    <div style="background: rgba(255,255,255,0.9); height: 100%; width: ${Math.round(((i + 1) / totalTables) * 100)}%; transition: width 0.5s; display: flex; align-items: center; justify-content: center; color: #764ba2; font-weight: bold; font-size: 12px;">
+                        ${Math.round(((i + 1) / totalTables) * 100)}%
+                    </div>
+                </div>
+                <div style="font-size: 13px; opacity: 0.8;">${i} completed • ${totalTables - i - 1} remaining</div>
+            </div>
+        `;
+
+        try {
+            const response = await fetch('/api/bq-vs-bq', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sourceTable: currentSourceTable,
+                    targetTable: currentTargetTable,
+                    primaryKey: currentPrimaryKey,
+                    comparisonFields: sourceTables.length > 1 ? [] : comparisonFieldsArray,
+                    sourceFilter: sourceFilter
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                allResults.push({
+                    sourceTable: currentSourceTable,
+                    bqTable: currentTargetTable,
+                    success: true,
+                    data: result
+                });
+            } else {
+                allResults.push({
+                    sourceTable: currentSourceTable,
+                    bqTable: currentTargetTable,
+                    success: false,
+                    error: result.error,
+                    suggestions: result.suggestions
+                });
+            }
+        } catch (fetchError) {
+            allResults.push({
+                sourceTable: currentSourceTable,
+                bqTable: currentTargetTable,
+                success: false,
+                error: fetchError.message
+            });
+        }
+    }
+
+    // Display results - reuse RDBMS display functions
+    if (allResults.length === 1) {
+        if (allResults[0].success) {
+            displayRDBMSResults(allResults[0].data, 'bigquery', resultsSection);
+        } else {
+            resultsSection.innerHTML = `
+                <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                    ❌ <strong>Validation Failed</strong><br>
+                    ${allResults[0].error}<br><br>
+                    ${allResults[0].suggestions ? `<strong>Suggestions:</strong><ul>${allResults[0].suggestions.map(s => '<li>' + s + '</li>').join('')}</ul>` : ''}
+                    <button class="btn-secondary" onclick="startNewBQvsBQComparison()" style="margin-top: 15px;">
+                        🔄 New Comparison
+                    </button>
+                </div>
+            `;
+        }
+    } else {
+        // Multi-table results
+        window.multiTableDbType = 'bigquery';
+        displayMultiTableResults(allResults, 'bigquery', resultsSection);
+		// Fix: Override buttons to use BQ-specific results div
+setTimeout(() => {
+    resultsSection.querySelectorAll('button[onclick^="viewDetailedResults"]').forEach(btn => {
+        const idx = btn.getAttribute('onclick').match(/\d+/)[0];
+        btn.setAttribute('onclick', `viewBQDetailedResults(${idx})`);
+    });
+    resultsSection.querySelectorAll('button[onclick^="startNewMultiComparison"]').forEach(btn => {
+        btn.setAttribute('onclick', `startNewBQvsBQComparison()`);
+    });
+}, 100);
+    }
+}
+
+
+// Reset BQ vs BQ comparison
+function startNewBQvsBQComparison() {
+    const configSection = document.getElementById('bq-vs-bq-config-section');
+    const resultsSection = document.getElementById('bqvsbq-comparison-results');
+
+    if (configSection) configSection.style.display = 'block';
+    if (resultsSection) {
+        resultsSection.style.display = 'none';
+        resultsSection.innerHTML = '';
+    }
+    window.scrollTo({top: 0, behavior: 'smooth'});
+}
+// View detailed results for BQ vs BQ multi-table
+function viewBQDetailedResults(tabIndex) {
+    const result = window.multiTableResults[tabIndex];
+    if (result && result.success) {
+        const resultsDiv = document.getElementById('bqvsbq-comparison-results');
+        if (resultsDiv) {
+            window.bqMultiTableHTML = resultsDiv.innerHTML;
+            
+            const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
+            const backButton = `
+                <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <button onclick="backToBQMultiTableSummary()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        ← Back to Multi-Table Summary
+                    </button>
+                    <span style="font-weight: 600; color: #495057;">📊 Detailed Results: ${tableName}</span>
+                </div>
+            `;
+            
+            displayRDBMSResults(result.data, 'bigquery', resultsDiv);
+            resultsDiv.innerHTML = backButton + resultsDiv.innerHTML;
+        }
+    }
+}
+
+function backToBQMultiTableSummary() {
+    const resultsDiv = document.getElementById('bqvsbq-comparison-results');
+    if (resultsDiv && window.bqMultiTableHTML) {
+        resultsDiv.innerHTML = window.bqMultiTableHTML;
+    }
+}
+// Disable comparison fields for multi-table BQ vs BQ
+document.getElementById('bqvsbq-source-tables')?.addEventListener('input', function(e) {
+    const tables = e.target.value.split('\n').filter(t => t.trim().length > 0);
+    const comparisonFieldsInput = document.getElementById('bqvsbq-comparison-fields');
+
+    if (tables.length > 1) {
+        comparisonFieldsInput.disabled = true;
+        comparisonFieldsInput.style.background = '#f0f0f0';
+        comparisonFieldsInput.style.cursor = 'not-allowed';
+        comparisonFieldsInput.value = '';
+        comparisonFieldsInput.placeholder = '🚫 Disabled for multi-table validation (all common fields will be compared)';
+    } else {
+        comparisonFieldsInput.disabled = false;
+        comparisonFieldsInput.style.background = '';
+        comparisonFieldsInput.style.cursor = '';
+        comparisonFieldsInput.placeholder = 'field1, field2, field3';
     }
 });
     </script>

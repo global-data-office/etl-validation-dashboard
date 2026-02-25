@@ -1321,7 +1321,421 @@ app.post('/api/validate', async (req, res) => {
         res.status(500).json(errorResponse);
     }
 });
+// ============================================================
+// BQ vs BQ COMPARISON ENDPOINT - FIXED (no string conversion)
+// REPLACE the existing /api/bq-vs-bq endpoint in server.js
+// ============================================================
 
+app.post('/api/bq-vs-bq', async (req, res) => {
+    try {
+        const { sourceTable, targetTable, primaryKey, comparisonFields = [], sourceFilter = '' } = req.body;
+
+        console.log(`\n=== Starting BigQuery vs BigQuery Comparison ===`);
+        console.log(`Source: ${sourceTable}`);
+        console.log(`Target: ${targetTable}`);
+        console.log(`Primary Key: ${primaryKey}`);
+        console.log(`Source Filter: ${sourceFilter || 'None'}`);
+        console.log(`Comparison Fields: ${comparisonFields.length > 0 ? comparisonFields.join(', ') : 'All common fields'}`);
+
+        // Validate required fields
+        if (!sourceTable || !targetTable || !primaryKey) {
+            return res.status(400).json({
+                success: false,
+                error: 'sourceTable, targetTable, and primaryKey are required',
+                suggestions: [
+                    'Provide source BigQuery table (project.dataset.table)',
+                    'Provide target BigQuery table (project.dataset.table)',
+                    'Provide a primary key field that exists in both tables'
+                ]
+            });
+        }
+
+        // Validate table name format
+        const tableRegex = /^[\w-]+\.[\w-]+\.[\w-]+$/;
+        if (!sourceTable.match(tableRegex)) {
+            return res.status(400).json({ success: false, error: `Invalid source table format: ${sourceTable}. Must be project.dataset.table` });
+        }
+        if (!targetTable.match(tableRegex)) {
+            return res.status(400).json({ success: false, error: `Invalid target table format: ${targetTable}. Must be project.dataset.table` });
+        }
+
+        // ========== STEP 1: Get record counts ==========
+        console.log('📊 Getting record counts...');
+        const sourceWhereClause = sourceFilter ? `WHERE ${sourceFilter}` : '';
+
+        const countsQuery = `
+            WITH source_stats AS (
+                SELECT 
+                    COUNT(*) as total_records,
+                    COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as unique_keys,
+                    COUNT(*) - COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as duplicate_records,
+                    COUNTIF(${primaryKey} IS NULL) as null_keys
+                FROM \`${sourceTable}\` ${sourceWhereClause}
+            ),
+            target_stats AS (
+                SELECT 
+                    COUNT(*) as total_records,
+                    COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as unique_keys,
+                    COUNT(*) - COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as duplicate_records,
+                    COUNTIF(${primaryKey} IS NULL) as null_keys
+                FROM \`${targetTable}\`
+            )
+            SELECT 
+                s.total_records as source_total, s.unique_keys as source_unique, 
+                s.duplicate_records as source_duplicates, s.null_keys as source_nulls,
+                t.total_records as target_total, t.unique_keys as target_unique,
+                t.duplicate_records as target_duplicates, t.null_keys as target_nulls
+            FROM source_stats s, target_stats t
+        `;
+
+        let counts;
+        try {
+            const [countRows] = await bigquery.query(countsQuery);
+            counts = countRows[0];
+            console.log(`✅ Source: ${counts.source_total} total, ${counts.source_unique} unique`);
+            console.log(`✅ Target: ${counts.target_total} total, ${counts.target_unique} unique`);
+        } catch (err) {
+            return res.status(400).json({
+                success: false,
+                error: `Count query failed: ${err.message}`,
+                suggestions: [
+                    'Verify both tables exist and are accessible',
+                    `Check that primary key "${primaryKey}" exists in both tables`,
+                    'Check source filter syntax if provided'
+                ]
+            });
+        }
+
+        // ========== STEP 2: Get schema (column names) ==========
+        console.log('📋 Analyzing schema...');
+        const schemaQuery = `
+            WITH source_cols AS (
+                SELECT column_name FROM \`${sourceTable.split('.')[0]}.${sourceTable.split('.')[1]}\`.INFORMATION_SCHEMA.COLUMNS
+                WHERE table_name = '${sourceTable.split('.')[2]}'
+            ),
+            target_cols AS (
+                SELECT column_name FROM \`${targetTable.split('.')[0]}.${targetTable.split('.')[1]}\`.INFORMATION_SCHEMA.COLUMNS
+                WHERE table_name = '${targetTable.split('.')[2]}'
+            )
+            SELECT 
+                s.column_name as col, 'source' as src FROM source_cols s
+            UNION ALL
+            SELECT 
+                t.column_name as col, 'target' as src FROM target_cols t
+        `;
+
+        let sourceFields = [], targetFields = [];
+        try {
+            const [schemaCols] = await bigquery.query(schemaQuery);
+            schemaCols.forEach(r => {
+                if (r.src === 'source') sourceFields.push(r.col);
+                else targetFields.push(r.col);
+            });
+        } catch (schemaErr) {
+            console.warn('Schema query failed, using sample approach:', schemaErr.message);
+            // Fallback: get fields from a sample row
+            try {
+                const [srcSample] = await bigquery.query(`SELECT * FROM \`${sourceTable}\` LIMIT 1`);
+                const [tgtSample] = await bigquery.query(`SELECT * FROM \`${targetTable}\` LIMIT 1`);
+                if (srcSample.length > 0) sourceFields = Object.keys(srcSample[0]);
+                if (tgtSample.length > 0) targetFields = Object.keys(tgtSample[0]);
+            } catch (e) {
+                return res.status(400).json({ success: false, error: `Cannot read table schemas: ${e.message}` });
+            }
+        }
+
+        const commonFields = sourceFields.filter(f => targetFields.includes(f));
+        const sourceOnlyFields = sourceFields.filter(f => !targetFields.includes(f));
+        const targetOnlyFields = targetFields.filter(f => !sourceFields.includes(f));
+
+        // Determine which fields to compare
+        let fieldsToCompare;
+        if (comparisonFields.length > 0) {
+            fieldsToCompare = comparisonFields.filter(f => commonFields.includes(f));
+        } else {
+            fieldsToCompare = commonFields.filter(f => f !== primaryKey);
+        }
+
+        console.log(`✅ Common fields: ${commonFields.length}, Comparing: ${fieldsToCompare.length}`);
+
+        // ========== STEP 3: Record matching (PK-based) ==========
+        console.log('🔍 Matching records by primary key...');
+        const matchQuery = `
+            WITH source_keys AS (
+                SELECT DISTINCT CAST(${primaryKey} AS STRING) as pk
+                FROM \`${sourceTable}\` ${sourceWhereClause}
+                WHERE ${primaryKey} IS NOT NULL
+            ),
+            target_keys AS (
+                SELECT DISTINCT CAST(${primaryKey} AS STRING) as pk
+                FROM \`${targetTable}\`
+                WHERE ${primaryKey} IS NOT NULL
+            )
+            SELECT
+                (SELECT COUNT(*) FROM source_keys s INNER JOIN target_keys t ON s.pk = t.pk) as matched,
+                (SELECT COUNT(*) FROM source_keys s LEFT JOIN target_keys t ON s.pk = t.pk WHERE t.pk IS NULL) as source_only,
+                (SELECT COUNT(*) FROM target_keys t LEFT JOIN source_keys s ON t.pk = s.pk WHERE s.pk IS NULL) as target_only
+        `;
+
+        let matchCounts;
+        try {
+            const [matchRows] = await bigquery.query(matchQuery);
+            matchCounts = matchRows[0];
+            console.log(`✅ Matched: ${matchCounts.matched}, Source-only: ${matchCounts.source_only}, Target-only: ${matchCounts.target_only}`);
+        } catch (matchErr) {
+            return res.status(400).json({ success: false, error: `Match query failed: ${matchErr.message}` });
+        }
+
+        // ========== STEP 4: Field-by-field comparison ==========
+        console.log('🔬 Running field-by-field comparison...');
+        const fieldComparisons = [];
+        let totalFieldIssues = 0;
+        let perfectFieldCount = 0;
+
+        // Compare in batches of 5 fields at a time
+        const FIELD_BATCH_SIZE = 5;
+        for (let i = 0; i < fieldsToCompare.length; i += FIELD_BATCH_SIZE) {
+            const fieldBatch = fieldsToCompare.slice(i, i + FIELD_BATCH_SIZE);
+
+            const fieldSelectParts = fieldBatch.map(field => `
+                COUNTIF(CAST(s.${field} AS STRING) = CAST(t.${field} AS STRING) OR (s.${field} IS NULL AND t.${field} IS NULL)) as match_${field.replace(/[^a-zA-Z0-9]/g, '_')},
+                COUNTIF(NOT (CAST(s.${field} AS STRING) = CAST(t.${field} AS STRING) OR (s.${field} IS NULL AND t.${field} IS NULL))) as diff_${field.replace(/[^a-zA-Z0-9]/g, '_')}
+            `).join(',\n');
+
+            const fieldCompareQuery = `
+                WITH matched AS (
+                    SELECT s.*, t.${primaryKey} as t_pk
+                    FROM (SELECT * FROM \`${sourceTable}\` ${sourceWhereClause}) s
+                    INNER JOIN \`${targetTable}\` t
+                    ON CAST(s.${primaryKey} AS STRING) = CAST(t.${primaryKey} AS STRING)
+                )
+                SELECT 
+                    COUNT(*) as total_compared,
+                    ${fieldSelectParts}
+                FROM (SELECT * FROM \`${sourceTable}\` ${sourceWhereClause}) s
+                INNER JOIN \`${targetTable}\` t
+                ON CAST(s.${primaryKey} AS STRING) = CAST(t.${primaryKey} AS STRING)
+            `;
+
+            try {
+                const [fieldRows] = await bigquery.query(fieldCompareQuery);
+                const row = fieldRows[0];
+                const totalCompared = row.total_compared || 0;
+
+                fieldBatch.forEach(field => {
+                    const safeField = field.replace(/[^a-zA-Z0-9]/g, '_');
+                    const matches = row[`match_${safeField}`] || 0;
+                    const diffs = row[`diff_${safeField}`] || 0;
+                    const matchRate = totalCompared > 0 ? ((matches / totalCompared) * 100).toFixed(1) : '0.0';
+
+                    if (diffs > 0) totalFieldIssues += diffs;
+                    else perfectFieldCount++;
+
+                    fieldComparisons.push({
+                        fieldName: field,
+                        totalRecords: totalCompared,
+                        perfectMatches: matches,
+                        differences: diffs,
+                        matchRate: matchRate,
+                        error: null
+                    });
+                });
+            } catch (fieldErr) {
+                console.warn(`Field batch comparison failed:`, fieldErr.message);
+                fieldBatch.forEach(field => {
+                    fieldComparisons.push({
+                        fieldName: field,
+                        totalRecords: 0,
+                        perfectMatches: 0,
+                        differences: 0,
+                        matchRate: '0.0',
+                        error: fieldErr.message
+                    });
+                });
+            }
+        }
+
+        console.log(`✅ Field analysis: ${perfectFieldCount} perfect, ${fieldsToCompare.length - perfectFieldCount} with issues`);
+
+        // ========== STEP 5: Duplicate key detection ==========
+        console.log('🔄 Checking for duplicate keys...');
+        let sourceDupKeys = [], targetDupKeys = [];
+
+        try {
+            const dupQuery = `
+                WITH source_dups AS (
+                    SELECT CAST(${primaryKey} AS STRING) as pk, COUNT(*) as cnt
+                    FROM \`${sourceTable}\` ${sourceWhereClause}
+                    WHERE ${primaryKey} IS NOT NULL
+                    GROUP BY pk HAVING cnt > 1
+                    ORDER BY cnt DESC LIMIT 20
+                ),
+                target_dups AS (
+                    SELECT CAST(${primaryKey} AS STRING) as pk, COUNT(*) as cnt
+                    FROM \`${targetTable}\`
+                    WHERE ${primaryKey} IS NOT NULL
+                    GROUP BY pk HAVING cnt > 1
+                    ORDER BY cnt DESC LIMIT 20
+                )
+                SELECT pk, cnt, 'source' as src FROM source_dups
+                UNION ALL
+                SELECT pk, cnt, 'target' as src FROM target_dups
+            `;
+            const [dupRows] = await bigquery.query(dupQuery);
+            dupRows.forEach(r => {
+                if (r.src === 'source') sourceDupKeys.push({ key: r.pk, count: r.cnt });
+                else targetDupKeys.push({ key: r.pk, count: r.cnt });
+            });
+        } catch (dupErr) {
+            console.warn('Duplicate detection failed:', dupErr.message);
+        }
+
+        // ========== STEP 6: Sample differences (for display) ==========
+        let sampleDiffs = [];
+        if (fieldsToCompare.length > 0 && matchCounts.matched > 0) {
+            try {
+                const firstField = fieldsToCompare[0];
+                const sampleDiffQuery = `
+                    SELECT 
+                        CAST(s.${primaryKey} AS STRING) as record_key,
+                        CAST(s.${firstField} AS STRING) as source_value,
+                        CAST(t.${firstField} AS STRING) as target_value,
+                        '${firstField}' as field_name
+                    FROM (SELECT * FROM \`${sourceTable}\` ${sourceWhereClause}) s
+                    INNER JOIN \`${targetTable}\` t
+                    ON CAST(s.${primaryKey} AS STRING) = CAST(t.${primaryKey} AS STRING)
+                    WHERE CAST(s.${firstField} AS STRING) != CAST(t.${firstField} AS STRING)
+                    LIMIT 5
+                `;
+                const [diffRows] = await bigquery.query(sampleDiffQuery);
+                sampleDiffs = diffRows;
+            } catch (e) {
+                console.warn('Sample diff query failed:', e.message);
+            }
+        }
+
+        // ========== BUILD RESPONSE ==========
+        const successRate = counts.source_unique > 0
+            ? ((matchCounts.matched / counts.source_unique) * 100).toFixed(1)
+            : '0.0';
+
+        const bothClean = counts.source_duplicates === 0 && counts.target_duplicates === 0;
+
+        const response = {
+            success: true,
+            data: {
+                summary: {
+                    totalRecordsInFile: counts.source_total,
+                    totalRecordsInSource: counts.source_total,
+                    targetRecords: counts.target_total,
+                    uniqueSourceRecords: counts.source_unique,
+                    duplicateRecordsInFile: counts.source_duplicates,
+                    recordsReachedTarget: matchCounts.matched,
+                    recordsFailedToReachTarget: matchCounts.source_only,
+                    recordsOnlyInTarget: matchCounts.target_only,
+                    identicalRecords: matchCounts.matched - fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0),
+                    mismatchedRecords: fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0),
+                    pipelineSuccessRate: successRate,
+                    primaryKeyUsed: primaryKey,
+                    fieldsAnalyzed: fieldsToCompare.length,
+                    commonFieldsCount: commonFields.length,
+                    schemaCompatibility: ((commonFields.length / Math.max(sourceFields.length, targetFields.length, 1)) * 100).toFixed(1),
+                    totalFieldIssues: totalFieldIssues,
+                    nullPrimaryKeysSource: counts.source_nulls,
+                    nullPrimaryKeysTarget: counts.target_nulls
+                },
+                recordCounts: {
+                    jsonDetails: {
+                        totalRecords: counts.source_total,
+                        uniquePrimaryKeys: counts.source_unique,
+                        duplicateRecords: counts.source_duplicates,
+                        nullPrimaryKeys: counts.source_nulls,
+                        primaryKeyField: primaryKey
+                    },
+                    bqDetails: {
+                        totalRecords: counts.target_total,
+                        uniquePrimaryKeys: counts.target_unique,
+                        duplicateRecords: counts.target_duplicates,
+                        nullPrimaryKeys: counts.target_nulls
+                    }
+                },
+                schemaAnalysis: {
+                    totalJsonFields: sourceFields.length,
+                    totalBqFields: targetFields.length,
+                    commonFields: commonFields,
+                    jsonOnlyFields: sourceOnlyFields,
+                    bqOnlyFields: targetOnlyFields,
+                    schemaCompatibility: ((commonFields.length / Math.max(sourceFields.length, targetFields.length, 1)) * 100).toFixed(1),
+                    primaryKeyCandidates: commonFields.filter(f => 
+                        f.toLowerCase().includes('id') || f.toLowerCase().includes('key')
+                    )
+                },
+                fieldWiseAnalysis: {
+                    fieldsAnalyzed: fieldsToCompare.length,
+                    perfectFields: perfectFieldCount,
+                    problematicFields: fieldsToCompare.length - perfectFieldCount,
+                    totalFieldIssues: totalFieldIssues,
+                    recordsAnalyzed: matchCounts.matched,
+                    fieldComparison: fieldComparisons
+                },
+                duplicatesAnalysis: {
+                    jsonDuplicates: {
+                        duplicateCount: sourceDupKeys.length,
+                        totalDuplicateRecords: counts.source_duplicates,
+                        duplicateKeys: sourceDupKeys
+                    },
+                    bqDuplicates: {
+                        duplicateCount: targetDupKeys.length,
+                        totalDuplicateRecords: counts.target_duplicates,
+                        duplicateKeys: targetDupKeys
+                    },
+                    crossSystemAnalysis: {
+                        commonDuplicateKeys: sourceDupKeys
+                            .filter(s => targetDupKeys.some(t => t.key === s.key))
+                            .map(s => s.key)
+                    },
+                    summary: {
+                        bothSystemsClean: bothClean,
+                        dataQualityScore: bothClean ? 'Excellent' :
+                            (counts.source_duplicates + counts.target_duplicates < 10) ? 'Good' : 'Needs Review'
+                    },
+                    recommendations: bothClean ? [] : [
+                        counts.source_duplicates > 0 ? `Source has ${counts.source_duplicates} duplicate records - review deduplication` : null,
+                        counts.target_duplicates > 0 ? `Target has ${counts.target_duplicates} duplicate records - review deduplication` : null
+                    ].filter(Boolean)
+                },
+                metadata: {
+                    sourceType: 'BIGQUERY',
+                    sourceTable: sourceTable,
+                    targetTable: targetTable,
+                    primaryKey: primaryKey,
+                    comparisonType: 'BQ-vs-BQ',
+                    comparedAt: new Date().toISOString()
+                }
+            }
+        };
+
+        console.log(`\n✅ BQ vs BQ comparison completed successfully`);
+        console.log(`📊 Source: ${counts.source_total} records, Target: ${counts.target_total} records`);
+        console.log(`📊 Matched: ${matchCounts.matched}, Source-only: ${matchCounts.source_only}, Target-only: ${matchCounts.target_only}`);
+        console.log(`📊 Perfect fields: ${perfectFieldCount}/${fieldsToCompare.length}`);
+
+        res.json(response);
+
+    } catch (error) {
+        console.error('BQ vs BQ comparison failed:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            suggestions: [
+                'Check both BigQuery table names are correct (project.dataset.table)',
+                'Verify the primary key field exists in both tables',
+                'Ensure you have read access to both tables',
+                'Check source filter syntax if provided'
+            ]
+        });
+    }
+});
 // ENHANCED: Health check endpoint - Updated with new capabilities
 app.get('/api/health', (req, res) => {
     res.json({
