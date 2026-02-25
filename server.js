@@ -9,6 +9,16 @@ const RDBMSIntegrationService = require('./services/rdbms-integration');
 const RDBMSComparisonEngineService = require('./services/rdbms-comparison-engine'); // NEW: RDBMS-specific comparison engine
 require('dotenv').config();
 
+// ✅ ADD ORACLE THICK MODE HERE (lines 11-19)
+const oracledb = require('oracledb');
+try {
+    oracledb.initOracleClient({ libDir: 'C:\\oracle\\instantclient_19_29' });
+    console.log('✅ Oracle Thick Mode initialized');
+} catch (err) {
+    if (!err.message.includes('already been called')) {
+        console.error('❌ Oracle init failed:', err.message);
+    }
+}
 const app = express();
 const port = process.env.PORT || 8080;
 
