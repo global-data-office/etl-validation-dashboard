@@ -260,14 +260,15 @@ switch(dbType.toLowerCase()) {
         console.log('🔍 Using ENHANCED RDBMS Comparison Engine with comprehensive metrics...');
         const rdbmsComparisonEngine = new RDBMSComparisonEngineService();
         
-        const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
-        tempTableResult.tempTableId,
-        bqTable,
-        primaryKey,
-        comparisonFields,
-        'enhanced',
-        totalRecordCount
-         );
+       const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
+    tempTableResult.tempTableId,
+    bqTable,
+    primaryKey,
+    comparisonFields,
+    'enhanced',
+    totalRecordCount,
+    targetFilter        // ← ADD THIS ONE LINE
+);
 
         // Add enhanced metadata
         results.metadata = {
