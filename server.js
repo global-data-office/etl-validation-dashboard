@@ -194,7 +194,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
         const SAMPLE_SIZE = 2000;
         console.log(`📦 Fetching ${SAMPLE_SIZE} sample records for validation...`);
 
-        const fields = comparisonFields.length > 0 ? [primaryKey, ...comparisonFields].filter(f => f?.trim()) : ['*'];
+        const fields = ['*'];
         let query;
 
         switch(dbType.toLowerCase()) {
@@ -254,14 +254,15 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
         console.log('🔍 Using ENHANCED RDBMS Comparison Engine with comprehensive metrics...');
         const rdbmsComparisonEngine = new RDBMSComparisonEngineService();
         
-        const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
-        tempTableResult.tempTableId,
-        bqTable,
-        primaryKey,
-        comparisonFields,
-        'enhanced',
-        totalRecordCount
-         );
+       const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
+    tempTableResult.tempTableId,
+    bqTable,
+    primaryKey,
+    comparisonFields,
+    'enhanced',
+    totalRecordCount,
+    sourceFilter ? true : false
+);
 
         // Add enhanced metadata
         results.metadata = {

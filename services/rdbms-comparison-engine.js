@@ -694,10 +694,12 @@ class ComparisonEngineService {
     /**
      * MAIN: Schema-safe comparison using any common field with universal data type support
      */
-    async compareJSONvsBigQuery(tempTableId, sourceTableName, primaryKey = 'Id', comparisonFields = [], strategy = 'enhanced', actualSourceTotal = null) {
+		async compareJSONvsBigQuery(tempTableId, sourceTableName, primaryKey = 'Id', comparisonFields = [], strategy = 'enhanced', actualSourceTotal = null, isFiltered = false) {
         try {
 			  // NEW: Store actual source total if provided
              this.actualSourceTotal = actualSourceTotal;
+			 this.isFiltered = isFiltered;
+			 this.requestedComparisonFields = comparisonFields;
     
              if (actualSourceTotal) {
              console.log(`📊 ACTUAL SOURCE TOTAL: ${actualSourceTotal.toLocaleString()} records`);
@@ -726,7 +728,7 @@ class ComparisonEngineService {
             console.log(`Primary key '${primaryKey}' validated in both tables`);
 
             // STEP 4: Get record counts using validated primary key
-            const recordCounts = await this.getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, this.actualSourceTotal);
+            const recordCounts = await this.getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, this.actualSourceTotal, this.isFiltered);
 
             // STEP 5: Find matching records
             const matchAnalysis = await this.getSchemaAwareMatches(tempTableId, sourceTableName, primaryKey);
@@ -832,7 +834,7 @@ class ComparisonEngineService {
  * Get record counts using dynamic primary key
  * NOW SUPPORTS: Passing actual source total (for Oracle with sampling)
  */
-async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actualSourceTotal = null) {
+async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actualSourceTotal = null, isFiltered = false) {
     try {
         console.log(`Getting record counts using: ${primaryKey}`);
 
@@ -847,11 +849,27 @@ async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actua
             FROM \`${tempTableId}\`
         `;
 
-        // Query 2: FULL BigQuery table count (for display)
-        const bqTotalQuery = `
+        
+        // Query 2: BigQuery count - CONDITIONAL based on filter
+        let bqTotalQuery;
+            if (isFiltered) {
+            console.log('📊 Source filter active - counting only matching BQ records');
+            bqTotalQuery = `
             SELECT COUNT(*) as total_records
             FROM \`${sourceTableName}\`
-        `;
+            WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
+            SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
+            FROM \`${tempTableId}\`
+            WHERE ${primaryKey} IS NOT NULL
+            )
+           `;
+            } else {
+            console.log('📊 No source filter - showing full BQ table count');
+            bqTotalQuery = `
+            SELECT COUNT(*) as total_records
+            FROM \`${sourceTableName}\`
+             `;
+            }
 
         // Query 3: BigQuery SAMPLE records (filtered to match temp table keys)
         const bqSampleQuery = `
@@ -957,16 +975,24 @@ async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actua
             const fieldComparison = [];
             let totalFieldIssues = 0;
             
-            const safeFields = commonFields.filter(field => {
-                const lowerField = field.toLowerCase();
-                return field !== primaryKey && 
-                       !lowerField.includes('comment') &&
-                       !lowerField.includes('description') &&
-                       !lowerField.includes('sys_domain_path') &&
-                       !lowerField.includes('sys_tags') &&
-                       !lowerField.includes('header') &&
-                       field.length < 50;
-            }).slice(0, 10);
+            let safeFields;
+            if (this.requestedComparisonFields && this.requestedComparisonFields.length > 0) {
+               safeFields = this.requestedComparisonFields.filter(field => 
+               commonFields.includes(field) && field !== primaryKey
+            );
+            console.log(`Using user-specified comparison fields: [${safeFields.join(', ')}]`);
+            } else {
+            safeFields = commonFields.filter(field => {
+            const lowerField = field.toLowerCase();
+            return field !== primaryKey && 
+               !lowerField.includes('comment') &&
+               !lowerField.includes('description') &&
+               !lowerField.includes('sys_domain_path') &&
+               !lowerField.includes('sys_tags') &&
+               !lowerField.includes('header') &&
+               field.length < 50;
+              }).slice(0, 10);
+               }
             
             console.log(`Safe fields to analyze with universal data type support: [${safeFields.join(', ')}]`);
             
