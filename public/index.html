@@ -4368,8 +4368,8 @@ async function startRDBMSComparison(dbType) {
         
         // Parse comparison fields
         const comparisonFieldsArray = comparisonFields 
-            ? comparisonFields.split('\n').map(f => f.trim()).filter(f => f.length > 0)
-            : [];
+              ? comparisonFields.split(/[\n,]/).map(f => f.trim()).filter(f => f.length > 0)
+              : [];
         
         // Validation
         const missingFields = [];
