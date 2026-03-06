@@ -23,6 +23,6 @@ steps:
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/etl-dashboard/etl-automation-mysql'
       - '--region'
       - 'us-central1'
-      - '--allow-unauthenticated'
+      - '--no-allow-unauthenticated'
       - '--set-env-vars'
       - 'GOOGLE_CLOUD_PROJECT_ID=rax-cloud-composer-qa,BIGQUERY_DATASET=stage_three_dw,NODE_ENV=production'
