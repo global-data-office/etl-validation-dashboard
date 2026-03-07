@@ -1776,6 +1776,20 @@
                     </small>
                 </div>
 
+                <!-- Source Custom Query -->
+<div style="margin-bottom: 20px;">
+  <label style="display:block;font-weight:600;color:#495057;margin-bottom:5px;">
+    🧾 Source Custom Query
+    <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+  </label>
+  <textarea id="pg-source-custom-query"
+    placeholder="SELECT ... FROM ... WHERE ..."
+    style="width:100%;height:90px;padding:10px;border:2px solid #dee2e6;border-radius:6px;font-size:13px;resize:vertical;font-family:monospace;"></textarea>
+  <small style="color:#856404;font-style:italic;display:block;margin-top:5px;padding:5px 10px;background:#fff3cd;border-radius:4px;border-left:3px solid #ffc107;">
+    💡 If provided, backend should use this query instead of source table + filter
+  </small>
+</div>
+
                 <button id="testPostgresqlConnection" class="btn-secondary" onclick="testDatabaseConnection('postgresql')"
                         style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
                     🔍 Test PostgreSQL Connection
@@ -1828,6 +1842,35 @@
                         💡 Filter BigQuery target data to match source filter (do not include WHERE keyword)
                     </small>
                 </div>
+
+                <!-- Target Custom Query -->
+<div style="margin-bottom: 20px;">
+  <label style="display:block;font-weight:600;color:#495057;margin-bottom:5px;">
+    🧾 Target Custom Query
+    <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+  </label>
+  <textarea id="pg-target-custom-query"
+    placeholder="SELECT ... FROM `project.dataset.table` WHERE ..."
+    style="width:100%;height:90px;padding:10px;border:2px solid #dee2e6;border-radius:6px;font-size:13px;resize:vertical;font-family:monospace;"></textarea>
+  <small style="color:#155724;font-style:italic;display:block;margin-top:5px;padding:5px 10px;background:#d4edda;border-radius:4px;border-left:3px solid #28a745;">
+    💡 If provided, backend should use this query instead of target table + filter
+  </small>
+</div>
+
+<!-- Null Check Columns -->
+<div style="margin-bottom: 20px;">
+  <label style="display:block;font-weight:600;color:#495057;margin-bottom:5px;">
+    🔎 Null Check Columns (BQ Target)
+    <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+  </label>
+  <textarea id="pg-null-check-columns"
+    placeholder="e.g., customer_id, email, status&#10;Leave empty to check ALL columns"
+    style="width:100%;height:70px;padding:10px;border:2px solid #dee2e6;border-radius:6px;font-size:13px;resize:vertical;font-family:monospace;"></textarea>
+  <small style="color:#0c5460;font-style:italic;display:block;margin-top:5px;padding:5px 10px;background:#d1ecf1;border-radius:4px;border-left:3px solid #17a2b8;">
+    💡 Comma-separated column names to null-check. Leave empty to validate all columns.
+  </small>
+</div>
+
 
                 <button class="btn-primary" onclick="startRDBMSComparison('postgresql')"
                         style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
@@ -3605,7 +3648,9 @@ function showRDBMSTab(dbType) {
 
 // Get Connection Data - ENHANCED VERSION
 function getConnectionData(dbType) {
-    const data = {};
+    const data = {
+    dbType: dbType   // ✅ ADD THIS LINE
+};
 
     switch (dbType.toLowerCase()) {
         case 'postgresql':
@@ -4286,6 +4331,87 @@ async function startRDBMSComparison(dbType) {
         // Get filters
         const sourceFilter = document.getElementById(`${prefix}-source-filter`)?.value?.trim() || '';
         const targetFilter = document.getElementById(`${prefix}-target-filter`)?.value?.trim() || '';
+        const sourceCustomQuery = document.getElementById(`${prefix}-source-custom-query`)?.value?.trim() || '';
+        const targetCustomQuery = document.getElementById(`${prefix}-target-custom-query`)?.value?.trim() || '';
+
+        // Get null check columns (optional — stored for use in Null Analysis tab)
+        const nullCheckColumnsRaw = document.getElementById(`${prefix}-null-check-columns`)?.value?.trim() || '';
+        const nullCheckColumns = nullCheckColumnsRaw
+            ? nullCheckColumnsRaw.split(',').map(c => c.trim()).filter(c => c.length > 0)
+            : [];
+        // Store per-dbType so the Null Analysis tab can read it
+        window[`nullCheckColumns_${dbType}`] = nullCheckColumns;
+// =========================================================
+// CUSTOM QUERY MODE (runs ONLY when both queries are present)
+// =========================================================
+const isCustomQueryMode = !!(sourceCustomQuery && targetCustomQuery);
+
+if (isCustomQueryMode) {
+    // In custom mode, DO NOT require source tables / bq table inputs.
+    // Only require connection + primaryKey + comparison fields.
+
+    if (!primaryKeys || primaryKeys.length === 0 || !primaryKeys[0]) {
+        resultsDiv.innerHTML = `
+            <div style="color:#721c24;background:#f8d7da;padding:12px;border-radius:6px;">
+                ❌ Primary Key is required for Custom Query comparison
+            </div>`;
+        return;
+    }
+
+    // Hide config, show dedicated results section (same as table-based flow)
+    const configSectionCQ = document.getElementById(`${prefix}-config-section`) ||
+                            document.getElementById(`${dbType}-config-section`);
+    const resultsSectionCQ = document.getElementById(`${prefix}-comparison-results`) ||
+                             document.getElementById(`${dbType}-comparison-results`);
+
+    if (configSectionCQ) configSectionCQ.style.display = 'none';
+    if (resultsSectionCQ) {
+        resultsSectionCQ.style.display = 'block';
+        resultsDiv = resultsSectionCQ;
+    }
+
+    resultsDiv.innerHTML = `
+        <div style="text-align:center;padding:40px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border-radius:12px;color:white;">
+            <div class="spinner" style="margin:0 auto 20px;width:50px;height:50px;border:4px solid rgba(255,255,255,0.3);border-top:4px solid white;border-radius:50%;animation:spin 1s linear infinite;"></div>
+            <div style="font-size:22px;font-weight:bold;margin-bottom:10px;">🔄 Running Custom Query Comparison...</div>
+            <div style="font-size:14px;opacity:0.9;">Executing source query and materializing target query into BigQuery</div>
+        </div>`;
+
+    try {
+        const response = await fetch('/api/compare-rdbms-vs-bq-custom', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dbType,
+                connectionConfig,
+                sourceCustomQuery,
+                targetCustomQuery,
+                primaryKey: primaryKeys[0],
+                comparisonFields: comparisonFieldsArray,
+                strategy: 'enhanced',
+                sourceStoredProcs: [],
+                targetStoredProcCalls: []
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) throw new Error(data.error || 'Custom query comparison failed');
+
+        displayRDBMSResults(data.results, dbType, resultsDiv);
+    } catch (err) {
+        resultsDiv.innerHTML = `
+            <div style="color:#721c24;background:#f8d7da;padding:15px;border-radius:6px;margin:20px;">
+                ❌ <strong>Custom Query Comparison Failed</strong><br>${err.message}
+                <br><br>
+                <button class="btn-secondary" onclick="startNewMultiComparison('${dbType}')" style="margin-top:10px;">
+                    🔄 New Comparison
+                </button>
+            </div>`;
+    }
+
+    return; // stop table-based flow
+}
 
         // Validation
         const missingFields = [];
@@ -4536,6 +4662,10 @@ function displayRDBMSResults(result, dbType, targetDiv) {
                     <span class="results-tab-icon">🔄</span>
                     <span class="results-tab-label">Duplicates</span>
                 </button>
+                <button class="results-tab-button" onclick="switchRdbmsTab('${dbType}', 'null-analysis'); loadBqNullAnalysis('${dbType}', '${data.metadata?.sourceTableName || ''}')">
+                    <span class="results-tab-icon">🔎</span>
+                    <span class="results-tab-label">Null Analysis</span>
+                </button>
           </div>
 
             <!-- SCROLLABLE CONTENT AREA -->
@@ -4622,6 +4752,15 @@ function displayRDBMSResults(result, dbType, targetDiv) {
             <div id="rdbms-tab-${dbType}-duplicates" class="results-tab-content" style="display: none;">
                 ${populateDuplicatesContent(duplicatesAnalysis, dbName, sourceDuplicates, targetDuplicates)}
             </div>  <!-- Close last tab -->
+
+            <!-- TAB 6: NULL ANALYSIS (BQ Target) -->
+            <div id="rdbms-tab-${dbType}-null-analysis" class="results-tab-content" style="display: none;">
+                <div id="rdbms-null-analysis-${dbType}">
+                    <div style="text-align:center;padding:40px;color:#6c757d;">
+                        Click the <strong>Null Analysis</strong> tab to load null counts for the BigQuery target table.
+                    </div>
+                </div>
+            </div>  <!-- Close null analysis tab -->
                 </div>  <!-- Close: INNER CONTENT WRAPPER -->
             </div>  <!-- Close: SCROLLABLE CONTENT AREA -->
         </div>  <!-- Close: comparison-results -->
@@ -5388,6 +5527,154 @@ function populateDuplicatesContent(duplicatesAnalysis, dbName, sourceDuplicates,
             `}
         </div>
     `;
+}
+
+// Load and render BQ null analysis for the target table
+async function loadBqNullAnalysis(dbType, bqTable, customColumns) {
+    const container = document.getElementById(`rdbms-null-analysis-${dbType}`);
+    if (!container) return;
+
+    // Resolve bqTable from stored results if not passed
+    const storedResults = window[`globalRdbmsResults_${dbType}`];
+    const resolvedTable = bqTable || storedResults?.metadata?.sourceTableName || '';
+
+    if (!resolvedTable) {
+        container.innerHTML = `<div style="padding:20px;color:#856404;background:#fff3cd;border-radius:8px;border-left:4px solid #ffc107;">
+            ⚠️ BigQuery table name not available. Please ensure the comparison completed successfully.
+        </div>`;
+        return;
+    }
+
+    // Resolve columns: explicit arg > stored from config form > empty (all columns)
+    const columns = customColumns !== undefined
+        ? customColumns
+        : (window[`nullCheckColumns_${dbType}`] || []);
+
+    const colLabel = columns.length > 0
+        ? `<strong>${columns.length} selected column(s)</strong>: ${columns.join(', ')}`
+        : `<strong>all columns</strong>`;
+
+    // Show loading
+    container.innerHTML = `<div style="text-align:center;padding:40px;">
+        <div class="spinner" style="margin:0 auto 15px;width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #3498db;border-radius:50%;animation:spin 1s linear infinite;"></div>
+        <div style="color:#6c757d;">Running null checks on ${colLabel} in <strong>${resolvedTable}</strong>...</div>
+    </div>`;
+
+    try {
+        const response = await fetch('/api/bq-null-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bqTable: resolvedTable, columns: columns.length > 0 ? columns : null })
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+        container.innerHTML = populateNullAnalysisContent(result, resolvedTable, dbType, columns);
+    } catch (err) {
+        container.innerHTML = `<div style="padding:15px;color:#721c24;background:#f8d7da;border-radius:8px;">
+            ❌ <strong>Null check failed:</strong> ${err.message}
+        </div>`;
+    }
+}
+
+function populateNullAnalysisContent(result, bqTable, dbType, activeColumns) {
+    const { columns, totalRows } = result;
+    const nullyCols = columns.filter(c => c.nullCount > 0);
+    const cleanCols = columns.filter(c => c.nullCount === 0);
+    const isFiltered = activeColumns && activeColumns.length > 0;
+
+    return `
+        <!-- Re-run form -->
+        <div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:16px;margin-bottom:20px;">
+            <div style="font-weight:600;color:#2c3e50;margin-bottom:10px;">🔎 Null Check Configuration</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+                <div style="flex:1;">
+                    <textarea id="null-rerun-cols-${dbType}"
+                        placeholder="column1, column2, column3  — leave empty to check ALL columns"
+                        style="width:100%;height:52px;padding:8px 10px;border:2px solid #dee2e6;border-radius:6px;font-size:13px;resize:vertical;font-family:monospace;"
+                    >${isFiltered ? activeColumns.join(', ') : ''}</textarea>
+                    <small style="color:#6c757d;font-size:0.8rem;">Comma-separated column names. Leave empty to check all columns.</small>
+                </div>
+                <button onclick="rerunNullAnalysis('${dbType}', '${bqTable}')"
+                    style="padding:10px 18px;background:#17a2b8;color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;white-space:nowrap;margin-top:2px;">
+                    🔄 Run Check
+                </button>
+            </div>
+            ${isFiltered ? `<div style="margin-top:8px;font-size:0.82rem;color:#0c5460;background:#d1ecf1;padding:5px 10px;border-radius:4px;">
+                Showing results for: <strong>${activeColumns.join(', ')}</strong>
+            </div>` : `<div style="margin-top:8px;font-size:0.82rem;color:#155724;background:#d4edda;padding:5px 10px;border-radius:4px;">
+                Showing null analysis for <strong>all ${columns.length} columns</strong>
+            </div>`}
+        </div>
+
+        <div class="tab-summary-cards">
+            <div class="summary-card">
+                <div class="summary-number">${totalRows.toLocaleString()}</div>
+                <div class="summary-label">Total BQ Rows</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-number">${columns.length}</div>
+                <div class="summary-label">Columns Checked</div>
+            </div>
+            <div class="summary-card ${nullyCols.length > 0 ? 'warning' : 'pass'}">
+                <div class="summary-number">${nullyCols.length}</div>
+                <div class="summary-label">Columns with NULLs</div>
+            </div>
+            <div class="summary-card matches">
+                <div class="summary-number">${cleanCols.length}</div>
+                <div class="summary-label">Clean Columns</div>
+            </div>
+        </div>
+
+        <div class="tab-detail-section">
+            <div class="tab-detail-header">🔎 Null Column Analysis — BigQuery Target: <code style="font-size:0.85rem;">${bqTable}</code></div>
+
+            ${nullyCols.length === 0 ? `
+                <div style="text-align:center;padding:30px;background:#d4edda;border-radius:8px;color:#155724;">
+                    <h3>✅ No NULL values found${isFiltered ? ' in selected columns' : ''}!</h3>
+                    <p style="margin-top:8px;">All ${columns.length} column(s) are fully populated across ${totalRows.toLocaleString()} rows.</p>
+                </div>
+            ` : `
+                <div style="background:#fff3cd;padding:12px 16px;border-radius:8px;border-left:4px solid #ffc107;margin-bottom:20px;">
+                    ⚠️ <strong>${nullyCols.length} column(s)</strong> contain NULL values in the BigQuery target table.
+                </div>
+            `}
+
+            <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-top:10px;">
+                <thead>
+                    <tr style="background:#f8f9fa;">
+                        <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #dee2e6;color:#495057;">#</th>
+                        <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #dee2e6;color:#495057;">Column Name</th>
+                        <th style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6;color:#495057;">NULL Count</th>
+                        <th style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6;color:#495057;">NULL %</th>
+                        <th style="padding:10px 12px;text-align:center;border-bottom:2px solid #dee2e6;color:#495057;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${columns.map((col, i) => `
+                        <tr style="background:${col.nullCount > 0 ? 'rgba(255,193,7,0.08)' : 'white'};border-bottom:1px solid #f0f0f0;">
+                            <td style="padding:9px 12px;color:#6c757d;">${i + 1}</td>
+                            <td style="padding:9px 12px;font-weight:600;color:#2c3e50;">${col.column}</td>
+                            <td style="padding:9px 12px;text-align:right;color:${col.nullCount > 0 ? '#e67e22' : '#27ae60'};font-weight:600;">${col.nullCount.toLocaleString()}</td>
+                            <td style="padding:9px 12px;text-align:right;color:${col.nullCount > 0 ? '#e67e22' : '#27ae60'};">${col.nullPct}%</td>
+                            <td style="padding:9px 12px;text-align:center;">
+                                ${col.nullCount > 0
+                                    ? `<span style="background:#fff3cd;color:#856404;padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:600;">⚠️ Has NULLs</span>`
+                                    : `<span style="background:#d4edda;color:#155724;padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:600;">✅ Clean</span>`
+                                }
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function rerunNullAnalysis(dbType, bqTable) {
+    const raw = document.getElementById(`null-rerun-cols-${dbType}`)?.value?.trim() || '';
+    const cols = raw ? raw.split(',').map(c => c.trim()).filter(c => c.length > 0) : [];
+    window[`nullCheckColumns_${dbType}`] = cols;
+    loadBqNullAnalysis(dbType, bqTable, cols);
 }
 
 // Tab switching - EXACT SAME AS JSON VS BQ

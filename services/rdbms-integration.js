@@ -18,11 +18,100 @@ try {
 }
 
 class RDBMSIntegrationService {
+
+    // Add inside class BigQueryIntegrationService (bq-integration.js)
+
+async runQuery(query, location = 'US') {
+  const start = Date.now();
+  const [job] = await this.bigquery.createQueryJob({ query, location });
+  const [rows] = await job.getQueryResults();
+  return {
+    success: true,
+    rows,
+    rowCount: rows.length,
+    durationMs: Date.now() - start,
+    query
+  };
+}
+
+/**
+ * Materialize a SELECT query into a temp table for comparison
+ * targetCustomQuery must be a SELECT (no trailing semicolon).
+ */
+async createTempTableFromQuery(targetCustomQuery, tableSuffix = '') {
+  const ts = Date.now();
+  const tableId = `target_temp_${tableSuffix || ts}`;
+  const tempTableId = `${process.env.GOOGLE_CLOUD_PROJECT_ID}.${this.config.tempDataset}.${tableId}`;
+
+  const ddl = `
+    CREATE OR REPLACE TABLE \`${tempTableId}\` AS
+    ${targetCustomQuery}
+  `;
+
+  await this.runQuery(ddl);
+  return { success: true, tempTableId };
+}
+
+/**
+ * Execute a BigQuery stored procedure call
+ * Example: CALL `proj.dataset.proc_name`(arg1, arg2)
+ */
+async callStoredProcedure(callSql) {
+  // Safety: ensure it's a CALL statement (optional but recommended)
+  if (!callSql.trim().toUpperCase().startsWith('CALL')) {
+    throw new Error('BigQuery stored procedure must be executed with a CALL statement.');
+  }
+  return await this.runQuery(callSql);
+}
+
+// =============================
+// STORED PROCEDURE SUPPORT
+// =============================
+
+buildStoredProcCall(dbType, procName, args = []) {
+
+    const safeArgs = args.map(a => {
+        if (a === null || a === undefined) return 'NULL';
+        if (typeof a === 'number') return String(a);
+        if (typeof a === 'boolean') return a ? 'TRUE' : 'FALSE';
+        return `'${String(a).replace(/'/g, "''")}'`;
+    });
+
+    switch ((dbType || '').toLowerCase()) {
+
+        case 'postgresql':
+            return `CALL ${procName}(${safeArgs.join(', ')})`;
+
+        case 'mysql':
+            return `CALL ${procName}(${safeArgs.join(', ')})`;
+
+        case 'sqlserver':
+            return `EXEC ${procName} ${safeArgs.join(', ')}`.trim();
+
+        case 'oracle':
+            return `BEGIN ${procName}(${safeArgs.join(', ')}); END;`;
+
+        default:
+            throw new Error(`Stored procedure calls not supported for dbType: ${dbType}`);
+    }
+}
+
+
+async executeStoredProcedure(config, procName, args = []) {
+
+    const callSql = this.buildStoredProcCall(config.dbType, procName, args);
+
+    // reuse your existing query executor
+    return await this.executeQuery(config, callSql);
+}
+
     constructor() {
         this.connections = new Map();
         this.bigquery = new BigQuery({
             // Uses Application Default Credentials from environment
         });
+
+
     }
 
     // MAIN METHOD: Test database connection
@@ -86,7 +175,39 @@ async testConnection(dbType, connectionConfig) {
 
         return { valid: true };
     }
+async executeQuery(config, query, queryType = 'SELECT') {
+    try {
+        const dbType = (config.dbType || '').toLowerCase();
+        let result;
 
+        switch (dbType) {
+            case 'postgresql':
+                result = await this.fetchPostgreSQLData(config, query);
+                break;
+            case 'mysql':
+                result = await this.fetchMySQLData(config, query);
+                break;
+            case 'oracle':
+                result = await this.fetchOracleData(config, query);
+                break;
+            case 'sqlserver':
+                result = await this.fetchSQLServerData(config, query);
+                break;
+            default:
+                throw new Error(`Unsupported database type: ${config.dbType}`);
+        }
+
+        return {
+            success: true,
+            data: result.records,
+            rowCount: result.recordCount,
+            query,
+            queryType
+        };
+    } catch (error) {
+        return { success: false, error: error.message, query, queryType };
+    }
+}
   // PostgreSQL connection test
 async testPostgreSQLConnection(config) {
     const { host, port, database, username, password } = config;

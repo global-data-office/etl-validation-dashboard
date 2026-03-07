@@ -110,7 +110,7 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
 app.post('/api/rdbms-vs-bq', async (req, res) => {
     req.setTimeout(300000); // 5 minute timeout per request
     try {
-        const { dbType, host, port, database, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '', targetFilter = '' } = req.body;
+        const { dbType, host, port, database, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '', targetFilter = '',sourceCustomQuery = '',targetCustomQuery = '' } = req.body;
         
         console.log(`Starting ENHANCED ${dbType} vs BigQuery comparison...`);
         console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
@@ -267,7 +267,9 @@ switch(dbType.toLowerCase()) {
     comparisonFields,
     'enhanced',
     totalRecordCount,
-    targetFilter        // ← ADD THIS ONE LINE
+    targetFilter,        // ← ADD THIS ONE LINE
+    sourceCustomQuery,
+    targetCustomQuery
 );
 
         // Add enhanced metadata
@@ -1396,6 +1398,167 @@ app.get('/api/health', (req, res) => {
             'Cross-system duplicate key detection'
         ]
     });
+});
+
+// BQ Null Check — runs null counts for every column on a BQ target table
+app.post('/api/bq-null-check', async (req, res) => {
+    try {
+        const { bqTable, columns: requestedColumns } = req.body;
+        if (!bqTable) return res.status(400).json({ success: false, error: 'bqTable is required' });
+
+        const parts = bqTable.split('.');
+        if (parts.length !== 3) return res.status(400).json({ success: false, error: 'bqTable must be project.dataset.table' });
+        const [project, dataset, table] = parts;
+
+        let columns;
+
+        if (requestedColumns && requestedColumns.length > 0) {
+            // Use caller-supplied list directly — skip INFORMATION_SCHEMA
+            columns = requestedColumns;
+        } else {
+            // Fetch all columns from INFORMATION_SCHEMA
+            const schemaQuery = `SELECT column_name FROM \`${project}.${dataset}.INFORMATION_SCHEMA.COLUMNS\`
+                WHERE table_name = @tableName ORDER BY ordinal_position`;
+            const [schemaRows] = await bigquery.query({
+                query: schemaQuery,
+                params: { tableName: table },
+                useLegacySql: false
+            });
+            columns = schemaRows.map(r => r.column_name);
+        }
+
+        if (columns.length === 0) return res.json({ success: true, columns: [], totalRows: 0 });
+
+        // Count total rows and nulls per column in one pass using positional aliases
+        const nullExprs = columns.map((c, i) => `COUNTIF(\`${c}\` IS NULL) AS col_${i}`).join(', ');
+        const nullQuery = `SELECT COUNT(*) AS total_rows, ${nullExprs} FROM \`${bqTable}\``;
+        const [nullRows] = await bigquery.query({ query: nullQuery, useLegacySql: false });
+        const row = nullRows[0];
+        const totalRows = Number(row.total_rows);
+
+        const result = columns.map((col, i) => {
+            const nullCount = Number(row[`col_${i}`] || 0);
+            return {
+                column: col,
+                nullCount,
+                nullPct: totalRows > 0 ? ((nullCount / totalRows) * 100).toFixed(2) : '0.00'
+            };
+        });
+
+        res.json({ success: true, columns: result, totalRows });
+    } catch (error) {
+        console.error('BQ null check failed:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// server.js
+
+app.post('/api/compare-rdbms-vs-bq-custom', async (req, res) => {
+  try {
+    const {
+      dbType,
+      connectionConfig,
+
+      // NEW
+      sourceCustomQuery,           // RDBMS SELECT
+      targetCustomQuery,           // BigQuery SELECT
+
+      // Stored proc orchestration (optional)
+      sourceStoredProcs = [],      // [{ name: 'procName', args: [...] }, ...]
+      targetStoredProcCalls = [],  // ['CALL `p.d.proc`(1,"x")', ...]
+
+      primaryKey,
+      comparisonFields = [],
+      strategy = 'enhanced'
+    } = req.body;
+
+    if (!dbType || !connectionConfig) {
+      return res.status(400).json({ success: false, error: 'dbType and connectionConfig are required' });
+    }
+    if (!sourceCustomQuery || !targetCustomQuery) {
+      return res.status(400).json({ success: false, error: 'sourceCustomQuery and targetCustomQuery are required' });
+    }
+    if (!primaryKey) {
+      return res.status(400).json({ success: false, error: 'primaryKey is required' });
+    }
+
+    const rdbmsConnector = require('./services/rdbms-integration');
+    const BigQueryIntegrationService = require('./services/bq-integration');
+    const RDBMSComparisonEngineService = require('./services/rdbms-comparison-engine');
+
+   //const rdbmsIntegration = new RDBMSIntegrationService();
+    const bqService = new BigQueryIntegrationService();
+    const rdbmsComparisonEngine = new RDBMSComparisonEngineService();
+
+    // 1) Run source stored procedures (optional)
+    const sourceProcResults = [];
+    for (const p of sourceStoredProcs) {
+      const r = await rdbmsConnector.executeStoredProcedure(connectionConfig, p.name, p.args || []);
+      sourceProcResults.push({ proc: p.name, success: r.success, error: r.error || null });
+      if (!r.success) throw new Error(`Source stored proc failed: ${p.name} - ${r.error}`);
+    }
+
+    // 2) Run source custom query (RDBMS)
+    const sourceResult = await rdbmsConnector.executeQuery(connectionConfig, sourceCustomQuery, 'SELECT');
+    if (!sourceResult.success) throw new Error(`Source custom query failed: ${sourceResult.error}`);
+    if (!sourceResult.data || sourceResult.data.length === 0) {
+      return res.json({ success: false, error: 'Source custom query returned 0 rows' });
+    }
+
+    // 3) Create temp table in BigQuery from source query output (same pattern you already use)【turn3file10†server.js†L35-L43】
+    const sourceTemp = await bqService.createTempTableFromJSON(
+      sourceResult.data,
+      `${dbType}_custom_${Date.now()}`,
+      primaryKey
+    );
+
+    // 4) Run target stored procedure(s) in BigQuery (optional)
+    const targetProcResults = [];
+    for (const callSql of targetStoredProcCalls) {
+      const r = await bqService.callStoredProcedure(callSql);
+      targetProcResults.push({ call: callSql, success: r.success !== false });
+    }
+
+    // 5) Materialize target custom query to a temp BQ table
+    const targetTemp = await bqService.createTempTableFromQuery(
+      targetCustomQuery,
+      `custom_${Date.now()}`
+    );
+
+    // 6) Compare sourceTemp vs targetTemp (temp-vs-temp)
+    const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
+      sourceTemp.tempTableId,
+      targetTemp.tempTableId,
+      primaryKey,
+      comparisonFields,
+      strategy
+      // NOTE: if your compareJSONvsBigQuery signature includes extra args (like totalRecordCount, targetFilter),
+      // pass null/0 here accordingly.
+    );
+
+    results.metadata = {
+      ...(results.metadata || {}),
+      mode: 'custom-query-to-custom-query',
+      dbType: dbType.toUpperCase(),
+      sourceCustomQuery,
+      targetCustomQuery,
+      sourceTempTable: sourceTemp.tempTableId,
+      targetTempTable: targetTemp.tempTableId,
+      sourceStoredProcs: sourceProcResults,
+      targetStoredProcCalls: targetProcResults,
+      timestamp: new Date().toISOString()
+    };
+
+    return res.json({ success: true, results });
+
+  } catch (error) {
+    console.error('Custom RDBMS vs BQ comparison failed:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 // Start server
 app.listen(port, '0.0.0.0', () => {
