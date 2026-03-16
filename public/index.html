@@ -3048,7 +3048,7 @@
                 
                 <!-- NEW: Identical Records -->
                 <div class="summary-card matches">
-                    <div class="summary-number">${summary.identicalRecords || summary.recordsReachedTarget || matchCount || 0}</div>
+                    <div class="summary-number">${summary.identicalRecords !== undefined ? summary.identicalRecords : (summary.recordsReachedTarget || matchCount || 0)}</div>
                     <div class="summary-label">Identical Records</div>
                     <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">Same PK, Same Data</div>
                 </div>
@@ -3978,11 +3978,12 @@ function exportRdbmsToExcel(dbType) {
         
         // Get database display name
         const dbDisplayNames = {
-            'postgresql': 'PostgreSQL',
-            'mysql': 'MySQL',
-            'oracle': 'Oracle',
-            'sqlserver': 'SQL Server'
-        };
+    'postgresql': 'PostgreSQL',
+    'mysql': 'MySQL',
+    'oracle': 'Oracle',
+    'sqlserver': 'SQL Server',
+    'bigquery': 'Source BQ'
+     };
         const dbName = dbDisplayNames[dbType] || dbType.toUpperCase();
         
         // Extract data
@@ -4591,10 +4592,11 @@ function displayRDBMSResults(result, dbType, targetDiv) {
     
     // Get database-specific display name
     const dbDisplayNames = {
-        'postgresql': 'PostgreSQL',
-        'mysql': 'MySQL',
-        'oracle': 'Oracle',
-        'sqlserver': 'SQL Server'
+    'postgresql': 'PostgreSQL',
+    'mysql': 'MySQL',
+    'oracle': 'Oracle',
+    'sqlserver': 'SQL Server',
+    'bigquery': 'Source BQ'
     };
     const dbName = dbDisplayNames[dbType] || dbType.toUpperCase();
     
@@ -4997,6 +4999,18 @@ function backToMultiTableSummary() {
 }
 // Start new comparison
 function startNewMultiComparison(dbType) {
+    // Handle BQ vs BQ
+    if (dbType === 'bigquery') {
+        const configSection = document.getElementById('bq-vs-bq-config-section');
+        const resultsSection = document.getElementById('bqvsbq-comparison-results');
+        
+        if (configSection) configSection.style.display = 'block';
+        if (resultsSection) resultsSection.style.display = 'none';
+        
+        window.scrollTo({top: 0, behavior: 'smooth'});
+        return;
+    }
+
     const prefix = dbType === 'postgresql' ? 'pg' : dbType;
     const configSection = document.getElementById(`${prefix}-config-section`) || document.getElementById('oracle-config-section');
     const resultsSection = document.getElementById(`${prefix}-comparison-results`) || document.getElementById('oracle-comparison-results');
@@ -5308,7 +5322,7 @@ function populateComparisonContent(summary, schemaAnalysis, matchCount, failedCo
             
             <!-- Card 2: Identical Records (NEW) -->
             <div class="summary-card matches">
-                <div class="summary-number">${summary.identicalRecords || summary.recordsReachedTarget || matchCount || 0}</div>
+                <div class="summary-number">${summary.identicalRecords !== undefined ? summary.identicalRecords : (summary.recordsReachedTarget || matchCount || 0)}</div>
                 <div class="summary-label">Identical Records</div>
                 <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">Same PK, Same Data</div>
             </div>

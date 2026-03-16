@@ -1340,28 +1340,23 @@ app.post('/api/validate', async (req, res) => {
 app.post('/api/bq-vs-bq', async (req, res) => {
     try {
         const { sourceTable, targetTable, primaryKey, comparisonFields = [], sourceFilter = '' } = req.body;
+        const SAMPLE_SIZE = 2000;
 
         console.log(`\n=== Starting BigQuery vs BigQuery Comparison ===`);
         console.log(`Source: ${sourceTable}`);
         console.log(`Target: ${targetTable}`);
         console.log(`Primary Key: ${primaryKey}`);
         console.log(`Source Filter: ${sourceFilter || 'None'}`);
-        console.log(`Comparison Fields: ${comparisonFields.length > 0 ? comparisonFields.join(', ') : 'All common fields'}`);
+        console.log(`Sample Size: ${SAMPLE_SIZE}`);
 
         // Validate required fields
         if (!sourceTable || !targetTable || !primaryKey) {
             return res.status(400).json({
                 success: false,
-                error: 'sourceTable, targetTable, and primaryKey are required',
-                suggestions: [
-                    'Provide source BigQuery table (project.dataset.table)',
-                    'Provide target BigQuery table (project.dataset.table)',
-                    'Provide a primary key field that exists in both tables'
-                ]
+                error: 'sourceTable, targetTable, and primaryKey are required'
             });
         }
 
-        // Validate table name format
         const tableRegex = /^[\w-]+\.[\w-]+\.[\w-]+$/;
         if (!sourceTable.match(tableRegex)) {
             return res.status(400).json({ success: false, error: `Invalid source table format: ${sourceTable}. Must be project.dataset.table` });
@@ -1370,88 +1365,115 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             return res.status(400).json({ success: false, error: `Invalid target table format: ${targetTable}. Must be project.dataset.table` });
         }
 
-        // ========== STEP 1: Get record counts ==========
-        console.log('📊 Getting record counts...');
         const sourceWhereClause = sourceFilter ? `WHERE ${sourceFilter}` : '';
 
-        const countsQuery = `
-            WITH source_stats AS (
-                SELECT 
-                    COUNT(*) as total_records,
-                    COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as unique_keys,
-                    COUNT(*) - COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as duplicate_records,
-                    COUNTIF(${primaryKey} IS NULL) as null_keys
-                FROM \`${sourceTable}\` ${sourceWhereClause}
-            ),
-            target_stats AS (
-                SELECT 
-                    COUNT(*) as total_records,
-                    COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as unique_keys,
-                    COUNT(*) - COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as duplicate_records,
-                    COUNTIF(${primaryKey} IS NULL) as null_keys
-                FROM \`${targetTable}\`
-            )
-            SELECT 
-                s.total_records as source_total, s.unique_keys as source_unique, 
-                s.duplicate_records as source_duplicates, s.null_keys as source_nulls,
-                t.total_records as target_total, t.unique_keys as target_unique,
-                t.duplicate_records as target_duplicates, t.null_keys as target_nulls
-            FROM source_stats s, target_stats t
-        `;
+        // ========== STEP 1: Full record counts (just COUNT(*), fast) ==========
+        console.log('📊 Getting full record counts...');
 
-        let counts;
+        let sourceTotalCount = 0, targetTotalCount = 0;
         try {
+            const countsQuery = sourceFilter ? `
+                 SELECT 
+                (SELECT COUNT(*) FROM \`${sourceTable}\` ${sourceWhereClause}) as source_total,
+                (SELECT COUNT(*) FROM \`${targetTable}\` WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
+                SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) FROM \`${sourceTable}\` ${sourceWhereClause}
+                ${sourceFilter ? 'AND' : 'WHERE'} ${primaryKey} IS NOT NULL
+                )) as target_total
+                ` : `
+            SELECT 
+                (SELECT COUNT(*) FROM \`${sourceTable}\`) as source_total,
+                (SELECT COUNT(*) FROM \`${targetTable}\`) as target_total
+            `;
             const [countRows] = await bigquery.query(countsQuery);
-            counts = countRows[0];
-            console.log(`✅ Source: ${counts.source_total} total, ${counts.source_unique} unique`);
-            console.log(`✅ Target: ${counts.target_total} total, ${counts.target_unique} unique`);
+            sourceTotalCount = countRows[0].source_total;
+            targetTotalCount = countRows[0].target_total;
+            console.log(`✅ Source: ${sourceTotalCount} total, Target: ${targetTotalCount} total`);
         } catch (err) {
             return res.status(400).json({
                 success: false,
                 error: `Count query failed: ${err.message}`,
-                suggestions: [
-                    'Verify both tables exist and are accessible',
-                    `Check that primary key "${primaryKey}" exists in both tables`,
-                    'Check source filter syntax if provided'
-                ]
+                suggestions: ['Verify both tables exist', `Check primary key "${primaryKey}"`, 'Check source filter syntax']
             });
         }
 
-        // ========== STEP 2: Get schema (column names) ==========
-        console.log('📋 Analyzing schema...');
-        const schemaQuery = `
-            WITH source_cols AS (
-                SELECT column_name FROM \`${sourceTable.split('.')[0]}.${sourceTable.split('.')[1]}\`.INFORMATION_SCHEMA.COLUMNS
-                WHERE table_name = '${sourceTable.split('.')[2]}'
-            ),
-            target_cols AS (
-                SELECT column_name FROM \`${targetTable.split('.')[0]}.${targetTable.split('.')[1]}\`.INFORMATION_SCHEMA.COLUMNS
-                WHERE table_name = '${targetTable.split('.')[2]}'
-            )
-            SELECT 
-                s.column_name as col, 'source' as src FROM source_cols s
-            UNION ALL
-            SELECT 
-                t.column_name as col, 'target' as src FROM target_cols t
+        // ========== STEP 2: Create sample source keys (2000 PKs) ==========
+        console.log('📦 Creating source sample...');
+
+        const sampleSubquery = `
+            SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) as pk
+            FROM \`${sourceTable}\` ${sourceWhereClause}
+            ${sourceFilter ? 'AND' : 'WHERE'} ${primaryKey} IS NOT NULL
+            LIMIT ${SAMPLE_SIZE}
         `;
 
+        let sampleKeys = [];
+        try {
+            const [sampleRows] = await bigquery.query(sampleSubquery);
+            sampleKeys = sampleRows.map(r => r.pk);
+            console.log(`✅ Sample keys: ${sampleKeys.length} selected`);
+        } catch (sampleErr) {
+            return res.status(400).json({ success: false, error: `Sample query failed: ${sampleErr.message}` });
+        }
+
+        if (sampleKeys.length === 0) {
+            return res.status(400).json({ success: false, error: 'No records found in source with given filter' });
+        }
+
+        const sampleValidated = sampleKeys.length;
+
+        // ========== STEP 3: Sample-based detailed stats ==========
+        console.log('📊 Getting sample-based stats...');
+
+        let sampleSourceStats = { unique: sampleValidated, duplicates: 0 };
+        let sampleTargetStats = { unique: 0, duplicates: 0 };
+
+        try {
+            const sampleStatsQuery = `
+                WITH source_sample AS (${sampleSubquery})
+                SELECT
+                    (SELECT COUNT(DISTINCT pk) FROM source_sample) as source_unique,
+                    (SELECT COUNT(*) - COUNT(DISTINCT pk) FROM source_sample) as source_duplicates,
+                    (SELECT COUNT(DISTINCT SAFE_CAST(${primaryKey} AS STRING)) FROM \`${targetTable}\` WHERE SAFE_CAST(${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)) as target_unique,
+                    (SELECT COUNT(*) - COUNT(DISTINCT SAFE_CAST(${primaryKey} AS STRING)) FROM \`${targetTable}\` WHERE SAFE_CAST(${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)) as target_duplicates
+            `;
+            const [statsRows] = await bigquery.query(sampleStatsQuery);
+            const stats = statsRows[0];
+            sampleSourceStats = { unique: stats.source_unique, duplicates: stats.source_duplicates };
+            sampleTargetStats = { unique: stats.target_unique, duplicates: stats.target_duplicates };
+            console.log(`✅ Sample source: ${stats.source_unique} unique, ${stats.source_duplicates} dups`);
+            console.log(`✅ Sample target: ${stats.target_unique} unique, ${stats.target_duplicates} dups`);
+        } catch (statsErr) {
+            console.warn('Sample stats failed:', statsErr.message);
+        }
+
+        // ========== STEP 4: Schema analysis ==========
+        console.log('📋 Analyzing schema...');
         let sourceFields = [], targetFields = [];
         try {
+            const schemaQuery = `
+                SELECT col, src FROM (
+                    SELECT column_name as col, 'source' as src 
+                    FROM \`${sourceTable.split('.')[0]}.${sourceTable.split('.')[1]}\`.INFORMATION_SCHEMA.COLUMNS
+                    WHERE table_name = '${sourceTable.split('.')[2]}'
+                    UNION ALL
+                    SELECT column_name as col, 'target' as src 
+                    FROM \`${targetTable.split('.')[0]}.${targetTable.split('.')[1]}\`.INFORMATION_SCHEMA.COLUMNS
+                    WHERE table_name = '${targetTable.split('.')[2]}'
+                )
+            `;
             const [schemaCols] = await bigquery.query(schemaQuery);
             schemaCols.forEach(r => {
                 if (r.src === 'source') sourceFields.push(r.col);
                 else targetFields.push(r.col);
             });
         } catch (schemaErr) {
-            console.warn('Schema query failed, using sample approach:', schemaErr.message);
-            // Fallback: get fields from a sample row
             try {
                 const [srcSample] = await bigquery.query(`SELECT * FROM \`${sourceTable}\` LIMIT 1`);
                 const [tgtSample] = await bigquery.query(`SELECT * FROM \`${targetTable}\` LIMIT 1`);
                 if (srcSample.length > 0) sourceFields = Object.keys(srcSample[0]);
                 if (tgtSample.length > 0) targetFields = Object.keys(tgtSample[0]);
             } catch (e) {
-                return res.status(400).json({ success: false, error: `Cannot read table schemas: ${e.message}` });
+                return res.status(400).json({ success: false, error: `Cannot read schemas: ${e.message}` });
             }
         }
 
@@ -1459,7 +1481,6 @@ app.post('/api/bq-vs-bq', async (req, res) => {
         const sourceOnlyFields = sourceFields.filter(f => !targetFields.includes(f));
         const targetOnlyFields = targetFields.filter(f => !sourceFields.includes(f));
 
-        // Determine which fields to compare
         let fieldsToCompare;
         if (comparisonFields.length > 0) {
             fieldsToCompare = comparisonFields.filter(f => commonFields.includes(f));
@@ -1467,25 +1488,21 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             fieldsToCompare = commonFields.filter(f => f !== primaryKey);
         }
 
-        console.log(`✅ Common fields: ${commonFields.length}, Comparing: ${fieldsToCompare.length}`);
+        console.log(`✅ Common: ${commonFields.length}, Comparing: ${fieldsToCompare.length}`);
 
-        // ========== STEP 3: Record matching (PK-based) ==========
-        console.log('🔍 Matching records by primary key...');
+        // ========== STEP 5: Record matching (sample-based) ==========
+        console.log('🔍 Matching records (sample-based)...');
         const matchQuery = `
-            WITH source_keys AS (
-                SELECT DISTINCT CAST(${primaryKey} AS STRING) as pk
-                FROM \`${sourceTable}\` ${sourceWhereClause}
-                WHERE ${primaryKey} IS NOT NULL
-            ),
+            WITH source_sample AS (${sampleSubquery}),
             target_keys AS (
-                SELECT DISTINCT CAST(${primaryKey} AS STRING) as pk
+                SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) as pk
                 FROM \`${targetTable}\`
                 WHERE ${primaryKey} IS NOT NULL
             )
             SELECT
-                (SELECT COUNT(*) FROM source_keys s INNER JOIN target_keys t ON s.pk = t.pk) as matched,
-                (SELECT COUNT(*) FROM source_keys s LEFT JOIN target_keys t ON s.pk = t.pk WHERE t.pk IS NULL) as source_only,
-                (SELECT COUNT(*) FROM target_keys t LEFT JOIN source_keys s ON t.pk = s.pk WHERE s.pk IS NULL) as target_only
+                (SELECT COUNT(*) FROM source_sample s INNER JOIN target_keys t ON s.pk = t.pk) as matched,
+                (SELECT COUNT(*) FROM source_sample s LEFT JOIN target_keys t ON s.pk = t.pk WHERE t.pk IS NULL) as source_only,
+                (SELECT COUNT(*) FROM target_keys t LEFT JOIN source_sample s ON t.pk = s.pk WHERE s.pk IS NULL) as target_only
         `;
 
         let matchCounts;
@@ -1497,35 +1514,30 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             return res.status(400).json({ success: false, error: `Match query failed: ${matchErr.message}` });
         }
 
-        // ========== STEP 4: Field-by-field comparison ==========
-        console.log('🔬 Running field-by-field comparison...');
+        // ========== STEP 6: Field-by-field comparison (sample-based) ==========
+        console.log('🔬 Field comparison (sample-based)...');
         const fieldComparisons = [];
         let totalFieldIssues = 0;
         let perfectFieldCount = 0;
 
-        // Compare in batches of 5 fields at a time
         const FIELD_BATCH_SIZE = 5;
         for (let i = 0; i < fieldsToCompare.length; i += FIELD_BATCH_SIZE) {
             const fieldBatch = fieldsToCompare.slice(i, i + FIELD_BATCH_SIZE);
 
             const fieldSelectParts = fieldBatch.map(field => `
-                COUNTIF(CAST(s.${field} AS STRING) = CAST(t.${field} AS STRING) OR (s.${field} IS NULL AND t.${field} IS NULL)) as match_${field.replace(/[^a-zA-Z0-9]/g, '_')},
-                COUNTIF(NOT (CAST(s.${field} AS STRING) = CAST(t.${field} AS STRING) OR (s.${field} IS NULL AND t.${field} IS NULL))) as diff_${field.replace(/[^a-zA-Z0-9]/g, '_')}
+                COUNTIF(SAFE_CAST(s.${field} AS STRING) = SAFE_CAST(t.${field} AS STRING) OR (s.${field} IS NULL AND t.${field} IS NULL)) as match_${field.replace(/[^a-zA-Z0-9]/g, '_')},
+                COUNTIF(NOT (SAFE_CAST(s.${field} AS STRING) = SAFE_CAST(t.${field} AS STRING) OR (s.${field} IS NULL AND t.${field} IS NULL))) as diff_${field.replace(/[^a-zA-Z0-9]/g, '_')}
             `).join(',\n');
 
             const fieldCompareQuery = `
-                WITH matched AS (
-                    SELECT s.*, t.${primaryKey} as t_pk
-                    FROM (SELECT * FROM \`${sourceTable}\` ${sourceWhereClause}) s
-                    INNER JOIN \`${targetTable}\` t
-                    ON CAST(s.${primaryKey} AS STRING) = CAST(t.${primaryKey} AS STRING)
-                )
+                WITH source_sample AS (${sampleSubquery})
                 SELECT 
                     COUNT(*) as total_compared,
                     ${fieldSelectParts}
-                FROM (SELECT * FROM \`${sourceTable}\` ${sourceWhereClause}) s
+                FROM \`${sourceTable}\` s
                 INNER JOIN \`${targetTable}\` t
-                ON CAST(s.${primaryKey} AS STRING) = CAST(t.${primaryKey} AS STRING)
+                ON SAFE_CAST(s.${primaryKey} AS STRING) = SAFE_CAST(t.${primaryKey} AS STRING)
+                WHERE SAFE_CAST(s.${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)
             `;
 
             try {
@@ -1543,48 +1555,44 @@ app.post('/api/bq-vs-bq', async (req, res) => {
                     else perfectFieldCount++;
 
                     fieldComparisons.push({
-                        fieldName: field,
-                        totalRecords: totalCompared,
-                        perfectMatches: matches,
-                        differences: diffs,
-                        matchRate: matchRate,
-                        error: null
+                        fieldName: field, totalRecords: totalCompared,
+                        perfectMatches: matches, differences: diffs,
+                        matchRate: matchRate, error: null
                     });
                 });
             } catch (fieldErr) {
-                console.warn(`Field batch comparison failed:`, fieldErr.message);
+                console.warn(`Field batch failed:`, fieldErr.message);
                 fieldBatch.forEach(field => {
                     fieldComparisons.push({
-                        fieldName: field,
-                        totalRecords: 0,
-                        perfectMatches: 0,
-                        differences: 0,
-                        matchRate: '0.0',
-                        error: fieldErr.message
+                        fieldName: field, totalRecords: 0, perfectMatches: 0,
+                        differences: 0, matchRate: '0.0', error: fieldErr.message
                     });
                 });
             }
         }
 
-        console.log(`✅ Field analysis: ${perfectFieldCount} perfect, ${fieldsToCompare.length - perfectFieldCount} with issues`);
+        console.log(`✅ Fields: ${perfectFieldCount} perfect, ${fieldsToCompare.length - perfectFieldCount} with issues`);
 
-        // ========== STEP 5: Duplicate key detection ==========
-        console.log('🔄 Checking for duplicate keys...');
+        // ========== STEP 7: Duplicate detection (sample-based) ==========
+        console.log('🔄 Checking duplicates (sample-based)...');
         let sourceDupKeys = [], targetDupKeys = [];
 
         try {
             const dupQuery = `
-                WITH source_dups AS (
-                    SELECT CAST(${primaryKey} AS STRING) as pk, COUNT(*) as cnt
-                    FROM \`${sourceTable}\` ${sourceWhereClause}
+                WITH source_sample AS (${sampleSubquery}),
+                source_dups AS (
+                    SELECT SAFE_CAST(${primaryKey} AS STRING) as pk, COUNT(*) as cnt
+                    FROM \`${sourceTable}\`
                     WHERE ${primaryKey} IS NOT NULL
+                    AND SAFE_CAST(${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)
                     GROUP BY pk HAVING cnt > 1
                     ORDER BY cnt DESC LIMIT 20
                 ),
                 target_dups AS (
-                    SELECT CAST(${primaryKey} AS STRING) as pk, COUNT(*) as cnt
+                    SELECT SAFE_CAST(${primaryKey} AS STRING) as pk, COUNT(*) as cnt
                     FROM \`${targetTable}\`
                     WHERE ${primaryKey} IS NOT NULL
+                    AND SAFE_CAST(${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)
                     GROUP BY pk HAVING cnt > 1
                     ORDER BY cnt DESC LIMIT 20
                 )
@@ -1601,73 +1609,82 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             console.warn('Duplicate detection failed:', dupErr.message);
         }
 
-        // ========== STEP 6: Sample differences (for display) ==========
+        // ========== STEP 8: Sample differences ==========
         let sampleDiffs = [];
         if (fieldsToCompare.length > 0 && matchCounts.matched > 0) {
             try {
                 const firstField = fieldsToCompare[0];
                 const sampleDiffQuery = `
+                    WITH source_sample AS (${sampleSubquery})
                     SELECT 
-                        CAST(s.${primaryKey} AS STRING) as record_key,
-                        CAST(s.${firstField} AS STRING) as source_value,
-                        CAST(t.${firstField} AS STRING) as target_value,
+                        SAFE_CAST(s.${primaryKey} AS STRING) as record_key,
+                        SAFE_CAST(s.${firstField} AS STRING) as source_value,
+                        SAFE_CAST(t.${firstField} AS STRING) as target_value,
                         '${firstField}' as field_name
-                    FROM (SELECT * FROM \`${sourceTable}\` ${sourceWhereClause}) s
+                    FROM \`${sourceTable}\` s
                     INNER JOIN \`${targetTable}\` t
-                    ON CAST(s.${primaryKey} AS STRING) = CAST(t.${primaryKey} AS STRING)
-                    WHERE CAST(s.${firstField} AS STRING) != CAST(t.${firstField} AS STRING)
+                    ON SAFE_CAST(s.${primaryKey} AS STRING) = SAFE_CAST(t.${primaryKey} AS STRING)
+                    WHERE SAFE_CAST(s.${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)
+                    AND SAFE_CAST(s.${firstField} AS STRING) != SAFE_CAST(t.${firstField} AS STRING)
                     LIMIT 5
                 `;
                 const [diffRows] = await bigquery.query(sampleDiffQuery);
                 sampleDiffs = diffRows;
             } catch (e) {
-                console.warn('Sample diff query failed:', e.message);
+                console.warn('Sample diff failed:', e.message);
             }
         }
 
         // ========== BUILD RESPONSE ==========
-        const successRate = counts.source_unique > 0
-            ? ((matchCounts.matched / counts.source_unique) * 100).toFixed(1)
-            : '0.0';
+        const successRate = sampleValidated > 0
+            ? ((matchCounts.matched / sampleValidated) * 100).toFixed(1) : '0.0';
 
-        const bothClean = counts.source_duplicates === 0 && counts.target_duplicates === 0;
+        const sampleSourceDupTotal = sourceDupKeys.reduce((sum, d) => sum + d.count, 0);
+        const sampleTargetDupTotal = targetDupKeys.reduce((sum, d) => sum + d.count, 0);
+        const bothClean = sourceDupKeys.length === 0 && targetDupKeys.length === 0;
+		const maxDiffs = fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0);
+        console.log(`🔍 DEBUG: matched=${matchCounts.matched}, maxDiffs=${maxDiffs}, identical=${Math.max(0, matchCounts.matched - maxDiffs)}, mismatched=${Math.min(matchCounts.matched, maxDiffs)}`);
 
         const response = {
             success: true,
             data: {
                 summary: {
-                    totalRecordsInFile: counts.source_total,
-                    totalRecordsInSource: counts.source_total,
-                    targetRecords: counts.target_total,
-                    uniqueSourceRecords: counts.source_unique,
-                    duplicateRecordsInFile: counts.source_duplicates,
+                    totalRecordsInFile: sourceTotalCount,
+                    totalRecordsInSource: sourceTotalCount,
+                    targetRecords: targetTotalCount,
+                    uniqueSourceRecords: sampleSourceStats.unique,
+                    duplicateRecordsInFile: sampleSourceStats.duplicates,
                     recordsReachedTarget: matchCounts.matched,
                     recordsFailedToReachTarget: matchCounts.source_only,
                     recordsOnlyInTarget: matchCounts.target_only,
-                    identicalRecords: matchCounts.matched - fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0),
-                    mismatchedRecords: fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0),
+                    identicalRecords: Math.max(0, matchCounts.matched - fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0)),
+                    mismatchedRecords: Math.min(matchCounts.matched, fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0)),
                     pipelineSuccessRate: successRate,
                     primaryKeyUsed: primaryKey,
                     fieldsAnalyzed: fieldsToCompare.length,
                     commonFieldsCount: commonFields.length,
                     schemaCompatibility: ((commonFields.length / Math.max(sourceFields.length, targetFields.length, 1)) * 100).toFixed(1),
                     totalFieldIssues: totalFieldIssues,
-                    nullPrimaryKeysSource: counts.source_nulls,
-                    nullPrimaryKeysTarget: counts.target_nulls
+                    nullPrimaryKeysSource: 0,
+                    nullPrimaryKeysTarget: 0,
+                    sampleSize: SAMPLE_SIZE,
+                    sampleValidated: sampleValidated,
+                    isSampleBased: true,
+                    samplingNote: `Full source: ${sourceTotalCount.toLocaleString()} records. Validated ${sampleValidated.toLocaleString()} sample records.`
                 },
                 recordCounts: {
                     jsonDetails: {
-                        totalRecords: counts.source_total,
-                        uniquePrimaryKeys: counts.source_unique,
-                        duplicateRecords: counts.source_duplicates,
-                        nullPrimaryKeys: counts.source_nulls,
+                        totalRecords: sourceTotalCount,
+                        uniquePrimaryKeys: sampleSourceStats.unique,
+                        duplicateRecords: sampleSourceStats.duplicates,
+                        nullPrimaryKeys: 0,
                         primaryKeyField: primaryKey
                     },
                     bqDetails: {
-                        totalRecords: counts.target_total,
-                        uniquePrimaryKeys: counts.target_unique,
-                        duplicateRecords: counts.target_duplicates,
-                        nullPrimaryKeys: counts.target_nulls
+                        totalRecords: targetTotalCount,
+                        uniquePrimaryKeys: sampleTargetStats.unique,
+                        duplicateRecords: sampleTargetStats.duplicates,
+                        nullPrimaryKeys: 0
                     }
                 },
                 schemaAnalysis: {
@@ -1692,12 +1709,12 @@ app.post('/api/bq-vs-bq', async (req, res) => {
                 duplicatesAnalysis: {
                     jsonDuplicates: {
                         duplicateCount: sourceDupKeys.length,
-                        totalDuplicateRecords: counts.source_duplicates,
+                        totalDuplicateRecords: sampleSourceDupTotal,
                         duplicateKeys: sourceDupKeys
                     },
                     bqDuplicates: {
                         duplicateCount: targetDupKeys.length,
-                        totalDuplicateRecords: counts.target_duplicates,
+                        totalDuplicateRecords: sampleTargetDupTotal,
                         duplicateKeys: targetDupKeys
                     },
                     crossSystemAnalysis: {
@@ -1708,11 +1725,11 @@ app.post('/api/bq-vs-bq', async (req, res) => {
                     summary: {
                         bothSystemsClean: bothClean,
                         dataQualityScore: bothClean ? 'Excellent' :
-                            (counts.source_duplicates + counts.target_duplicates < 10) ? 'Good' : 'Needs Review'
+                            (sourceDupKeys.length + targetDupKeys.length < 10) ? 'Good' : 'Needs Review'
                     },
                     recommendations: bothClean ? [] : [
-                        counts.source_duplicates > 0 ? `Source has ${counts.source_duplicates} duplicate records - review deduplication` : null,
-                        counts.target_duplicates > 0 ? `Target has ${counts.target_duplicates} duplicate records - review deduplication` : null
+                        sourceDupKeys.length > 0 ? `Source has ${sourceDupKeys.length} duplicate keys in sample` : null,
+                        targetDupKeys.length > 0 ? `Target has ${targetDupKeys.length} duplicate keys for sample PKs` : null
                     ].filter(Boolean)
                 },
                 metadata: {
@@ -1721,15 +1738,18 @@ app.post('/api/bq-vs-bq', async (req, res) => {
                     targetTable: targetTable,
                     primaryKey: primaryKey,
                     comparisonType: 'BQ-vs-BQ',
+                    sampleSize: SAMPLE_SIZE,
+                    sampleValidated: sampleValidated,
+                    sourceFilter: sourceFilter || 'None',
                     comparedAt: new Date().toISOString()
                 }
             }
         };
 
-        console.log(`\n✅ BQ vs BQ comparison completed successfully`);
-        console.log(`📊 Source: ${counts.source_total} records, Target: ${counts.target_total} records`);
-        console.log(`📊 Matched: ${matchCounts.matched}, Source-only: ${matchCounts.source_only}, Target-only: ${matchCounts.target_only}`);
-        console.log(`📊 Perfect fields: ${perfectFieldCount}/${fieldsToCompare.length}`);
+        console.log(`\n✅ BQ vs BQ completed`);
+        console.log(`📊 Full counts - Source: ${sourceTotalCount}, Target: ${targetTotalCount}`);
+        console.log(`📊 Sample: ${sampleValidated} validated, ${matchCounts.matched} matched`);
+        console.log(`📊 Fields: ${perfectFieldCount}/${fieldsToCompare.length} perfect`);
 
         res.json(response);
 
@@ -1739,10 +1759,10 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             success: false,
             error: error.message,
             suggestions: [
-                'Check both BigQuery table names are correct (project.dataset.table)',
-                'Verify the primary key field exists in both tables',
-                'Ensure you have read access to both tables',
-                'Check source filter syntax if provided'
+                'Check both table names (project.dataset.table)',
+                'Verify primary key exists in both tables',
+                'Ensure read access to both tables',
+                'Check source filter syntax'
             ]
         });
     }
