@@ -333,6 +333,215 @@ app.post('/api/mysql-rdbms-comparison', async (req, res) => {
         });
     }
 });
+
+// ========================================
+// ✨ MULTI-TABLE MYSQL VS BQ VALIDATION
+// ========================================
+app.post('/api/mysql-multi-table-comparison', async (req, res) => {
+    try {
+        const { 
+            mysqlHost, 
+            mysqlPort, 
+            mysqlDatabase, 
+            mysqlUsername, 
+            mysqlPassword,
+            tablePairs,  // Array of { sourceTable, targetTable, primaryKey }
+            queryMode = 'table'
+        } = req.body;
+        
+        console.log('=== MULTI-TABLE MYSQL VALIDATION REQUEST ===');
+        console.log('Mode:', queryMode);
+        console.log('Number of table pairs:', tablePairs?.length || 0);
+        
+        // Validate input
+        if (!tablePairs || !Array.isArray(tablePairs) || tablePairs.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'tablePairs array is required',
+                suggestions: [
+                    'Provide an array of table pairs',
+                    'Format: [{ sourceTable, targetTable, primaryKey }]'
+                ]
+            });
+        }
+        
+        // Validate connection parameters
+        if (!mysqlHost || !mysqlDatabase || !mysqlUsername || !mysqlPassword) {
+            return res.status(400).json({
+                success: false,
+                error: 'MySQL connection parameters are required',
+                suggestions: [
+                    'Provide: host, database, username, password',
+                    'Port defaults to 3306 if not specified'
+                ]
+            });
+        }
+        
+        const connectionConfig = {
+            host: mysqlHost,
+            port: parseInt(mysqlPort || '3306'),
+            database: mysqlDatabase,
+            username: mysqlUsername,
+            password: mysqlPassword
+        };
+        
+        console.log('MySQL Connection:', { 
+            host: connectionConfig.host, 
+            port: connectionConfig.port, 
+            database: connectionConfig.database 
+        });
+        
+        // Test MySQL connection once
+        console.log('🔍 Testing MySQL connection...');
+        const connectionTest = await RDBMSIntegrationService.testConnection('mysql', connectionConfig);
+        if (!connectionTest.success) {
+            return res.status(400).json({
+                success: false,
+                error: `MySQL connection failed: ${connectionTest.error}`,
+                suggestions: connectionTest.suggestions
+            });
+        }
+        
+        console.log('✅ MySQL connection successful');
+        
+        // Process each table pair
+        const results = [];
+        const bqService = new BigQueryIntegrationService();
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+        
+        let successCount = 0;
+        let failureCount = 0;
+        
+        for (let i = 0; i < tablePairs.length; i++) {
+            const pair = tablePairs[i];
+            const { sourceTable, targetTable, primaryKey } = pair;
+            
+            console.log(`\n📊 Processing table pair ${i + 1}/${tablePairs.length}`);
+            console.log(`   Source: ${sourceTable}`);
+            console.log(`   Target: ${targetTable}`);
+            console.log(`   Primary Key: ${primaryKey || 'auto-detect'}`);
+            
+            try {
+                // Build query based on mode
+                let query;
+                let queryDescription;
+                
+                if (queryMode === 'custom') {
+                    query = sourceTable; // In custom mode, sourceTable contains the SQL query
+                    queryDescription = 'Custom SQL Query';
+                } else {
+                    // Wrap table name in backticks for MySQL compatibility
+                    query = `SELECT * FROM \`${sourceTable}\``;
+                    queryDescription = `Table: ${sourceTable}`;
+                }
+                
+                // Fetch data from MySQL
+                console.log(`   🔄 Fetching MySQL data...`);
+                console.log(`   📋 Query: ${query}`);
+                const mysqlResult = await RDBMSIntegrationService.fetchData('mysql', connectionConfig, query);
+                console.log(`   ✅ Fetched ${mysqlResult.recordCount} records`);
+                
+                if (!mysqlResult.records || mysqlResult.records.length === 0) {
+                    throw new Error(`No data returned from MySQL query: ${query}`);
+                }
+                
+                // Create temp BigQuery table
+                console.log(`   ☁️ Creating temp BigQuery table...`);
+                const tempTableResult = await bqService.createTempTableFromJSON(
+                    mysqlResult.records,
+                    `mysql_multi_${Date.now()}_${i}`,
+                    primaryKey || null
+                );
+                console.log(`   ✅ Temp table: ${tempTableResult.tempTableId}`);
+                
+                // Run comparison
+                console.log(`   🔍 Running comparison...`);
+                const comparisonResult = await comparisonEngine.compareJSONvsBigQuery(
+                    tempTableResult.tempTableId,
+                    targetTable,
+                    primaryKey || null,
+                    [],
+                    'enhanced'
+                );
+                
+                // Add metadata
+                comparisonResult.metadata = {
+                    ...comparisonResult.metadata,
+                    sourceType: 'MySQL',
+                    queryMode: queryMode,
+                    sourceDescription: queryDescription,
+                    sourceTable: sourceTable,
+                    targetTable: targetTable,
+                    primaryKey: primaryKey,
+                    mysqlRecordsProcessed: mysqlResult.recordCount,
+                    tempTable: tempTableResult.tempTableId,
+                    pairIndex: i + 1,
+                    totalPairs: tablePairs.length
+                };
+                
+                results.push({
+                    success: true,
+                    sourceTable: sourceTable,
+                    targetTable: targetTable,
+                    ...comparisonResult
+                });
+                
+                successCount++;
+                console.log(`   ✅ Comparison completed successfully`);
+                
+            } catch (error) {
+                console.error(`   ❌ Comparison failed: ${error.message}`);
+                
+                results.push({
+                    success: false,
+                    sourceTable: sourceTable,
+                    targetTable: targetTable,
+                    error: error.message,
+                    suggestions: [
+                        'Check if source table exists and has data',
+                        'Verify BigQuery target table exists',
+                        'Ensure primary key is valid'
+                    ]
+                });
+                
+                failureCount++;
+            }
+        }
+        
+        console.log('\n=== MULTI-TABLE VALIDATION SUMMARY ===');
+        console.log(`Total pairs: ${tablePairs.length}`);
+        console.log(`Successful: ${successCount}`);
+        console.log(`Failed: ${failureCount}`);
+        
+        res.json({
+            success: true,
+            summary: {
+                totalPairs: tablePairs.length,
+                successCount: successCount,
+                failureCount: failureCount,
+                successRate: ((successCount / tablePairs.length) * 100).toFixed(2) + '%'
+            },
+            results: results,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Multi-table validation failed:', error.message);
+        console.error('Stack:', error.stack);
+        
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            suggestions: [
+                'Check MySQL connection parameters',
+                'Verify table pairs format',
+                'Ensure all tables exist'
+            ]
+        });
+    }
+});
+
 // ========================================
 // ✨ CUSTOM QUERY VALIDATION ENDPOINT
 // ========================================

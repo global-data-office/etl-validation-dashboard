@@ -1860,6 +1860,49 @@
 			<div id="mysql-custom-validation-status" class="status-message" style="margin-top: 15px;"></div>
 		</div>
 		
+		<!-- ========================================= -->
+		<!-- ✨ MULTI-TABLE VALIDATION MODE -->
+		<!-- ========================================= -->
+		<div style="margin: 30px 20px; padding: 25px; background: linear-gradient(135deg, #f0f8ff 0%, #e8f5e9 100%); border-radius: 12px; border-left: 5px solid #27ae60;">
+			<h3 style="color: #27ae60; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+				📊 Multi-Table Validation Mode (Batch Processing)
+			</h3>
+			<p style="color: #666; margin-bottom: 15px; font-size: 0.95rem;">
+				Validate multiple MySQL tables against their corresponding BigQuery tables in a single operation. Perfect for batch ETL validation.
+			</p>
+
+			<!-- Connection Reuse Notice -->
+			<div style="background: #d1ecf1; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 3px solid #17a2b8;">
+				<strong>ℹ️ Note:</strong> Uses the same MySQL connection configured above. All tables must be in the same MySQL database.
+			</div>
+
+			<!-- Table Pairs Configuration -->
+			<div id="multi-table-pairs-container" style="margin-bottom: 20px;">
+				<!-- Table pairs will be added here dynamically -->
+			</div>
+
+			<!-- Add Table Pair Button -->
+			<button onclick="addTablePair()" class="btn-secondary" 
+					style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600; margin-bottom: 15px; cursor: pointer;">
+				➕ Add Table Pair
+			</button>
+
+			<!-- Action Buttons -->
+			<div style="display: flex; gap: 15px;">
+				<button id="clearAllTablePairs" onclick="clearAllTablePairs()" class="btn-secondary" 
+						style="flex: 1; padding: 12px; background: #dc3545; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+					🗑️ Clear All
+				</button>
+				<button id="runMultiTableValidation" onclick="runMultiTableValidation()" class="btn-primary" 
+						style="flex: 2; padding: 12px; background: linear-gradient(135deg, #27ae60 0%, #229954 100%); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+					🚀 Run Multi-Table Validation
+				</button>
+			</div>
+
+			<!-- Validation Status -->
+			<div id="multi-table-validation-status" class="status-message" style="margin-top: 15px;"></div>
+		</div>
+		
 <!-- Oracle Configuration Tab -->
 <div id="oracle-rdbms-tab" class="results-tab-content">
     <div class="coming-soon-section">
@@ -5030,6 +5073,486 @@ async function testMySQLConnection() {
         statusSpan.innerHTML = '<span style="color: red;">❌ Error</span>';
         alert('Error testing connection: ' + error.message);
     }
+}
+
+// ========================================
+// ✨ MULTI-TABLE VALIDATION FUNCTIONS
+// ========================================
+
+let tablePairCounter = 0;
+
+function addTablePair() {
+    console.log('➕ addTablePair called');
+    tablePairCounter++;
+    const container = document.getElementById('multi-table-pairs-container');
+    
+    const pairDiv = document.createElement('div');
+    pairDiv.id = `table-pair-${tablePairCounter}`;
+    pairDiv.className = 'table-pair-card';
+    pairDiv.style.cssText = `
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-left: 4px solid #3498db;
+        position: relative;
+    `;
+    
+    pairDiv.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h4 style="color: #2c3e50; margin: 0;">Table Pair #${tablePairCounter}</h4>
+            <button onclick="removeTablePair(${tablePairCounter})" 
+                    style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                ✕ Remove
+            </button>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                    MySQL Source Table <span style="color: red;">*</span>
+                </label>
+                <input type="text" 
+                       id="sourceTable-${tablePairCounter}" 
+                       placeholder="e.g., users"
+                       style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+            </div>
+            
+            <div>
+                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                    BigQuery Target Table <span style="color: red;">*</span>
+                </label>
+                <input type="text" 
+                       id="targetTable-${tablePairCounter}" 
+                       placeholder="e.g., project.dataset.users"
+                       style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+            </div>
+        </div>
+        
+        <div>
+            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                Primary Key (Optional)
+            </label>
+            <input type="text" 
+                   id="primaryKey-${tablePairCounter}" 
+                   placeholder="e.g., id, user_id (leave empty for auto-detect)"
+                   style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+            <small style="color: #6c757d; font-size: 0.85rem;">
+                If not specified, the system will attempt to auto-detect the primary key
+            </small>
+        </div>
+    `;
+    
+    container.appendChild(pairDiv);
+    
+    // Scroll to the new pair
+    pairDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function removeTablePair(pairId) {
+    const pairDiv = document.getElementById(`table-pair-${pairId}`);
+    if (pairDiv) {
+        pairDiv.remove();
+    }
+}
+
+function clearAllTablePairs() {
+    if (confirm('Are you sure you want to clear all table pairs?')) {
+        const container = document.getElementById('multi-table-pairs-container');
+        container.innerHTML = '';
+        tablePairCounter = 0;
+    }
+}
+
+function collectTablePairs() {
+    const tablePairs = [];
+    const container = document.getElementById('multi-table-pairs-container');
+    const pairDivs = container.querySelectorAll('.table-pair-card');
+    
+    pairDivs.forEach((pairDiv) => {
+        const pairId = pairDiv.id.split('-')[2];
+        const sourceTable = document.getElementById(`sourceTable-${pairId}`)?.value.trim();
+        const targetTable = document.getElementById(`targetTable-${pairId}`)?.value.trim();
+        const primaryKey = document.getElementById(`primaryKey-${pairId}`)?.value.trim();
+        
+        if (sourceTable && targetTable) {
+            tablePairs.push({
+                sourceTable: sourceTable,
+                targetTable: targetTable,
+                primaryKey: primaryKey || null
+            });
+        }
+    });
+    
+    return tablePairs;
+}
+
+async function runMultiTableValidation() {
+    console.log('🚀 runMultiTableValidation called');
+    
+    const button = document.getElementById('runMultiTableValidation');
+    const statusDiv = document.getElementById('multi-table-validation-status');
+    
+    // Collect table pairs
+    const tablePairs = collectTablePairs();
+    
+    if (tablePairs.length === 0) {
+        statusDiv.innerHTML = `
+            <div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 6px; margin-top: 10px;">
+                ⚠️ <strong>No table pairs configured</strong><br>
+                Please add at least one table pair using the "Add Table Pair" button above.
+            </div>
+        `;
+        return;
+    }
+    
+    // Get MySQL connection details
+    const mysqlHost = document.getElementById('mysql-host')?.value?.trim() || '';
+    const mysqlPort = document.getElementById('mysql-port')?.value?.trim() || '';
+    const mysqlDatabase = document.getElementById('mysql-database')?.value?.trim() || '';
+    const mysqlUsername = document.getElementById('mysql-username')?.value?.trim() || '';
+    const mysqlPassword = document.getElementById('mysql-password')?.value || '';
+    
+    if (!mysqlHost || !mysqlDatabase || !mysqlUsername || !mysqlPassword) {
+        statusDiv.innerHTML = `
+            <div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 6px; margin-top: 10px;">
+                ❌ <strong>Missing MySQL Connection Details</strong><br>
+                Please fill in all MySQL connection fields above (Host, Database, Username, Password).
+            </div>
+        `;
+        return;
+    }
+    
+    // Disable button and show loading
+    button.disabled = true;
+    const originalText = button.innerHTML;
+    button.innerHTML = '⏳ Processing...';
+    
+    statusDiv.innerHTML = `
+        <div style="color: #004085; background: #cce5ff; padding: 15px; border-radius: 6px; margin-top: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="processing-spinner" style="width: 20px; height: 20px; border-width: 3px;"></div>
+                <div>
+                    <strong>🔄 Processing ${tablePairs.length} table pair(s)...</strong><br>
+                    <small>This may take a few minutes depending on the number of tables and data volume.</small>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('/api/mysql-multi-table-comparison', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mysqlHost: mysqlHost,
+                mysqlPort: parseInt(mysqlPort) || 3306,
+                mysqlDatabase: mysqlDatabase,
+                mysqlUsername: mysqlUsername,
+                mysqlPassword: mysqlPassword,
+                queryMode: 'table',
+                tablePairs: tablePairs
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayMultiTableResults(result);
+            
+            statusDiv.innerHTML = `
+                <div style="color: #155724; background: #d4edda; padding: 15px; border-radius: 6px; margin-top: 10px;">
+                    ✅ <strong>Multi-Table Validation Completed!</strong><br>
+                    <div style="margin-top: 10px; font-size: 0.95rem;">
+                        📊 Total Pairs: ${result.summary.totalPairs}<br>
+                        ✅ Successful: ${result.summary.successCount}<br>
+                        ❌ Failed: ${result.summary.failureCount}<br>
+                        📈 Success Rate: ${result.summary.successRate}
+                    </div>
+                </div>
+            `;
+        } else {
+            throw new Error(result.error || 'Multi-table validation failed');
+        }
+        
+    } catch (error) {
+        console.error('Multi-table validation error:', error);
+        statusDiv.innerHTML = `
+            <div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 6px; margin-top: 10px;">
+                ❌ <strong>Validation Failed</strong><br>${error.message}
+            </div>
+        `;
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+function displayMultiTableResults(result) {
+    const currentTab = document.getElementById('mysql-rdbms-tab');
+    let resultsDiv = currentTab.querySelector('.multi-table-results-container');
+    
+    if (!resultsDiv) {
+        resultsDiv = document.createElement('div');
+        resultsDiv.className = 'multi-table-results-container';
+        resultsDiv.style.cssText = 'margin-top: 30px; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);';
+        currentTab.appendChild(resultsDiv);
+    }
+    
+    let html = `
+        <h3 style="color: #2c3e50; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+            📊 Multi-Table Validation Results
+        </h3>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 2rem; font-weight: bold;">${result.summary.totalPairs}</div>
+                <div style="font-size: 0.9rem; opacity: 0.9;">Total Pairs</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #27ae60 0%, #229954 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 2rem; font-weight: bold;">${result.summary.successCount}</div>
+                <div style="font-size: 0.9rem; opacity: 0.9;">Successful</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 2rem; font-weight: bold;">${result.summary.failureCount}</div>
+                <div style="font-size: 0.9rem; opacity: 0.9;">Failed</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 2rem; font-weight: bold;">${result.summary.successRate}</div>
+                <div style="font-size: 0.9rem; opacity: 0.9;">Success Rate</div>
+            </div>
+        </div>
+    `;
+    
+    // Display individual table results
+    result.results.forEach((tableResult, index) => {
+        const statusColor = tableResult.success ? '#27ae60' : '#e74c3c';
+        const statusIcon = tableResult.success ? '✅' : '❌';
+        const statusText = tableResult.success ? 'Success' : 'Failed';
+        
+        html += `
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid ${statusColor};">
+                <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="color: #2c3e50; margin: 0; flex: 1;">
+                        ${statusIcon} Table Pair #${index + 1}: ${tableResult.sourceTable} → ${tableResult.targetTable}
+                    </h4>
+                    <span style="background: ${statusColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">
+                        ${statusText}
+                    </span>
+                </div>
+        `;
+        
+        if (tableResult.success && tableResult.summary) {
+            // Handle different possible property names from backend
+            const sourceRecords = tableResult.summary.totalRecordsInSource || 
+                                 tableResult.summary.sampleRecordsValidated || 
+                                 tableResult.metadata?.mysqlRecordsProcessed || 
+                                 tableResult.metadata?.recordsProcessed ||
+                                 0;
+            
+            // Get matches from different possible locations
+            const matches = tableResult.summary.matchingRecords || 
+                           tableResult.matchAnalysis?.matchCount ||
+                           tableResult.recordCounts?.matchingRecords ||
+                           0;
+            
+            // Get missing records
+            const missingInBQ = tableResult.summary.missingInBigQuery || 
+                               tableResult.matchAnalysis?.jsonOnlyCount ||
+                               tableResult.recordCounts?.jsonOnlyRecords ||
+                               0;
+            
+            const missingInSource = tableResult.summary.missingInJSON || 
+                                   tableResult.matchAnalysis?.bqOnlyCount ||
+                                   tableResult.recordCounts?.bqOnlyRecords ||
+                                   0;
+            
+            console.log('Display values for table:', {
+                sourceRecords,
+                matches,
+                missingInBQ,
+                missingInSource,
+                summary: tableResult.summary,
+                matchAnalysis: tableResult.matchAnalysis
+            });
+            
+            html += `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 15px; margin-bottom: 15px;">
+                    <div style="background: white; padding: 12px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.3rem; font-weight: bold; color: #2c3e50;">${sourceRecords}</div>
+                        <div style="font-size: 0.8rem; color: #6c757d;">Source Records</div>
+                    </div>
+                    <div style="background: white; padding: 12px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.3rem; font-weight: bold; color: #27ae60;">${matches}</div>
+                        <div style="font-size: 0.8rem; color: #6c757d;">Matches</div>
+                    </div>
+                    <div style="background: white; padding: 12px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.3rem; font-weight: bold; color: #e74c3c;">${missingInBQ}</div>
+                        <div style="font-size: 0.8rem; color: #6c757d;">Missing in BQ</div>
+                    </div>
+                    <div style="background: white; padding: 12px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 1.3rem; font-weight: bold; color: #f39c12;">${missingInSource}</div>
+                        <div style="font-size: 0.8rem; color: #6c757d;">Missing in Source</div>
+                    </div>
+                </div>
+                
+                <!-- View Detailed Results Button -->
+                <button onclick="showDetailedResults(${index})" 
+                        style="width: 100%; padding: 10px; background: #3498db; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: 10px;">
+                    📊 View Detailed Validation Results
+                </button>
+                
+                <!-- Detailed Results Container (Hidden by default) -->
+                <div id="detailed-results-${index}" style="display: none; margin-top: 15px;">
+                    <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <h4 style="color: #2c3e50; margin-bottom: 15px;">Detailed Validation Results</h4>
+                        <div id="detailed-content-${index}">Loading detailed results...</div>
+                    </div>
+                </div>
+            `;
+        } else if (!tableResult.success) {
+            html += `
+                <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin-top: 10px;">
+                    <strong style="color: #856404;">Error:</strong> ${tableResult.error}
+                </div>
+            `;
+            
+            if (tableResult.suggestions && tableResult.suggestions.length > 0) {
+                html += `<ul style="margin-top: 10px; color: #6c757d; font-size: 0.9rem;">`;
+                tableResult.suggestions.forEach(suggestion => {
+                    html += `<li>${suggestion}</li>`;
+                });
+                html += `</ul>`;
+            }
+        }
+        
+        html += `</div>`;
+    });
+    
+    resultsDiv.innerHTML = html;
+    resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    
+    // Store results globally for detailed view
+    window.multiTableResults = result.results;
+}
+
+// Function to show detailed results for a specific table
+function showDetailedResults(tableIndex) {
+    const detailsDiv = document.getElementById(`detailed-results-${tableIndex}`);
+    const contentDiv = document.getElementById(`detailed-content-${tableIndex}`);
+    
+    if (!detailsDiv || !contentDiv) return;
+    
+    if (detailsDiv.style.display === 'none') {
+        detailsDiv.style.display = 'block';
+        
+        // Get the table result data
+        const tableResult = window.multiTableResults[tableIndex];
+        
+        // Create a unique wrapper div for this table's results
+        const uniqueWrapper = document.createElement('div');
+        uniqueWrapper.className = 'multi-table-detailed-results';
+        uniqueWrapper.setAttribute('data-table-index', tableIndex);
+        
+        // Call the display function
+        displayRDBMSResults(tableResult, 'mysql', uniqueWrapper);
+        
+        // Fix all IDs to be unique by adding table index suffix
+        const elementsWithId = uniqueWrapper.querySelectorAll('[id]');
+        elementsWithId.forEach(element => {
+            const oldId = element.id;
+            const newId = `${oldId}_t${tableIndex}`;
+            element.id = newId;
+        });
+        
+        // Update onclick handlers for tab buttons to use the new switchMultiTableTab function
+        const tabButtons = uniqueWrapper.querySelectorAll('.results-tab-button');
+        tabButtons.forEach(button => {
+            const onclick = button.getAttribute('onclick');
+            if (onclick && onclick.includes('switchRdbmsTab')) {
+                // Extract the tab name from the onclick (e.g., 'record-count', 'column-names', etc.)
+                const match = onclick.match(/switchRdbmsTab\('mysql',\s*'([^']+)'\)/);
+                if (match) {
+                    const tabName = match[1];
+                    button.setAttribute('onclick', `switchMultiTableTab(${tableIndex}, '${tabName}')`);
+                }
+            }
+        });
+        
+        // Update onclick handlers for export and reset buttons
+        const exportButton = uniqueWrapper.querySelector('[onclick*="exportRdbmsToExcel"]');
+        if (exportButton) {
+            exportButton.setAttribute('onclick', `exportMultiTableToExcel(${tableIndex})`);
+        }
+        
+        const resetButton = uniqueWrapper.querySelector('[onclick*="resetRdbmsComparison"]');
+        if (resetButton) {
+            resetButton.setAttribute('onclick', `hideDetailedResults(${tableIndex})`);
+        }
+        
+        // Clear and set content
+        contentDiv.innerHTML = '';
+        contentDiv.appendChild(uniqueWrapper);
+        
+        // Scroll to the detailed results
+        setTimeout(() => {
+            detailsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+    } else {
+        detailsDiv.style.display = 'none';
+    }
+}
+
+// Tab switching function for multi-table detailed results
+function switchMultiTableTab(tableIndex, tabName) {
+    const wrapper = document.querySelector(`[data-table-index="${tableIndex}"]`);
+    if (!wrapper) return;
+    
+    // Hide all tabs within this wrapper
+    wrapper.querySelectorAll('[id^="rdbms-tab-mysql-"]').forEach(tab => {
+        tab.style.display = 'none';
+        tab.classList.remove('active');
+    });
+    
+    // Show selected tab (find by ID that ends with the table index)
+    const selectedTab = wrapper.querySelector(`[id="rdbms-tab-mysql-${tabName}_t${tableIndex}"]`);
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+        selectedTab.classList.add('active');
+    }
+    
+    // Update button states within this wrapper
+    wrapper.querySelectorAll('.results-tab-button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Activate clicked button
+    const activeButton = event?.target?.closest('.results-tab-button');
+    if (activeButton) {
+        activeButton.classList.add('active');
+    }
+}
+
+// Helper function to hide detailed results
+function hideDetailedResults(tableIndex) {
+    const detailsDiv = document.getElementById(`detailed-results-${tableIndex}`);
+    if (detailsDiv) {
+        detailsDiv.style.display = 'none';
+    }
+}
+
+// Export function for multi-table results
+function exportMultiTableToExcel(tableIndex) {
+    const tableResult = window.multiTableResults[tableIndex];
+    if (!tableResult) {
+        alert('No data available to export');
+        return;
+    }
+    
+    // Store temporarily in the global variable expected by exportRdbmsToExcel
+    window.globalRdbmsResults_mysql = tableResult;
+    exportRdbmsToExcel('mysql');
 }
 
     </script>
