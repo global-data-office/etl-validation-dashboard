@@ -309,7 +309,7 @@ switch(dbType.toLowerCase()) {
         console.log(`${dbType.toUpperCase()} vs BigQuery ENHANCED comparison completed`);
         console.log(`📊 Results: ${results.summary.identicalRecords || 0} identical, ${results.summary.mismatchedRecords || 0} mismatched`);
         
-        res.json(results);
+        res.json({ success: true, data: results });
 
     } catch (error) {
         console.error('RDBMS vs BigQuery comparison failed:', error.message);
@@ -1398,6 +1398,148 @@ app.get('/api/health', (req, res) => {
             'Cross-system duplicate key detection'
         ]
     });
+});
+
+// ========================================
+// ✨ FETCH RDBMS DATA (standalone)
+// ========================================
+app.post('/api/fetch-rdbms-data', async (req, res) => {
+    try {
+        const { dbType, connectionConfig, query } = req.body;
+        if (!dbType || !connectionConfig || !query) {
+            return res.status(400).json({ success: false, error: 'Missing required parameters: dbType, connectionConfig, and query are required' });
+        }
+        console.log(`📡 Fetching ${dbType.toUpperCase()} data...`);
+        const result = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
+        console.log(`✅ ${dbType.toUpperCase()} fetch successful: ${result.recordCount} records`);
+        res.json({ success: true, data: result.records, recordCount: result.recordCount, dbType: dbType.toUpperCase(), timestamp: new Date().toISOString() });
+    } catch (error) {
+        console.error('❌ RDBMS data fetch failed:', error.message);
+        res.status(500).json({ success: false, error: error.message, suggestions: ['Check database connection parameters', 'Verify SQL query syntax', 'Ensure table exists and has data'] });
+    }
+});
+
+// ========================================
+// ✨ MYSQL SINGLE-TABLE COMPARISON
+// ========================================
+app.post('/api/mysql-rdbms-comparison', async (req, res) => {
+    try {
+        const { sourceTable, targetTable, queryMode = 'table', mysqlHost, mysqlPort, mysqlDatabase, mysqlUsername, mysqlPassword } = req.body;
+        if (!sourceTable || !targetTable) return res.status(400).json({ success: false, error: 'Source and target are required' });
+        if (!mysqlHost || !mysqlDatabase || !mysqlUsername || !mysqlPassword) {
+            return res.status(400).json({ success: false, error: 'MySQL connection parameters are required' });
+        }
+        const connectionConfig = { host: mysqlHost, port: parseInt(mysqlPort || '3306'), database: mysqlDatabase, username: mysqlUsername, password: mysqlPassword };
+        const connectionTest = await RDBMSIntegrationService.testConnection('mysql', connectionConfig);
+        if (!connectionTest.success) return res.status(400).json({ success: false, error: `MySQL connection failed: ${connectionTest.error}`, suggestions: connectionTest.suggestions });
+
+        const query = queryMode === 'custom' ? sourceTable : `SELECT * FROM ${sourceTable}`;
+        const mysqlResult = await RDBMSIntegrationService.fetchData('mysql', connectionConfig, query);
+        if (!mysqlResult.records || mysqlResult.records.length === 0) return res.json({ success: false, error: 'No data returned from MySQL query' });
+
+        const bqService = new BigQueryIntegrationService();
+        const tempTableResult = await bqService.createTempTableFromJSON(mysqlResult.records, `mysql_temp_${Date.now()}`, null);
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+        const results = await comparisonEngine.compareJSONvsBigQuery(tempTableResult.tempTableId, targetTable, null, [], 'enhanced');
+        results.metadata = { ...results.metadata, sourceType: 'MySQL', queryMode, mysqlRecordsProcessed: mysqlResult.recordCount, tempTable: tempTableResult.tempTableId, timestamp: new Date().toISOString() };
+        res.json({ success: true, ...results });
+    } catch (error) {
+        console.error('❌ MySQL comparison failed:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ========================================
+// ✨ MYSQL MULTI-TABLE COMPARISON
+// ========================================
+app.post('/api/mysql-multi-table-comparison', async (req, res) => {
+    try {
+        const { mysqlHost, mysqlPort, mysqlDatabase, mysqlUsername, mysqlPassword, tablePairs, queryMode = 'table' } = req.body;
+        if (!tablePairs || !Array.isArray(tablePairs) || tablePairs.length === 0) return res.status(400).json({ success: false, error: 'tablePairs array is required' });
+        if (!mysqlHost || !mysqlDatabase || !mysqlUsername || !mysqlPassword) return res.status(400).json({ success: false, error: 'MySQL connection parameters are required' });
+
+        const connectionConfig = { host: mysqlHost, port: parseInt(mysqlPort || '3306'), database: mysqlDatabase, username: mysqlUsername, password: mysqlPassword };
+        const connectionTest = await RDBMSIntegrationService.testConnection('mysql', connectionConfig);
+        if (!connectionTest.success) return res.status(400).json({ success: false, error: `MySQL connection failed: ${connectionTest.error}` });
+
+        const bqService = new BigQueryIntegrationService();
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+        const results = [];
+        let successCount = 0, failureCount = 0;
+
+        for (let i = 0; i < tablePairs.length; i++) {
+            const { sourceTable, targetTable, primaryKey } = tablePairs[i];
+            try {
+                const query = queryMode === 'custom' ? sourceTable : `SELECT * FROM \`${sourceTable}\``;
+                const mysqlResult = await RDBMSIntegrationService.fetchData('mysql', connectionConfig, query);
+                if (!mysqlResult.records || mysqlResult.records.length === 0) throw new Error(`No data returned from: ${query}`);
+                const tempTableResult = await bqService.createTempTableFromJSON(mysqlResult.records, `mysql_multi_${Date.now()}_${i}`, primaryKey || null);
+                const comparisonResult = await comparisonEngine.compareJSONvsBigQuery(tempTableResult.tempTableId, targetTable, primaryKey || null, [], 'enhanced');
+                comparisonResult.metadata = { ...comparisonResult.metadata, sourceType: 'MySQL', sourceTable, targetTable, primaryKey, mysqlRecordsProcessed: mysqlResult.recordCount, pairIndex: i + 1, totalPairs: tablePairs.length };
+                results.push({ success: true, sourceTable, targetTable, ...comparisonResult });
+                successCount++;
+            } catch (error) {
+                results.push({ success: false, sourceTable, targetTable, error: error.message });
+                failureCount++;
+            }
+        }
+        res.json({ success: true, summary: { totalPairs: tablePairs.length, successCount, failureCount, successRate: ((successCount / tablePairs.length) * 100).toFixed(2) + '%' }, results, timestamp: new Date().toISOString() });
+    } catch (error) {
+        console.error('❌ Multi-table validation failed:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ========================================
+// ✨ CUSTOM QUERY VALIDATION (MySQL + BQ)
+// ========================================
+app.post('/api/rdbms-custom-query-validation', async (req, res) => {
+    try {
+        const { dbType, host, port, database, username, password, mysqlQuery, bqQuery, primaryKey } = req.body;
+        if (!mysqlQuery || !bqQuery) return res.status(400).json({ success: false, error: 'Both MySQL and BigQuery queries are required' });
+
+        const connectionConfig = { host, port: parseInt(port) || 3306, database, username, password };
+        const connectionTest = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
+        if (!connectionTest.success) return res.status(400).json({ success: false, error: `Connection failed: ${connectionTest.error}` });
+
+        const mysqlResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, mysqlQuery);
+        if (!mysqlResult.records || mysqlResult.records.length === 0) return res.status(400).json({ success: false, error: 'MySQL query returned no data' });
+
+        const bqService = new BigQueryIntegrationService();
+        const tempTableResult = await bqService.createTempTableFromJSON(mysqlResult.records, `mysql_custom_${Date.now()}`, primaryKey || 'id');
+
+        const bqTableMatch = bqQuery.match(/FROM\s+[`]?([^\s`\n]+)[`]?/i);
+        const bqTableName = bqTableMatch ? bqTableMatch[1] : null;
+        if (!bqTableName) return res.status(400).json({ success: false, error: 'Could not extract BigQuery table name from query' });
+
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+
+        const normalizedQuery = bqQuery.trim().toUpperCase().replace(/\s+/g, ' ');
+        const isSimpleFullTable = /^SELECT \* FROM [`]?[\w\-\.]+[`]?\s*$/.test(normalizedQuery);
+        let bqTarget;
+
+        if (!isSimpleFullTable) {
+            const [bqFilteredRows] = await bigquery.query({ query: bqQuery });
+            if (!bqFilteredRows || bqFilteredRows.length === 0) return res.status(400).json({ success: false, error: 'BigQuery custom query returned no data' });
+            const bqTempResult = await bqService.createTempTableFromJSON(
+                bqFilteredRows.map(row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v === null ? null : String(v)]))),
+                `bq_custom_${Date.now()}`, primaryKey || 'id'
+            );
+            bqTarget = bqTempResult.tempTableId;
+        } else {
+            bqTarget = bqTableName;
+        }
+
+        const results = await comparisonEngine.compareJSONvsBigQuery(tempTableResult.tempTableId, bqTarget, primaryKey || 'id', [], 'enhanced');
+        results.metadata = { ...results.metadata, sourceType: `${dbType} Custom Query`, mysqlQuery, bqQuery, mysqlRecordsProcessed: mysqlResult.recordCount, tempTable: tempTableResult.tempTableId, timestamp: new Date().toISOString() };
+        res.json({ success: true, ...results });
+    } catch (error) {
+        console.error('❌ Custom query validation failed:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // BQ Null Check — runs null counts for every column on a BQ target table

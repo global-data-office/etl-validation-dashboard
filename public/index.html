@@ -1887,6 +1887,7 @@
 
     <!-- MySQL Configuration Tab -->
     <div id="mysql-rdbms-tab" class="results-tab-content">
+        <div id="mysql-config-section">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
             <!-- Left Side: MySQL Configuration -->
             <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
@@ -1971,6 +1972,88 @@
                     🚀 Start MySQL vs BigQuery Validation
                 </button>
             </div>
+        </div>
+
+        <!-- Custom Query Mode Section -->
+        <div style="margin: 20px; padding: 20px; background: #fff3cd; border-radius: 12px; border: 1px solid #ffc107;">
+            <h3 style="color: #856404; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                💻 Custom Query Mode (Advanced)
+            </h3>
+            <p style="color: #856404; margin-bottom: 15px; font-size: 14px;">
+                Write custom SQL queries for both MySQL and BigQuery to compare specific data subsets. Useful for filtering by date ranges, status, or complex conditions.
+            </p>
+            <div style="background: #e7f5ff; padding: 10px; border-radius: 6px; margin-bottom: 15px; border-left: 3px solid #17a2b8;">
+                <small style="color: #0c5460;">ℹ️ Note: Uses the same MySQL connection configured above. Ensure connection is tested before running custom queries.</small>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+                <div>
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">🐬 MySQL Custom Query</label>
+                    <textarea id="mysql-source-custom-query" placeholder="SELECT * FROM your_table WHERE created_date >= '2024-01-01'" 
+                              style="width: 100%; height: 120px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
+                    <small style="color: #6c757d; display: block; margin-top: 5px;">⚠️ Limit results to ~2000 records for optimal performance</small>
+                </div>
+                <div>
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">🗄️ BigQuery Custom Query</label>
+                    <textarea id="mysql-target-custom-query" placeholder="SELECT * FROM `project.dataset.table` WHERE created_date >= '2024-01-01'" 
+                              style="width: 100%; height: 120px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
+                    <small style="color: #6c757d; display: block; margin-top: 5px;">💡 Use backticks for table names: `project.dataset.table`</small>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">🔑 Primary Key Field (for comparison)</label>
+                <input type="text" id="mysql-custom-primary-key" placeholder="id" 
+                       style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                <small style="color: #6c757d; display: block; margin-top: 5px;">Enter a field that exists in BOTH query results (leave empty to default to 'id')</small>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button onclick="runMySQLCustomQueryValidation()" 
+                        style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                    🚀 Run Custom Query Validation
+                </button>
+            </div>
+            <div id="mysql-custom-query-status" class="status-message" style="margin-top: 10px;"></div>
+        </div>
+
+        <!-- Multi-Table Validation Section -->
+        <div style="margin: 20px; padding: 20px; background: #d4edda; border-radius: 12px; border: 1px solid #28a745;">
+            <h3 style="color: #155724; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                📊 Multi-Table Validation Mode (Batch Processing)
+            </h3>
+            <p style="color: #155724; margin-bottom: 15px; font-size: 14px;">
+                Validate multiple MySQL tables against their corresponding BigQuery tables in a single operation. Perfect for batch ETL validation.
+            </p>
+            <div style="background: #e7f5ff; padding: 10px; border-radius: 6px; margin-bottom: 15px; border-left: 3px solid #17a2b8;">
+                <small style="color: #0c5460;">ℹ️ Note: Uses the same MySQL connection configured above. All tables must be in the same MySQL database.</small>
+            </div>
+
+            <div id="mysql-table-pairs-container" style="margin-bottom: 15px;">
+                <!-- Table pairs will be added here dynamically -->
+            </div>
+
+            <button onclick="addMySQLTablePair()" 
+                    style="margin-bottom: 15px; padding: 10px 20px; background: #17a2b8; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                ➕ Add Table Pair
+            </button>
+
+            <div style="display: flex; gap: 10px;">
+                <button onclick="clearMySQLTablePairs()" 
+                        style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                    🗑️ Clear All
+                </button>
+                <button onclick="runMySQLMultiTableValidation()" 
+                        style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                    🚀 Run Multi-Table Validation
+                </button>
+            </div>
+            <div id="mysql-multi-table-status" class="status-message" style="margin-top: 10px;"></div>
+        </div>
+
+        </div>
+        <!-- Results Section - hidden by default, shown after comparison -->
+        <div id="mysql-comparison-results" class="comparison-results" style="display: none;">
         </div>
     </div>
 
@@ -2106,6 +2189,7 @@
 
     <!-- SQL Server Configuration Tab -->
     <div id="sqlserver-rdbms-tab" class="results-tab-content">
+        <div id="sqlserver-config-section">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
             <!-- Left Side: SQL Server Configuration -->
             <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
@@ -2190,6 +2274,10 @@
                     🚀 Start SQL Server vs BigQuery Validation
                 </button>
             </div>
+        </div>
+        </div>
+        <!-- Results Section - hidden by default, shown after comparison -->
+        <div id="sqlserver-comparison-results" class="comparison-results" style="display: none;">
         </div>
     </div>
 
@@ -3697,6 +3785,8 @@ async function testDatabaseConnection(dbType) {
         buttonId = 'testPostgresqlConnection';
     } else if (dbType === 'sqlserver') {
         buttonId = 'testSQLServerConnection';
+    } else if (dbType === 'mysql') {
+        buttonId = 'testMySQLConnection';
     } else {
         buttonId = `test${dbType.charAt(0).toUpperCase() + dbType.slice(1)}Connection`;
     }
@@ -4525,18 +4615,21 @@ if (isCustomQueryMode) {
                 });
                 clearTimeout(timeoutId);
 
+                console.log('Response received, status:', response.status);
                 const result = await response.json();
+                console.log('Result parsed, success:', result.success);
 
                 allResults.push({
                     sourceTable: currentSourceTable,
                     bqTable: currentBqTable,
                     success: result.success,
-                    data: result.success ? result : null,
+                    data: result.success ? (result.data || result) : null,
                     error: result.success ? null : result.error,
                     suggestions: result.suggestions
                 });
 
             } catch (error) {
+                console.error('Fetch error:', error);
                 allResults.push({
                     sourceTable: currentSourceTable,
                     bqTable: currentBqTable,
@@ -4547,9 +4640,26 @@ if (isCustomQueryMode) {
         }
 
         // Display results
+        console.log('All results collected:', allResults.length, 'tables');
         if (allResults.length === 1) {
+            console.log('Single table result, success:', allResults[0].success);
             if (allResults[0].success) {
-                displayRDBMSResults(allResults[0].data, dbType, resultsDiv);
+                try {
+                    console.log('Calling displayRDBMSResults...');
+                    displayRDBMSResults(allResults[0].data, dbType, resultsDiv);
+                    console.log('displayRDBMSResults completed');
+                } catch (displayError) {
+                    console.error('Error in displayRDBMSResults:', displayError);
+                    resultsDiv.innerHTML = `
+                        <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                            ❌ <strong>Display Error</strong><br>
+                            ${displayError.message}<br><br>
+                            <button class="btn-secondary" onclick="startNewMultiComparison('${dbType}')" style="margin-top: 15px;">
+                                🔄 New Comparison
+                            </button>
+                        </div>
+                    `;
+                }
             } else {
                 resultsDiv.innerHTML = `
                     <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
@@ -5961,6 +6071,340 @@ function showOracleResultsTab(tabId) {
         const btn = event.target.closest('.results-tab-button');
         if (btn) btn.classList.add('active');
     }
+}
+
+// ========================================
+// MySQL Custom Query Validation
+// ========================================
+async function runMySQLCustomQueryValidation() {
+    const statusDiv = document.getElementById('mysql-custom-query-status');
+    
+    // Get MySQL connection config
+    const mysqlHost = document.getElementById('mysql-host')?.value?.trim();
+    const mysqlPort = document.getElementById('mysql-port')?.value || '3306';
+    const mysqlDatabase = document.getElementById('mysql-database')?.value?.trim();
+    const mysqlUsername = document.getElementById('mysql-username')?.value?.trim();
+    const mysqlPassword = document.getElementById('mysql-password')?.value;
+    
+    // Get custom queries
+    const mysqlQuery = document.getElementById('mysql-source-custom-query')?.value?.trim();
+    const bqQuery = document.getElementById('mysql-target-custom-query')?.value?.trim();
+    const primaryKey = document.getElementById('mysql-custom-primary-key')?.value?.trim() || 'id';
+    
+    console.log('=== MySQL Custom Query Validation ===');
+    console.log('MySQL Query:', mysqlQuery);
+    console.log('BQ Query:', bqQuery);
+    console.log('Primary Key:', primaryKey);
+    
+    // Validation
+    if (!mysqlHost || !mysqlDatabase || !mysqlUsername || !mysqlPassword) {
+        statusDiv.innerHTML = '<div style="color:#721c24;background:#f8d7da;padding:12px;border-radius:6px;">❌ Please fill in MySQL connection details above first</div>';
+        return;
+    }
+    
+    if (!mysqlQuery || !bqQuery) {
+        statusDiv.innerHTML = '<div style="color:#721c24;background:#f8d7da;padding:12px;border-radius:6px;">❌ Both MySQL and BigQuery queries are required</div>';
+        return;
+    }
+    
+    // Hide config section and show results section for progress display
+    const configSection = document.getElementById('mysql-config-section');
+    const resultsSection = document.getElementById('mysql-comparison-results');
+    
+    if (configSection) configSection.style.display = 'none';
+    if (resultsSection) resultsSection.style.display = 'block';
+    
+    const resultsDiv = resultsSection || statusDiv;
+    
+    // Show progress indicator
+    resultsDiv.innerHTML = `
+        <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+            <div class="spinner" style="margin: 0 auto 20px; width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <div style="font-size: 22px; font-weight: bold; margin-bottom: 10px;">🔄 Running Custom Query Validation...</div>
+            <div style="font-size: 16px; margin-bottom: 15px;">MySQL vs BigQuery</div>
+            <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="font-size: 14px; opacity: 0.9;">MySQL Query:</div>
+                <div style="font-size: 13px; font-family: monospace; margin-top: 5px; word-break: break-all;">${mysqlQuery.substring(0, 80)}${mysqlQuery.length > 80 ? '...' : ''}</div>
+                <div style="font-size: 13px; opacity: 0.8; margin: 10px 0;">↓</div>
+                <div style="font-size: 14px; opacity: 0.9;">BigQuery Query:</div>
+                <div style="font-size: 13px; font-family: monospace; margin-top: 5px; word-break: break-all;">${bqQuery.substring(0, 80)}${bqQuery.length > 80 ? '...' : ''}</div>
+            </div>
+            <div style="font-size: 13px; opacity: 0.8;">Fetching data from MySQL, creating temp table, and comparing with BigQuery...</div>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+    
+    try {
+        console.log('Sending request to /api/rdbms-custom-query-validation...');
+        const response = await fetch('/api/rdbms-custom-query-validation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dbType: 'mysql',
+                host: mysqlHost,
+                port: mysqlPort,
+                database: mysqlDatabase,
+                username: mysqlUsername,
+                password: mysqlPassword,
+                mysqlQuery: mysqlQuery,
+                bqQuery: bqQuery,
+                primaryKey: primaryKey
+            })
+        });
+        
+        console.log('Response status:', response.status);
+        const data = await response.json();
+        console.log('Response data:', data);
+        
+        if (data.success) {
+            // Display results in the MySQL results section
+            displayRDBMSResults(data, 'mysql', resultsDiv);
+        } else {
+            resultsDiv.innerHTML = `
+                <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px;">
+                    ❌ <strong>Custom Query Validation Failed</strong><br>
+                    ${data.error || 'Validation failed'}<br><br>
+                    <button class="btn-secondary" onclick="startNewMySQLComparison()" style="margin-top: 15px;">
+                        🔄 New Comparison
+                    </button>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Custom query validation error:', error);
+        resultsDiv.innerHTML = `
+            <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px;">
+                ❌ <strong>Error</strong><br>
+                ${error.message}<br><br>
+                <button class="btn-secondary" onclick="startNewMySQLComparison()" style="margin-top: 15px;">
+                    🔄 New Comparison
+                </button>
+            </div>
+        `;
+    }
+}
+
+// ========================================
+// MySQL Multi-Table Validation
+// ========================================
+let mysqlTablePairCount = 0;
+
+function addMySQLTablePair() {
+    const container = document.getElementById('mysql-table-pairs-container');
+    mysqlTablePairCount++;
+    
+    const pairDiv = document.createElement('div');
+    pairDiv.id = `mysql-table-pair-${mysqlTablePairCount}`;
+    pairDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 10px; padding: 10px; background: white; border-radius: 6px; border: 1px solid #dee2e6;';
+    
+    pairDiv.innerHTML = `
+        <input type="text" placeholder="MySQL Table Name" class="mysql-source-table" 
+               style="padding: 10px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 13px;">
+        <input type="text" placeholder="BigQuery Table (project.dataset.table)" class="mysql-target-table" 
+               style="padding: 10px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 13px;">
+        <input type="text" placeholder="Primary Key (e.g., id)" class="mysql-pair-primary-key" 
+               style="padding: 10px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 13px;">
+        <button onclick="removeMySQLTablePair(${mysqlTablePairCount})" 
+                style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
+    `;
+    
+    container.appendChild(pairDiv);
+}
+
+function removeMySQLTablePair(pairId) {
+    const pairDiv = document.getElementById(`mysql-table-pair-${pairId}`);
+    if (pairDiv) pairDiv.remove();
+}
+
+function clearMySQLTablePairs() {
+    const container = document.getElementById('mysql-table-pairs-container');
+    container.innerHTML = '';
+    mysqlTablePairCount = 0;
+}
+
+async function runMySQLMultiTableValidation() {
+    const statusDiv = document.getElementById('mysql-multi-table-status');
+    
+    // Get MySQL connection config
+    const mysqlHost = document.getElementById('mysql-host')?.value?.trim();
+    const mysqlPort = document.getElementById('mysql-port')?.value || '3306';
+    const mysqlDatabase = document.getElementById('mysql-database')?.value?.trim();
+    const mysqlUsername = document.getElementById('mysql-username')?.value?.trim();
+    const mysqlPassword = document.getElementById('mysql-password')?.value;
+    
+    // Validation
+    if (!mysqlHost || !mysqlDatabase || !mysqlUsername || !mysqlPassword) {
+        statusDiv.innerHTML = '<div style="color:#721c24;background:#f8d7da;padding:12px;border-radius:6px;">❌ Please fill in MySQL connection details above first</div>';
+        return;
+    }
+    
+    // Collect table pairs
+    const container = document.getElementById('mysql-table-pairs-container');
+    const pairDivs = container.querySelectorAll('[id^="mysql-table-pair-"]');
+    
+    if (pairDivs.length === 0) {
+        statusDiv.innerHTML = '<div style="color:#721c24;background:#f8d7da;padding:12px;border-radius:6px;">❌ Please add at least one table pair</div>';
+        return;
+    }
+    
+    const tablePairs = [];
+    for (const pairDiv of pairDivs) {
+        const sourceTable = pairDiv.querySelector('.mysql-source-table')?.value?.trim();
+        const targetTable = pairDiv.querySelector('.mysql-target-table')?.value?.trim();
+        const primaryKey = pairDiv.querySelector('.mysql-pair-primary-key')?.value?.trim() || 'id';
+        
+        if (sourceTable && targetTable) {
+            tablePairs.push({ sourceTable, targetTable, primaryKey });
+        }
+    }
+    
+    if (tablePairs.length === 0) {
+        statusDiv.innerHTML = '<div style="color:#721c24;background:#f8d7da;padding:12px;border-radius:6px;">❌ Please fill in at least one complete table pair</div>';
+        return;
+    }
+    
+    // Hide config section and show results section for progress display
+    const configSection = document.getElementById('mysql-config-section');
+    const resultsSection = document.getElementById('mysql-comparison-results');
+    
+    if (configSection) configSection.style.display = 'none';
+    if (resultsSection) resultsSection.style.display = 'block';
+    
+    const resultsDiv = resultsSection || statusDiv;
+    const allResults = [];
+    const totalTables = tablePairs.length;
+    
+    // Process each table pair one by one with progress display
+    for (let i = 0; i < totalTables; i++) {
+        const { sourceTable, targetTable, primaryKey } = tablePairs[i];
+        
+        // Update progress UI
+        resultsDiv.innerHTML = `
+            <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+                <div class="spinner" style="margin: 0 auto 20px; width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div style="font-size: 22px; font-weight: bold; margin-bottom: 10px;">🔄 Validating Tables...</div>
+                <div style="font-size: 16px; margin-bottom: 15px;">Table ${i + 1} of ${totalTables}</div>
+                <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-size: 14px; opacity: 0.9;">Currently processing:</div>
+                    <div style="font-size: 16px; font-weight: bold; margin-top: 5px;">${sourceTable}</div>
+                    <div style="font-size: 13px; opacity: 0.8; margin-top: 5px;">↓</div>
+                    <div style="font-size: 14px; opacity: 0.9;">${targetTable}</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.3); border-radius: 10px; height: 24px; overflow: hidden;">
+                    <div style="background: rgba(255,255,255,0.9); height: 100%; width: ${((i + 1) / totalTables) * 100}%; transition: width 0.5s;"></div>
+                </div>
+            </div>
+            <style>
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            </style>
+        `;
+        
+        console.log(`MySQL Multi-Table: Validating table ${i + 1}/${totalTables}: ${sourceTable} → ${targetTable}`);
+        
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min timeout
+            
+            const response = await fetch('/api/rdbms-vs-bq', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    dbType: 'mysql',
+                    host: mysqlHost,
+                    port: mysqlPort,
+                    database: mysqlDatabase,
+                    username: mysqlUsername,
+                    password: mysqlPassword,
+                    sourceTable: sourceTable,
+                    bqTable: targetTable,
+                    primaryKey: primaryKey,
+                    comparisonFields: [],
+                    sourceFilter: '',
+                    targetFilter: ''
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            
+            console.log('Response received, status:', response.status);
+            const result = await response.json();
+            console.log('Result parsed, success:', result.success);
+            
+            allResults.push({
+                sourceTable: sourceTable,
+                bqTable: targetTable,
+                success: result.success,
+                data: result.success ? (result.data || result) : null,
+                error: result.success ? null : result.error,
+                suggestions: result.suggestions
+            });
+            
+        } catch (error) {
+            console.error('Fetch error:', error);
+            allResults.push({
+                sourceTable: sourceTable,
+                bqTable: targetTable,
+                success: false,
+                error: error.message
+            });
+        }
+    }
+    
+    // Display results
+    console.log('All MySQL multi-table results collected:', allResults.length, 'tables');
+    
+    if (allResults.length === 1) {
+        // Single table - show detailed results directly
+        if (allResults[0].success) {
+            try {
+                displayRDBMSResults(allResults[0].data, 'mysql', resultsDiv);
+            } catch (displayError) {
+                console.error('Error in displayRDBMSResults:', displayError);
+                resultsDiv.innerHTML = `
+                    <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                        ❌ <strong>Display Error</strong><br>
+                        ${displayError.message}<br><br>
+                        <button class="btn-secondary" onclick="startNewMySQLComparison()" style="margin-top: 15px;">
+                            🔄 New Comparison
+                        </button>
+                    </div>
+                `;
+            }
+        } else {
+            resultsDiv.innerHTML = `
+                <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                    ❌ <strong>Validation Failed</strong><br>
+                    ${allResults[0].error}<br><br>
+                    ${allResults[0].suggestions ? `<strong>Suggestions:</strong><ul>${allResults[0].suggestions.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
+                    <button class="btn-secondary" onclick="startNewMySQLComparison()" style="margin-top: 15px;">
+                        🔄 New Comparison
+                    </button>
+                </div>
+            `;
+        }
+    } else {
+        // Multiple tables - show multi-table summary with tabs
+        displayMultiTableResults(allResults, 'mysql', resultsDiv);
+    }
+}
+
+function startNewMySQLComparison() {
+    const resultsSection = document.getElementById('mysql-comparison-results');
+    const configSection = document.getElementById('mysql-config-section');
+    
+    if (resultsSection) {
+        resultsSection.style.display = 'none';
+        resultsSection.innerHTML = '';
+    }
+    if (configSection) configSection.style.display = 'block';
 }
     </script>
 </body>
