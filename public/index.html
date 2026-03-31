@@ -5966,6 +5966,9 @@ async function startBQvsBQComparison() {
     if (allResults.length === 1) {
         if (allResults[0].success) {
             displayRDBMSResults(allResults[0].data, 'bigquery', resultsSection);
+            // Schema-aware null check — auto-call after results render
+            const meta = allResults[0].data?.data?.metadata || allResults[0].data?.metadata || {};
+            callSchemaNullCheck(meta.sourceTable || allResults[0].sourceTable, meta.targetTable || allResults[0].bqTable, meta.primaryKey || primaryKeys[0], 'bigquery');
         } else {
             resultsSection.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
@@ -6028,6 +6031,9 @@ function viewBQDetailedResults(tabIndex) {
             
             displayRDBMSResults(result.data, 'bigquery', resultsDiv);
             resultsDiv.innerHTML = backButton + resultsDiv.innerHTML;
+            // Schema-aware null check — auto-call for multi-table detailed view
+            const meta = result.data?.data?.metadata || result.data?.metadata || {};
+            callSchemaNullCheck(meta.sourceTable || result.sourceTable, meta.targetTable || result.bqTable, meta.primaryKey || '', 'bigquery');
         }
     }
 }
@@ -6056,6 +6062,262 @@ document.getElementById('bqvsbq-source-tables')?.addEventListener('input', funct
         comparisonFieldsInput.placeholder = 'field1, field2, field3';
     }
 });
+
+// ============================================
+// Schema-Aware Null Check — Content Renderer
+// ============================================
+function populateSchemaNullContent(data) {
+    const schemaComparison = data.schemaComparison || {};
+    const nullValidation = data.nullValidation || {};
+    const metadata = data.metadata || {};
+    const schemaCols = schemaComparison.columns || [];
+    const schemaSummary = schemaComparison.summary || {};
+    const nullResults = nullValidation.results || [];
+    const nullSummary = nullValidation.summary || {};
+    const notNullColumns = nullValidation.notNullColumns || [];
+
+    const totalValidated = nullSummary.totalColumnsValidated || 0;
+    const passed = nullSummary.columnsPassed || 0;
+    const failed = nullSummary.columnsFailed || 0;
+    const passRate = nullSummary.passRate || '0.0';
+
+    // --- Summary Cards ---
+    let html = `
+        <div class="tab-summary-cards">
+            <div class="summary-card">
+                <div class="summary-number">${totalValidated}</div>
+                <div class="summary-label">NOT NULL Columns Checked</div>
+            </div>
+            <div class="summary-card matches">
+                <div class="summary-number">${passed}</div>
+                <div class="summary-label">Columns Passed</div>
+            </div>
+            <div class="summary-card missing">
+                <div class="summary-number">${failed}</div>
+                <div class="summary-label">Columns Failed</div>
+            </div>
+            <div class="summary-card ${parseFloat(passRate) >= 100 ? 'matches' : (parseFloat(passRate) >= 80 ? 'warning' : 'missing')}">
+                <div class="summary-number">${passRate}%</div>
+                <div class="summary-label">Pass Rate</div>
+            </div>
+        </div>`;
+
+    // --- Schema Comparison Section ---
+    const totalCols = schemaSummary.totalColumnsCompared || 0;
+    const typeMismatches = schemaSummary.dataTypeMismatches || 0;
+    const nullableMismatches = schemaSummary.nullabilityMismatches || 0;
+    const sourceOnly = schemaSummary.sourceOnlyColumns || 0;
+    const targetOnly = schemaSummary.targetOnlyColumns || 0;
+
+    html += `
+        <div class="tab-detail-section">
+            <div class="tab-detail-header">📋 Schema Comparison — Source vs Target</div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px;">
+                <span style="background: #e3f2fd; color: #1565c0; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Total Columns: ${totalCols}</span>
+                <span style="background: ${typeMismatches > 0 ? '#fff3e0' : '#e8f5e9'}; color: ${typeMismatches > 0 ? '#e65100' : '#2e7d32'}; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Type Mismatches: ${typeMismatches}</span>
+                <span style="background: ${nullableMismatches > 0 ? '#fff3e0' : '#e8f5e9'}; color: ${nullableMismatches > 0 ? '#e65100' : '#2e7d32'}; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Nullable Mismatches: ${nullableMismatches}</span>
+                <span style="background: ${sourceOnly > 0 ? '#fff3e0' : '#e8f5e9'}; color: ${sourceOnly > 0 ? '#e65100' : '#2e7d32'}; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Source Only: ${sourceOnly}</span>
+                <span style="background: ${targetOnly > 0 ? '#f3e5f5' : '#e8f5e9'}; color: ${targetOnly > 0 ? '#7b1fa2' : '#2e7d32'}; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Target Only: ${targetOnly}</span>
+            </div>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #f1f3f5;">
+                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">#</th>
+                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">Column Name</th>
+                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">Source Type</th>
+                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">Target Type</th>
+                            <th style="padding: 10px 8px; text-align: center; border-bottom: 2px solid #dee2e6;">Type Match</th>
+                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">Source Nullable</th>
+                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">Target Nullable</th>
+                            <th style="padding: 10px 8px; text-align: center; border-bottom: 2px solid #dee2e6;">Nullable Match</th>
+                            <th style="padding: 10px 8px; text-align: center; border-bottom: 2px solid #dee2e6;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+    schemaCols.forEach((col, idx) => {
+        let rowBg = '';
+        if (col.status === 'source_only') {
+            rowBg = 'background: #fff8e1;';
+        } else if (col.status === 'target_only') {
+            rowBg = 'background: #fff8e1;';
+        } else if (col.status === 'both' && (!col.dataTypeMatch || !col.nullableMatch)) {
+            rowBg = 'background: #ffebee;';
+        } else if (col.status === 'both' && col.dataTypeMatch && col.nullableMatch) {
+            rowBg = 'background: #e8f5e9;';
+        }
+
+        let statusBadge = '';
+        if (col.status === 'both') {
+            statusBadge = '<span style="background: #e3f2fd; color: #1565c0; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">Both</span>';
+        } else if (col.status === 'source_only') {
+            statusBadge = '<span style="background: #fff3e0; color: #e65100; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">Source Only</span>';
+        } else if (col.status === 'target_only') {
+            statusBadge = '<span style="background: #f3e5f5; color: #7b1fa2; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">Target Only</span>';
+        }
+
+        html += `
+                        <tr style="${rowBg} border-bottom: 1px solid #eee;">
+                            <td style="padding: 8px;">${idx + 1}</td>
+                            <td style="padding: 8px; font-weight: 600;">${col.columnName}</td>
+                            <td style="padding: 8px;"><code>${col.sourceDataType !== null && col.sourceDataType !== undefined ? col.sourceDataType : '—'}</code></td>
+                            <td style="padding: 8px;"><code>${col.targetDataType !== null && col.targetDataType !== undefined ? col.targetDataType : '—'}</code></td>
+                            <td style="padding: 8px; text-align: center;">${col.status === 'both' ? (col.dataTypeMatch ? '✅' : '❌') : '—'}</td>
+                            <td style="padding: 8px;">${col.sourceNullable !== null && col.sourceNullable !== undefined ? col.sourceNullable : '—'}</td>
+                            <td style="padding: 8px;">${col.targetNullable !== null && col.targetNullable !== undefined ? col.targetNullable : '—'}</td>
+                            <td style="padding: 8px; text-align: center;">${col.status === 'both' ? (col.nullableMatch ? '✅' : '❌') : '—'}</td>
+                            <td style="padding: 8px; text-align: center;">${statusBadge}</td>
+                        </tr>`;
+    });
+
+    html += `
+                    </tbody>
+                </table>
+            </div>
+        </div>`;
+
+    // --- Null Validation Results Section ---
+    html += `
+        <div class="tab-detail-section">
+            <div class="tab-detail-header">🔎 NOT NULL Column Validation — Target Table</div>
+            <div style="margin-bottom: 12px; font-size: 13px; color: #555;">
+                Target: <strong>${metadata.targetTable || '—'}</strong>
+            </div>`;
+
+    if (notNullColumns.length === 0) {
+        html += `
+            <div style="background: #e8f5e9; border-left: 4px solid #27ae60; padding: 16px 20px; border-radius: 6px; color: #2e7d32; font-size: 14px;">
+                ✅ No NOT NULL columns identified in the source schema. No null validation required.
+            </div>`;
+    } else {
+        html += `
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #f1f3f5;">
+                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">#</th>
+                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #dee2e6;">Column Name</th>
+                            <th style="padding: 10px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Total Rows</th>
+                            <th style="padding: 10px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Null Count</th>
+                            <th style="padding: 10px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Non-Null Count</th>
+                            <th style="padding: 10px 8px; text-align: right; border-bottom: 2px solid #dee2e6;">Null %</th>
+                            <th style="padding: 10px 8px; text-align: center; border-bottom: 2px solid #dee2e6;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+        nullResults.forEach((r, idx) => {
+            const rowBg = r.status === 'PASS' ? 'background: #e8f5e9;' : 'background: #ffebee;';
+            const statusBadge = r.status === 'PASS'
+                ? '<span style="background: #c8e6c9; color: #2e7d32; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">✅ PASS</span>'
+                : '<span style="background: #ffcdd2; color: #c62828; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">❌ FAIL</span>';
+
+            html += `
+                        <tr style="${rowBg} border-bottom: 1px solid #eee;">
+                            <td style="padding: 8px;">${idx + 1}</td>
+                            <td style="padding: 8px; font-weight: 600;">${r.columnName}</td>
+                            <td style="padding: 8px; text-align: right;">${(r.totalRows || 0).toLocaleString()}</td>
+                            <td style="padding: 8px; text-align: right; ${r.nullCount > 0 ? 'color: #c62828; font-weight: 600;' : ''}">${(r.nullCount || 0).toLocaleString()}</td>
+                            <td style="padding: 8px; text-align: right;">${(r.nonNullCount || 0).toLocaleString()}</td>
+                            <td style="padding: 8px; text-align: right;">${r.nullPercentage || '0.00'}%</td>
+                            <td style="padding: 8px; text-align: center;">${statusBadge}</td>
+                        </tr>`;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>`;
+    }
+
+    html += `
+        </div>`;
+
+    return html;
+}
+
+// ============================================
+// Schema-Aware Null Check — Tab Injector
+// ============================================
+function injectSchemaNullTab(schemaNullData, dbType) {
+    // Avoid duplicates on re-runs
+    if (document.getElementById('rdbms-tab-' + dbType + '-schema-nulls')) return;
+
+    // Find the tab navigation container within the BQ results section
+    var tabNav = document.querySelector('#bqvsbq-comparison-results .results-navigation-tabs');
+    if (!tabNav) {
+        // Fallback: find any results container with the matching tab
+        var recordCountTab = document.getElementById('rdbms-tab-' + dbType + '-record-count');
+        if (recordCountTab) {
+            tabNav = recordCountTab.closest('.comparison-results');
+            if (tabNav) {
+                tabNav = tabNav.querySelector('.results-navigation-tabs');
+            }
+        }
+    }
+    if (!tabNav) return;
+
+    // Append the new tab button
+    var tabButton = document.createElement('button');
+    tabButton.className = 'results-tab-button';
+    tabButton.setAttribute('onclick', "switchRdbmsTab('" + dbType + "', 'schema-nulls')");
+    tabButton.innerHTML = '<span class="results-tab-icon">🔎</span><span class="results-tab-label">Schema & Nulls</span>';
+    tabNav.appendChild(tabButton);
+
+    // Find the content wrapper — parent of the duplicates tab (last existing tab)
+    var contentWrapper = document.getElementById('rdbms-tab-' + dbType + '-duplicates');
+    if (contentWrapper) {
+        contentWrapper = contentWrapper.parentElement;
+    } else {
+        // Fallback: parent of record-count tab
+        var rcTab = document.getElementById('rdbms-tab-' + dbType + '-record-count');
+        if (rcTab) {
+            contentWrapper = rcTab.parentElement;
+        }
+    }
+    if (!contentWrapper) return;
+
+    // Create the new content div
+    var contentDiv = document.createElement('div');
+    contentDiv.id = 'rdbms-tab-' + dbType + '-schema-nulls';
+    contentDiv.className = 'results-tab-content';
+    contentDiv.style.display = 'none';
+
+    // Populate content based on data
+    if (schemaNullData && schemaNullData.error) {
+        contentDiv.innerHTML = '<div style="padding: 20px; color: #721c24; background: #f8d7da; border-radius: 8px; border-left: 4px solid #dc3545;">'
+            + '❌ <strong>Schema & Null check failed:</strong> ' + schemaNullData.error + '<br>'
+            + '<small style="color: #856404;">The other validation results are unaffected.</small>'
+            + '</div>';
+    } else {
+        contentDiv.innerHTML = populateSchemaNullContent(schemaNullData);
+    }
+
+    contentWrapper.appendChild(contentDiv);
+}
+
+// ============================================
+// Schema-Aware Null Check — API Caller
+// ============================================
+async function callSchemaNullCheck(sourceTable, targetTable, primaryKey, dbType) {
+    console.log('Calling schema-null-check for', sourceTable, '->', targetTable);
+    try {
+        const response = await fetch('/api/bq-schema-null-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sourceTable, targetTable, primaryKey })
+        });
+        const result = await response.json();
+        if (result.success) {
+            injectSchemaNullTab(result.data, dbType);
+        } else {
+            injectSchemaNullTab({ error: result.error || 'Unknown error' }, dbType);
+        }
+    } catch (err) {
+        injectSchemaNullTab({ error: err.message }, dbType);
+    }
+}
     </script>
 </body>
 </html>

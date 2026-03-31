@@ -1757,6 +1757,102 @@ app.post('/api/bq-vs-bq', async (req, res) => {
         });
     }
 });
+
+// NEW: Schema-aware null check endpoint
+app.post('/api/bq-schema-null-check', async (req, res) => {
+    const { compareSchemas, identifyNotNullColumns, buildNullValidationResults, validateRequestParams } = require('./services/schema-null-check');
+
+    const validation = validateRequestParams(req.body);
+    if (!validation.valid) {
+        return res.status(400).json({ success: false, error: validation.error });
+    }
+
+    const { sourceTable, targetTable, primaryKey } = req.body;
+
+    // Parse project.dataset.table
+    const [srcProject, srcDataset, srcTableName] = sourceTable.split('.');
+    const [tgtProject, tgtDataset, tgtTableName] = targetTable.split('.');
+
+    let sourceColumns, targetColumns;
+
+    // Query INFORMATION_SCHEMA for source
+    try {
+        const [rows] = await bigquery.query({
+            query: `SELECT column_name, data_type, is_nullable FROM \`${srcProject}.${srcDataset}\`.INFORMATION_SCHEMA.COLUMNS WHERE table_name = '${srcTableName}' ORDER BY ordinal_position`,
+            location: 'US',
+        });
+        sourceColumns = rows;
+    } catch (error) {
+        console.error('Source schema query failed:', error.message);
+        return res.status(400).json({
+            success: false,
+            error: `Failed to read schema for source table ${sourceTable}: ${error.message}`,
+        });
+    }
+
+    // Query INFORMATION_SCHEMA for target
+    try {
+        const [rows] = await bigquery.query({
+            query: `SELECT column_name, data_type, is_nullable FROM \`${tgtProject}.${tgtDataset}\`.INFORMATION_SCHEMA.COLUMNS WHERE table_name = '${tgtTableName}' ORDER BY ordinal_position`,
+            location: 'US',
+        });
+        targetColumns = rows;
+    } catch (error) {
+        console.error('Target schema query failed:', error.message);
+        return res.status(400).json({
+            success: false,
+            error: `Failed to read schema for target table ${targetTable}: ${error.message}`,
+        });
+    }
+
+    // Compare schemas
+    const schemaComparison = compareSchemas(sourceColumns, targetColumns);
+
+    // Identify NOT NULL columns
+    const notNullColumns = identifyNotNullColumns(sourceColumns, primaryKey);
+
+    // Run batched null count query on target if there are NOT NULL columns
+    let nullValidation = { notNullColumns, results: [], summary: { totalColumnsValidated: 0, columnsPassed: 0, columnsFailed: 0, passRate: '0.0' } };
+
+    if (notNullColumns.length > 0) {
+        try {
+            const countifClauses = notNullColumns
+                .map((col) => `COUNTIF(\`${col}\` IS NULL) as null_${col}`)
+                .join(', ');
+            const nullQuery = `SELECT COUNT(*) as total_rows, ${countifClauses} FROM \`${targetTable}\``;
+
+            const [rows] = await bigquery.query({ query: nullQuery, location: 'US' });
+            const nullCountRow = rows[0];
+            const totalRows = parseInt(nullCountRow.total_rows, 10) || 0;
+
+            nullValidation = {
+                notNullColumns,
+                ...buildNullValidationResults(notNullColumns, nullCountRow, totalRows),
+            };
+        } catch (error) {
+            console.error('Null count query failed:', error.message);
+            return res.status(500).json({
+                success: false,
+                error: `Null count query failed: ${error.message}`,
+            });
+        }
+    }
+
+    res.json({
+        success: true,
+        data: {
+            schemaComparison,
+            nullValidation,
+            metadata: {
+                sourceTable,
+                targetTable,
+                primaryKey,
+                checkedAt: new Date().toISOString(),
+            },
+        },
+    });
+});
+
 // ENHANCED: Health check endpoint - Updated with new capabilities
 app.get('/api/health', (req, res) => {
     res.json({
