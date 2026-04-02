@@ -23,6 +23,101 @@ const bigquery = new BigQuery({
     projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
 });
 
+// UTILITY: Explode nested arrays into separate rows (for metric-level comparisons)
+function explodeNestedArray(records, arrayFieldName, parentFields = []) {
+    console.log(`=== EXPLODING NESTED ARRAY: ${arrayFieldName} ===`);
+    console.log(`Input records: ${records.length}`);
+    
+    const explodedRecords = [];
+    
+    for (const record of records) {
+        const nestedArray = record[arrayFieldName];
+        
+        if (!nestedArray || !Array.isArray(nestedArray)) {
+            // If no nested array or not an array, try to parse if it's a JSON string
+            let parsedArray = null;
+            if (typeof nestedArray === 'string') {
+                try {
+                    parsedArray = JSON.parse(nestedArray);
+                } catch (e) {
+                    // Not valid JSON, skip this record or include as-is
+                    console.warn(`Could not parse ${arrayFieldName} as JSON for record`);
+                    explodedRecords.push(record);
+                    continue;
+                }
+            }
+            
+            if (!parsedArray || !Array.isArray(parsedArray)) {
+                // Include record as-is if no valid array
+                explodedRecords.push(record);
+                continue;
+            }
+            
+            // Use parsed array
+            for (const nestedItem of parsedArray) {
+                const explodedRecord = {};
+                
+                // Copy parent fields
+                for (const [key, value] of Object.entries(record)) {
+                    if (key !== arrayFieldName) {
+                        explodedRecord[key] = value;
+                    }
+                }
+                
+                // Flatten nested item fields to top level
+                if (typeof nestedItem === 'object' && nestedItem !== null) {
+                    for (const [nestedKey, nestedValue] of Object.entries(nestedItem)) {
+                        if (typeof nestedValue === 'object' && nestedValue !== null && !Array.isArray(nestedValue)) {
+                            explodedRecord[nestedKey] = JSON.stringify(nestedValue);
+                        } else if (Array.isArray(nestedValue)) {
+                            explodedRecord[nestedKey] = JSON.stringify(nestedValue);
+                        } else {
+                            explodedRecord[nestedKey] = nestedValue;
+                        }
+                    }
+                }
+                
+                explodedRecords.push(explodedRecord);
+            }
+            continue;
+        }
+        
+        // Process actual array
+        for (const nestedItem of nestedArray) {
+            const explodedRecord = {};
+            
+            // Copy parent fields
+            for (const [key, value] of Object.entries(record)) {
+                if (key !== arrayFieldName) {
+                    explodedRecord[key] = value;
+                }
+            }
+            
+            // Flatten nested item fields to top level
+            if (typeof nestedItem === 'object' && nestedItem !== null) {
+                for (const [nestedKey, nestedValue] of Object.entries(nestedItem)) {
+                    if (typeof nestedValue === 'object' && nestedValue !== null && !Array.isArray(nestedValue)) {
+                        explodedRecord[nestedKey] = JSON.stringify(nestedValue);
+                    } else if (Array.isArray(nestedValue)) {
+                        explodedRecord[nestedKey] = JSON.stringify(nestedValue);
+                    } else {
+                        explodedRecord[nestedKey] = nestedValue;
+                    }
+                }
+            }
+            
+            explodedRecords.push(explodedRecord);
+        }
+    }
+    
+    console.log(`Output records after explosion: ${explodedRecords.length}`);
+    if (explodedRecords.length > 0) {
+        console.log(`Sample exploded record fields: [${Object.keys(explodedRecords[0]).slice(0, 10).join(', ')}]`);
+    }
+    
+    return explodedRecords;
+}
+
 // UTILITY: Consistent JSON parsing function used across all endpoints
 function parseJsonContent(fileContent, fileName = 'unknown') {
     let jsonData = [];
@@ -1294,14 +1389,16 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
             includeFieldAnalysis = true,
             includeDuplicateAnalysis = true,
             includeSchemaAnalysis = true,
-            bqFilter = null // NEW: Optional BigQuery filter condition
+            bqFilter = null, // Optional BigQuery filter condition
+            explodeArrayField = null // NEW: Optional field name to explode nested arrays (e.g., 'metrics')
         } = req.body;
 
         console.log(`COMPREHENSIVE API vs BQ comparison with BigQuery filtering starting...`);
         console.log(`DataId: ${dataId}`);
         console.log(`Source table: ${sourceTable}`);
         console.log(`Primary key: ${primaryKey}`);
-        console.log(`BigQuery filter: ${bqFilter || 'None (compare all records)'}`); // NEW: Log filter
+        console.log(`BigQuery filter: ${bqFilter || 'None (compare all records)'}`);
+        console.log(`Explode array field: ${explodeArrayField || 'None (standard flattening)'}`); // NEW
 
         if (!dataId || !sourceTable || !primaryKey) {
             return res.status(400).json({
@@ -1339,12 +1436,35 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
             });
         }
 
-        let jsonData = apiDataResult.data.result || apiDataResult.data;
+        // Extract actual data from various API response structures
+        let jsonData = apiDataResult.data.results  // ServiceNow/common pattern (plural)
+                    || apiDataResult.data.result   // Alternative pattern (singular)
+                    || apiDataResult.data.data     // Nested data pattern
+                    || apiDataResult.data.records  // Records pattern
+                    || apiDataResult.data.items    // Items pattern
+                    || apiDataResult.data;         // Direct data fallback
+        
         if (!Array.isArray(jsonData)) {
             jsonData = [jsonData];
         }
+        
+        // Filter out wrapper objects that don't contain actual record data
+        if (jsonData.length === 1 && jsonData[0].results && Array.isArray(jsonData[0].results)) {
+            console.log('Detected wrapper object, extracting results array...');
+            jsonData = jsonData[0].results;
+        }
 
         console.log(`API data retrieved: ${jsonData.length} records`);
+        
+        // NEW: Explode nested array if specified (e.g., 'metrics' array)
+        if (explodeArrayField && explodeArrayField.trim()) {
+            console.log(`=== EXPLODING NESTED ARRAY: ${explodeArrayField} ===`);
+            const originalCount = jsonData.length;
+            jsonData = explodeNestedArray(jsonData, explodeArrayField.trim());
+            console.log(`Array explosion: ${originalCount} records → ${jsonData.length} records`);
+            console.log(`Each nested ${explodeArrayField} item is now a separate row with parent fields preserved`);
+        }
+        
         if (apiDataResult.metadata?.comparisonStrategy === 'first-page-with-total-count') {
             console.log('DETECTED: All records strategy was used');
             console.log(`Total API records: ${apiDataResult.metadata.totalRecordsInAPI}`);
@@ -1411,21 +1531,40 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
 
         console.log(`Running comprehensive comparison with BigQuery filtering...`);
 
-        // Pass the BigQuery filter to the comparison engine
+        // Pass the BigQuery filter and unnest field to the comparison engine
+        // When explodeArrayField is set, BigQuery needs to UNNEST the same field for proper comparison
         const results = await comparisonEngine.compareJSONvsBigQueryWithFilter(
             tempTableResult.tempTableId,
             sourceTable,
             primaryKey,
             comparisonFields,
             'enhanced',
-            bqFilter // NEW: Pass BigQuery filter condition
+            bqFilter, // BigQuery filter condition
+            explodeArrayField // NEW: Pass unnest field for BigQuery nested array support
         );
+
+        // Check if comparison failed
+        if (!results.success && results.error) {
+            console.error(`API vs BQ comparison failed: ${results.error}`);
+            return res.status(400).json({
+                success: false,
+                error: results.error,
+                details: 'Comparison failed - please check your primary key and table configuration',
+                suggestions: [
+                    `Verify the primary key '${primaryKey}' exists in your API data`,
+                    'Check that the source table name is correct',
+                    'Ensure the BigQuery filter syntax is valid if using filtering'
+                ],
+                filterInformation: results.filterInformation,
+                metadata: results.metadata
+            });
+        }
 
         console.log(`API vs BQ comprehensive comparison with filtering completed successfully`);
 
         // Enhanced metadata with filter information
         results.metadata = {
-            ...results.metadata,
+            ...(results.metadata || {}),
             dataSource: 'API',
             apiUrl: apiDataResult.metadata?.url || 'unknown',
             authType: apiDataResult.metadata?.authenticationUsed || 'unknown',
@@ -1439,6 +1578,15 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
                 description: bqFilter && bqFilter.trim()
                     ? `Filtered BigQuery data using: ${bqFilter.trim()}`
                     : 'No BigQuery filtering applied - comparing all records'
+            },
+            
+            // NEW: Array explosion information
+            arrayExplosion: {
+                applied: !!(explodeArrayField && explodeArrayField.trim()),
+                field: explodeArrayField && explodeArrayField.trim() ? explodeArrayField.trim() : null,
+                description: explodeArrayField && explodeArrayField.trim()
+                    ? `Exploded nested array '${explodeArrayField.trim()}' - each array item is now a separate row`
+                    : 'No array explosion applied - standard flattening used'
             },
 
             // All records strategy metadata
@@ -1461,6 +1609,10 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
             // NEW: Add filter information to summary
             results.summary.bigQueryFilterApplied = !!(bqFilter && bqFilter.trim());
             results.summary.bigQueryFilterCondition = bqFilter && bqFilter.trim() ? bqFilter.trim() : null;
+            
+            // NEW: Add array explosion info to summary
+            results.summary.arrayExplosionApplied = !!(explodeArrayField && explodeArrayField.trim());
+            results.summary.arrayExplosionField = explodeArrayField && explodeArrayField.trim() ? explodeArrayField.trim() : null;
         }
 
         // Update schema analysis to reflect API source

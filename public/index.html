@@ -1681,6 +1681,18 @@
                 <input type="text" id="apiPrimaryKey" placeholder="sys_id">
                 <small class="field-notice success">Field that exists in both API data and BigQuery table</small>
             </div>
+            
+            <div class="option-group">
+                <label>
+                    Explode Nested Array (Optional)
+                    <span style="color: #666; font-weight: normal; margin-left: 10px;">- For nested array comparisons</span>
+                </label>
+                <input type="text" id="apiExplodeArrayField" placeholder="e.g., metrics">
+                <small class="field-notice info">
+                    <strong>Use when:</strong> Your API returns nested arrays (e.g., <code>metrics: [{metric_id: ...}, ...]</code>)<br>
+                    This will "explode" each array item into a separate row, allowing you to use nested fields like <code>metric_id</code> as the primary key.
+                </small>
+            </div>
 
             <div class="option-group">
                 <label>
@@ -1981,6 +1993,8 @@
             document.getElementById('apiBody').value = '';
             document.getElementById('apiPrimaryKey').value = '';
             document.getElementById('apiBqTable').value = '';
+            document.getElementById('apiBqFilter').value = ''; // Clear BigQuery filter
+            document.getElementById('apiExplodeArrayField').value = ''; // Clear explode array field
 
             // Reset authentication type
             document.getElementById('authType').value = 'none';
@@ -3268,6 +3282,14 @@ document.getElementById('startApiComparison').addEventListener('click', async fu
             document.getElementById('api-processing-subtext').textContent = 'Analyzing schema, records, fields, and data quality across systems';
         }
 
+        // NEW: Get explode array field value
+        const explodeArrayField = document.getElementById('apiExplodeArrayField').value.trim();
+        
+        // Update processing text if array explosion is enabled
+        if (explodeArrayField) {
+            document.getElementById('api-processing-subtext').textContent += ` | Exploding nested array: ${explodeArrayField}`;
+        }
+
         // Step 2: Run comprehensive comparison with optional BigQuery filtering
         const compResponse = await fetch('/api/compare-api-vs-bq-comprehensive', {
             method: 'POST',
@@ -3280,7 +3302,8 @@ document.getElementById('startApiComparison').addEventListener('click', async fu
                 includeFieldAnalysis: true,
                 includeDuplicateAnalysis: true,
                 includeSchemaAnalysis: true,
-                bqFilter: bqFilter // NEW: Include BigQuery filter condition
+                bqFilter: bqFilter, // Include BigQuery filter condition
+                explodeArrayField: explodeArrayField // NEW: Include explode array field
             })
         });
 
@@ -3349,7 +3372,8 @@ function startNewApiComparison() {
     document.getElementById('apiBody').value = '';
     document.getElementById('apiPrimaryKey').value = '';
     document.getElementById('apiBqTable').value = '';
-    document.getElementById('apiBqFilter').value = ''; // NEW: Clear BigQuery filter
+    document.getElementById('apiBqFilter').value = ''; // Clear BigQuery filter
+    document.getElementById('apiExplodeArrayField').value = ''; // NEW: Clear explode array field
 
     // Reset authentication type
     document.getElementById('authType').value = 'none';
@@ -3369,7 +3393,7 @@ function startNewApiComparison() {
     const exportButton = document.getElementById('exportApiToExcel');
     if (exportButton) exportButton.disabled = true;
 
-    console.log('API interface reset completely with BigQuery filter clearing');
+    console.log('API interface reset completely with BigQuery filter and explode array field clearing');
 }
 
         // API Results Tab Navigation
@@ -3406,7 +3430,109 @@ function startNewApiComparison() {
             populateApiComparisonTab(results.comparisonResults, results.summary, results.metadata);
             populateApiFieldWiseTab(results.fieldWiseAnalysis, results.summary);
             populateApiDuplicatesTab(results.duplicatesAnalysis, results.summary);
+            
+            // NEW: Populate missing records analysis
+            populateApiMissingRecordsTab(results.missingRecordsAnalysis, results.summary);
         }
+        
+        // NEW: Display missing records analysis
+        function populateApiMissingRecordsTab(missingRecordsAnalysis, summary) {
+            const container = document.getElementById('api-duplicates-summary');
+            if (!container || !missingRecordsAnalysis) return;
+            
+            const apiOnly = missingRecordsAnalysis.apiOnlyRecords || { count: 0, sampleKeys: [] };
+            const bqOnly = missingRecordsAnalysis.bqOnlyRecords || { count: 0, sampleKeys: [] };
+            const missingSummary = missingRecordsAnalysis.summary || {};
+            
+            // Only add if there are missing records
+            if (apiOnly.count === 0 && bqOnly.count === 0) {
+                // Add a success message
+                const successDiv = document.createElement('div');
+                successDiv.style.cssText = 'margin-top: 20px; width: 100%;';
+                successDiv.innerHTML = `
+                    <div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #28a745;">
+                        <h4 style="color: #155724; margin: 0 0 10px 0;">✅ Perfect Record Match</h4>
+                        <p style="color: #155724; margin: 0;">All records in API exist in BigQuery and vice versa. No missing records detected.</p>
+                    </div>
+                `;
+                container.appendChild(successDiv);
+                return;
+            }
+            
+            // Create a full-width container for missing records
+            const missingDiv = document.createElement('div');
+            missingDiv.style.cssText = 'margin-top: 20px; width: 100%; grid-column: 1 / -1;';
+            
+            let missingHtml = `
+                <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #ffc107; width: 100%;">
+                    <h4 style="color: #856404; margin: 0 0 15px 0;">⚠️ Missing Records Analysis</h4>
+                    <p style="color: #856404; margin-bottom: 15px;">Found <strong>${missingSummary.totalMismatches || 0}</strong> record(s) that don't match between API and BigQuery.</p>
+            `;
+            
+            // API Only Records
+            if (apiOnly.count > 0) {
+                missingHtml += `
+                    <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #e74c3c; margin-bottom: 15px;">
+                        <h5 style="color: #e74c3c; margin: 0 0 10px 0;">🔴 In API but NOT in BigQuery: ${apiOnly.count} record(s)</h5>
+                        <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">${apiOnly.description}</p>
+                        <div style="max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px;">
+                            <table style="width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="background: #e9ecef;">
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">#</th>
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">metric_id (Missing from BigQuery)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${apiOnly.sampleKeys.map((key, idx) => `
+                                        <tr style="border-bottom: 1px solid #eee;">
+                                            <td style="padding: 6px 8px; color: #666;">${idx + 1}</td>
+                                            <td style="padding: 6px 8px; word-break: break-all;">${key}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            ${apiOnly.truncated ? '<div style="color: #999; font-style: italic; padding: 10px; text-align: center;">... showing first 100 of ' + apiOnly.count + ' records</div>' : ''}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // BQ Only Records
+            if (bqOnly.count > 0) {
+                missingHtml += `
+                    <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #3498db;">
+                        <h5 style="color: #3498db; margin: 0 0 10px 0;">🔵 In BigQuery but NOT in API: ${bqOnly.count} record(s)</h5>
+                        <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">${bqOnly.description}</p>
+                        <div style="max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px;">
+                            <table style="width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="background: #e9ecef;">
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">#</th>
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">metric_id (Missing from API)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${bqOnly.sampleKeys.map((key, idx) => `
+                                        <tr style="border-bottom: 1px solid #eee;">
+                                            <td style="padding: 6px 8px; color: #666;">${idx + 1}</td>
+                                            <td style="padding: 6px 8px; word-break: break-all;">${key}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            ${bqOnly.truncated ? '<div style="color: #999; font-style: italic; padding: 10px; text-align: center;">... showing first 100 of ' + bqOnly.count + ' records</div>' : ''}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            missingHtml += `</div>`;
+            
+            missingDiv.innerHTML = missingHtml;
+            container.appendChild(missingDiv);
+        }
+        
 // Replace the populateApiRecordCountTab function in index.html with this enhanced version
 // that displays BigQuery filter information
 

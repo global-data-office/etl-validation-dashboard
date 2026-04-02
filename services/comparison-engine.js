@@ -965,13 +965,14 @@ class ComparisonEngineService {
     }
 
 
-     async compareJSONvsBigQueryWithFilter(tempTableId, sourceTable, primaryKey, comparisonFields = [], strategy = 'enhanced', bqFilter = null) {
+     async compareJSONvsBigQueryWithFilter(tempTableId, sourceTable, primaryKey, comparisonFields = [], strategy = 'enhanced', bqFilter = null, unnestField = null) {
     try {
         console.log('=== ENHANCED COMPARISON WITH BIGQUERY FILTERING (FIXED VERSION) ===');
         console.log(`Temp table: ${tempTableId}`);
         console.log(`Source table: ${sourceTable}`);
         console.log(`Primary key: ${primaryKey}`);
         console.log(`Raw BigQuery filter: "${bqFilter}"`);
+        console.log(`Unnest field: "${unnestField || 'none'}"`);
 
         // FIXED: Preprocess and validate the filter
         let processedFilter = null;
@@ -1001,7 +1002,8 @@ class ComparisonEngineService {
         }
 
         // FIXED: Build the filtered source table query with proper error handling
-        const filteredSourceQuery = this.buildFilteredSourceQuery(sourceTable, processedFilter);
+        // NEW: Pass unnestField for nested array support
+        const filteredSourceQuery = this.buildFilteredSourceQuery(sourceTable, processedFilter, unnestField);
         console.log(`Filtered source query: ${filteredSourceQuery}`);
 
         // Run the comparison using the filtered source
@@ -1012,7 +1014,8 @@ class ComparisonEngineService {
             primaryKey,
             comparisonFields,
             strategy,
-            processedFilter
+            processedFilter,
+            unnestField // NEW: Pass unnest field
         );
 
         // Add comprehensive filter information to results
@@ -1062,13 +1065,21 @@ class ComparisonEngineService {
     }
 }
 
-buildFilteredSourceQuery(sourceTable, bqFilter) {
+buildFilteredSourceQuery(sourceTable, bqFilter, unnestField = null) {
+    // NOTE: unnestField is used for API-side explosion only
+    // BigQuery tables are typically already flattened/unnested, so we don't apply UNNEST here
+    // The unnestField parameter is kept for metadata purposes but not used in the query
+    
+    if (unnestField && unnestField.trim()) {
+        console.log(`Note: API data was exploded using field '${unnestField}' - BigQuery table assumed to be already flattened`);
+    }
+    
     if (!bqFilter || !bqFilter.trim()) {
         // No filter - return original table reference
         return `\`${sourceTable}\``;
     }
 
-    // FIXED: Create a subquery with the filter applied AND an alias (single line to avoid SQL parsing issues)
+    // Create a subquery with the filter applied AND an alias
     const filteredQuery = `(SELECT * FROM \`${sourceTable}\` WHERE ${bqFilter.trim()}) AS filtered_bq_table`;
 
     return filteredQuery;
@@ -1215,12 +1226,15 @@ preprocessFilter(filterCondition) {
     return processed;
 }
 
-    async executeFilteredComparison(tempTableId, filteredSourceQuery, originalSourceTable, primaryKey, comparisonFields, strategy, bqFilter) {
+    async executeFilteredComparison(tempTableId, filteredSourceQuery, originalSourceTable, primaryKey, comparisonFields, strategy, bqFilter, unnestField = null) {
         try {
             console.log('Executing filtered comparison...');
+            if (unnestField) {
+                console.log(`UNNEST mode enabled for field: ${unnestField}`);
+            }
 
             // Get record counts with filtering
-            const recordCounts = await this.getFilteredRecordCounts(tempTableId, filteredSourceQuery, originalSourceTable, primaryKey, bqFilter);
+            const recordCounts = await this.getFilteredRecordCounts(tempTableId, filteredSourceQuery, originalSourceTable, primaryKey, bqFilter, unnestField);
 
             // Get schema analysis with filtering
             const schemaAnalysis = await this.getFilteredSchemaAnalysis(tempTableId, filteredSourceQuery, originalSourceTable);
@@ -1230,6 +1244,9 @@ preprocessFilter(filterCondition) {
 
             // Run duplicates analysis with filtering
             const duplicatesAnalysis = await this.getFilteredDuplicatesAnalysis(tempTableId, filteredSourceQuery, primaryKey);
+            
+            // NEW: Run missing records analysis with filtering
+            const missingRecordsAnalysis = await this.getFilteredMissingRecordsAnalysis(tempTableId, filteredSourceQuery, primaryKey);
 
             // Generate comprehensive summary
             const summary = this.generateFilteredSummary(recordCounts, schemaAnalysis, fieldWiseAnalysis, duplicatesAnalysis, bqFilter);
@@ -1242,15 +1259,19 @@ preprocessFilter(filterCondition) {
                     strategy: strategy,
                     primaryKeyUsed: primaryKey,
                     filterApplied: !!(bqFilter && bqFilter.trim()),
-                    filterCondition: bqFilter && bqFilter.trim() ? bqFilter.trim() : null
+                    filterCondition: bqFilter && bqFilter.trim() ? bqFilter.trim() : null,
+                    unnestApplied: !!(unnestField && unnestField.trim()),
+                    unnestField: unnestField && unnestField.trim() ? unnestField.trim() : null
                 },
                 fieldWiseAnalysis: fieldWiseAnalysis,
                 duplicatesAnalysis: duplicatesAnalysis,
+                missingRecordsAnalysis: missingRecordsAnalysis, // NEW: Include missing records
                 summary: summary,
                 metadata: {
                     tempTable: tempTableId,
                     sourceTable: originalSourceTable,
                     filteredSource: bqFilter && bqFilter.trim() ? true : false,
+                    unnestApplied: unnestField && unnestField.trim() ? true : false,
                     primaryKey: primaryKey,
                     timestamp: new Date().toISOString()
                 }
@@ -1265,9 +1286,15 @@ preprocessFilter(filterCondition) {
     /**
      * Get record counts with BigQuery filtering applied
      */
-    async getFilteredRecordCounts(tempTableId, filteredSourceQuery, originalSourceTable, primaryKey, bqFilter) {
+    async getFilteredRecordCounts(tempTableId, filteredSourceQuery, originalSourceTable, primaryKey, bqFilter, unnestField = null) {
         try {
             console.log('Getting filtered record counts...');
+            
+            // Note: unnestField is for API-side explosion only
+            // BigQuery tables are assumed to be already flattened
+            if (unnestField && unnestField.trim()) {
+                console.log(`Note: API data was exploded using '${unnestField}' - BigQuery table assumed to be already flat`);
+            }
 
             const queries = {
                 // API/JSON temp table counts (unchanged)
@@ -1299,10 +1326,11 @@ preprocessFilter(filterCondition) {
                 `
             };
 
-            // If no filter applied, also get original table counts for comparison
+            // If filter applied, also get original table counts for comparison
             let originalCounts = null;
             if (bqFilter && bqFilter.trim()) {
                 console.log('Getting original (unfiltered) counts for comparison...');
+                
                 const originalQueries = {
                     originalTotal: `SELECT COUNT(*) as count FROM \`${originalSourceTable}\``,
                     originalUnique: `SELECT COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as count FROM \`${originalSourceTable}\` WHERE ${primaryKey} IS NOT NULL`
@@ -1313,6 +1341,7 @@ preprocessFilter(filterCondition) {
                     try {
                         const [result] = await this.bigquery.query(query);
                         originalCounts[key] = parseInt(result[0]?.count || 0);
+                        console.log(`${key}: ${originalCounts[key]}`);
                     } catch (error) {
                         console.warn(`Original count query '${key}' failed: ${error.message}`);
                         originalCounts[key] = 0;
@@ -1705,10 +1734,114 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
             };
 
         } catch (error) {
-        console.error('Filtered field-wise analysis failed:', error.message);
+        console.error('Filtered duplicates analysis failed:', error.message);
         throw error;
     }
 }
+
+    /**
+     * Get missing records analysis with BigQuery filtering applied
+     * Shows which records exist in API but not in BQ, and vice versa
+     */
+    async getFilteredMissingRecordsAnalysis(tempTableId, filteredSourceQuery, primaryKey) {
+        try {
+            console.log('Running filtered missing records analysis...');
+
+            // Records in API but NOT in BigQuery (filtered)
+            const apiOnlyQuery = `
+                SELECT DISTINCT CAST(${primaryKey} AS STRING) as missing_key
+                FROM \`${tempTableId}\`
+                WHERE ${primaryKey} IS NOT NULL
+                  AND CAST(${primaryKey} AS STRING) NOT IN (
+                    SELECT DISTINCT CAST(${primaryKey} AS STRING)
+                    FROM ${filteredSourceQuery}
+                    WHERE ${primaryKey} IS NOT NULL
+                  )
+                ORDER BY missing_key
+                LIMIT 100
+            `;
+
+            // Records in BigQuery (filtered) but NOT in API
+            const bqOnlyQuery = `
+                SELECT DISTINCT CAST(${primaryKey} AS STRING) as missing_key
+                FROM ${filteredSourceQuery}
+                WHERE ${primaryKey} IS NOT NULL
+                  AND CAST(${primaryKey} AS STRING) NOT IN (
+                    SELECT DISTINCT CAST(${primaryKey} AS STRING)
+                    FROM \`${tempTableId}\`
+                    WHERE ${primaryKey} IS NOT NULL
+                  )
+                ORDER BY missing_key
+                LIMIT 100
+            `;
+
+            // Count queries for totals
+            const apiOnlyCountQuery = `
+                SELECT COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as count
+                FROM \`${tempTableId}\`
+                WHERE ${primaryKey} IS NOT NULL
+                  AND CAST(${primaryKey} AS STRING) NOT IN (
+                    SELECT DISTINCT CAST(${primaryKey} AS STRING)
+                    FROM ${filteredSourceQuery}
+                    WHERE ${primaryKey} IS NOT NULL
+                  )
+            `;
+
+            const bqOnlyCountQuery = `
+                SELECT COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as count
+                FROM ${filteredSourceQuery}
+                WHERE ${primaryKey} IS NOT NULL
+                  AND CAST(${primaryKey} AS STRING) NOT IN (
+                    SELECT DISTINCT CAST(${primaryKey} AS STRING)
+                    FROM \`${tempTableId}\`
+                    WHERE ${primaryKey} IS NOT NULL
+                  )
+            `;
+
+            // Execute all queries
+            const [apiOnlyResult, bqOnlyResult, apiOnlyCountResult, bqOnlyCountResult] = await Promise.all([
+                this.bigquery.query(apiOnlyQuery).catch(e => { console.warn('API-only query failed:', e.message); return [[]]; }),
+                this.bigquery.query(bqOnlyQuery).catch(e => { console.warn('BQ-only query failed:', e.message); return [[]]; }),
+                this.bigquery.query(apiOnlyCountQuery).catch(e => { console.warn('API-only count failed:', e.message); return [[{count: 0}]]; }),
+                this.bigquery.query(bqOnlyCountQuery).catch(e => { console.warn('BQ-only count failed:', e.message); return [[{count: 0}]]; })
+            ]);
+
+            const apiOnlyKeys = (apiOnlyResult[0] || []).map(r => r.missing_key);
+            const bqOnlyKeys = (bqOnlyResult[0] || []).map(r => r.missing_key);
+            const apiOnlyCount = parseInt(apiOnlyCountResult[0]?.[0]?.count || 0);
+            const bqOnlyCount = parseInt(bqOnlyCountResult[0]?.[0]?.count || 0);
+
+            console.log(`Missing records analysis: ${apiOnlyCount} in API only, ${bqOnlyCount} in BQ only`);
+
+            return {
+                apiOnlyRecords: {
+                    count: apiOnlyCount,
+                    sampleKeys: apiOnlyKeys,
+                    description: 'Records that exist in API but NOT in BigQuery (after filter)',
+                    truncated: apiOnlyCount > 100
+                },
+                bqOnlyRecords: {
+                    count: bqOnlyCount,
+                    sampleKeys: bqOnlyKeys,
+                    description: 'Records that exist in BigQuery (after filter) but NOT in API',
+                    truncated: bqOnlyCount > 100
+                },
+                summary: {
+                    totalMismatches: apiOnlyCount + bqOnlyCount,
+                    perfectMatch: apiOnlyCount === 0 && bqOnlyCount === 0,
+                    primaryKeyUsed: primaryKey
+                }
+            };
+
+        } catch (error) {
+            console.error('Filtered missing records analysis failed:', error.message);
+            return {
+                apiOnlyRecords: { count: 0, sampleKeys: [], description: 'Analysis failed', error: error.message },
+                bqOnlyRecords: { count: 0, sampleKeys: [], description: 'Analysis failed', error: error.message },
+                summary: { totalMismatches: 0, perfectMatch: false, error: error.message }
+            };
+        }
+    }
 
     /**
      * Generate comprehensive summary with filter information
