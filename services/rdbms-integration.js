@@ -18,148 +18,94 @@ try {
 }
 
 class RDBMSIntegrationService {
-
-    // Add inside class BigQueryIntegrationService (bq-integration.js)
-
-async runQuery(query, location = 'US') {
-  const start = Date.now();
-  const [job] = await this.bigquery.createQueryJob({ query, location });
-  const [rows] = await job.getQueryResults();
-  return {
-    success: true,
-    rows,
-    rowCount: rows.length,
-    durationMs: Date.now() - start,
-    query
-  };
-}
-
-/**
- * Materialize a SELECT query into a temp table for comparison
- * targetCustomQuery must be a SELECT (no trailing semicolon).
- */
-async createTempTableFromQuery(targetCustomQuery, tableSuffix = '') {
-  const ts = Date.now();
-  const tableId = `target_temp_${tableSuffix || ts}`;
-  const tempTableId = `${process.env.GOOGLE_CLOUD_PROJECT_ID}.${this.config.tempDataset}.${tableId}`;
-
-  const ddl = `
-    CREATE OR REPLACE TABLE \`${tempTableId}\` AS
-    ${targetCustomQuery}
-  `;
-
-  await this.runQuery(ddl);
-  return { success: true, tempTableId };
-}
-
-/**
- * Execute a BigQuery stored procedure call
- * Example: CALL `proj.dataset.proc_name`(arg1, arg2)
- */
-async callStoredProcedure(callSql) {
-  // Safety: ensure it's a CALL statement (optional but recommended)
-  if (!callSql.trim().toUpperCase().startsWith('CALL')) {
-    throw new Error('BigQuery stored procedure must be executed with a CALL statement.');
-  }
-  return await this.runQuery(callSql);
-}
-
-// =============================
-// STORED PROCEDURE SUPPORT
-// =============================
-
-buildStoredProcCall(dbType, procName, args = []) {
-
-    const safeArgs = args.map(a => {
-        if (a === null || a === undefined) return 'NULL';
-        if (typeof a === 'number') return String(a);
-        if (typeof a === 'boolean') return a ? 'TRUE' : 'FALSE';
-        return `'${String(a).replace(/'/g, "''")}'`;
-    });
-
-    switch ((dbType || '').toLowerCase()) {
-
-        case 'postgresql':
-            return `CALL ${procName}(${safeArgs.join(', ')})`;
-
-        case 'mysql':
-            return `CALL ${procName}(${safeArgs.join(', ')})`;
-
-        case 'sqlserver':
-            return `EXEC ${procName} ${safeArgs.join(', ')}`.trim();
-
-        case 'oracle':
-            return `BEGIN ${procName}(${safeArgs.join(', ')}); END;`;
-
-        default:
-            throw new Error(`Stored procedure calls not supported for dbType: ${dbType}`);
-    }
-}
-
-
-async executeStoredProcedure(config, procName, args = []) {
-
-    const callSql = this.buildStoredProcCall(config.dbType, procName, args);
-
-    // reuse your existing query executor
-    return await this.executeQuery(config, callSql);
-}
-
     constructor() {
         this.connections = new Map();
         this.bigquery = new BigQuery({
             // Uses Application Default Credentials from environment
         });
-
-
     }
-
-    // MAIN METHOD: Test database connection
-    // In rdbms-integration.js - PostgreSQL test connection
-// MAIN METHOD: Test database connection
-async testConnection(dbType, connectionConfig) {
-    try {
-        // Validate config first
-        const validation = this.validateConnectionConfig(dbType, connectionConfig);
-        if (!validation.valid) {
-            return {
-                success: false,
-                error: validation.error,
-                suggestions: ['Fill in all required connection fields']
-            };
-        }
-
-        switch (dbType.toLowerCase()) {
-            case 'postgresql':
-                return await this.testPostgreSQLConnection(connectionConfig);
-            case 'mysql':
-                return await this.testMySQLConnection(connectionConfig);
-            case 'oracle':
-                return await this.testOracleConnection(connectionConfig);
-            case 'sqlserver':
-                return await this.testSQLServerConnection(connectionConfig);
-            default:
-                return {
-                    success: false,
-                    error: `Unsupported database type: ${dbType}`,
-                    suggestions: ['Use postgresql, mysql, oracle, or sqlserver']
-                };
-        }
-    } catch (error) {
-        console.error(`${dbType} connection test failed:`, error.message);
-        return {
-            success: false,
-            error: error.message,
-            suggestions: this.getConnectionSuggestions(dbType, error.message)
-        };
+	/**
+    * Build Oracle connection string based on SID or Service Name
+    * Users provide EITHER serviceName OR sid in config
+    * 
+    * IMPORTANT: Both formats now use forward slash (/) for Easy Connect syntax
+    * - Service Name: host:port/servicename
+    * - SID: host:port/sid
+    */
+    /**
+ * Build Oracle connection string based on SID or Service Name
+ * Uses TNS descriptor format for maximum compatibility with thick client
+ */
+buildOracleConnectString(config) {
+    const host = config.host;
+    const port = config.port || 1521;
+    
+    // Check which format user provided
+    if (config.sid && config.sid.trim() !== '') {
+        // TNS Descriptor format for SID (most compatible with thick client)
+        const connectString = `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${host})(PORT=${port}))(CONNECT_DATA=(SID=${config.sid})))`;
+        console.log('🔧 Oracle: Using TNS descriptor SID format ->', connectString);
+        return connectString;
+    } 
+    else if (config.serviceName && config.serviceName.trim() !== '') {
+        // TNS Descriptor format for Service Name
+        const connectString = `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${host})(PORT=${port}))(CONNECT_DATA=(SERVICE_NAME=${config.serviceName})))`;
+        console.log('🔧 Oracle: Using TNS descriptor Service Name format ->', connectString);
+        return connectString;
+    }
+    // Fallback for backward compatibility with old 'service' field
+    else if (config.service && config.service.trim() !== '') {
+        const connectString = `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${host})(PORT=${port}))(CONNECT_DATA=(SERVICE_NAME=${config.service})))`;
+        console.log('🔧 Oracle: Using TNS descriptor legacy service format ->', connectString);
+        return connectString;
+    }
+    else {
+        throw new Error('Oracle connection requires either Service Name or SID');
     }
 }
+
+    // MAIN METHOD: Test database connection
+    async testConnection(dbType, connectionConfig) {
+        try {
+            console.log(`Testing ${dbType.toUpperCase()} connection...`);
+
+            const validationResult = this.validateConnectionConfig(dbType, connectionConfig);
+            if (!validationResult.valid) {
+                return {
+                    success: false,
+                    error: validationResult.error,
+                    suggestions: ['Please fill in all required connection fields']
+                };
+            }
+
+            switch (dbType.toLowerCase()) {
+                case 'postgresql':
+                    return await this.testPostgreSQLConnection(connectionConfig);
+                case 'mysql':
+                    return await this.testMySQLConnection(connectionConfig);
+                case 'oracle':
+                    return await this.testOracleConnection(connectionConfig);
+                case 'sqlserver':
+                    return await this.testSQLServerConnection(connectionConfig);
+                default:
+                    throw new Error(`Unsupported database type: ${dbType}`);
+            }
+        } catch (error) {
+            console.error(`${dbType} connection test failed:`, error.message);
+            return {
+                success: false,
+                error: error.message,
+                suggestions: this.getConnectionSuggestions(dbType, error.message)
+            };
+        }
+    }
+
     // Validate connection config
     validateConnectionConfig(dbType, config) {
         const requiredFields = {
             postgresql: ['host', 'port', 'database', 'username', 'password'],
             mysql: ['host', 'port', 'database', 'username', 'password'],
-            oracle: ['host', 'port', 'service', 'username', 'password'],
+            oracle: ['host', 'port', 'username', 'password'], // SID or serviceName checked separately
             sqlserver: ['server', 'port', 'database', 'username', 'password']
         };
 
@@ -172,85 +118,68 @@ async testConnection(dbType, connectionConfig) {
                 error: `Missing required fields: ${missing.join(', ')}`
             };
         }
+    // Oracle-specific validation: require either SID or Service Name
+        if (dbType.toLowerCase() === 'oracle') {
+            const hasServiceName = config.serviceName && config.serviceName.trim() !== '';
+            const hasSID = config.sid && config.sid.trim() !== '';
+            
+            if (!hasServiceName && !hasSID) {
+                return {
+                    valid: false,
+                    error: 'Oracle connection requires either Service Name or SID'
+                };
+            }
+        }
 
         return { valid: true };
     }
-async executeQuery(config, query, queryType = 'SELECT') {
-    try {
-        const dbType = (config.dbType || '').toLowerCase();
-        let result;
 
-        switch (dbType) {
-            case 'postgresql':
-                result = await this.fetchPostgreSQLData(config, query);
-                break;
-            case 'mysql':
-                result = await this.fetchMySQLData(config, query);
-                break;
-            case 'oracle':
-                result = await this.fetchOracleData(config, query);
-                break;
-            case 'sqlserver':
-                result = await this.fetchSQLServerData(config, query);
-                break;
-            default:
-                throw new Error(`Unsupported database type: ${config.dbType}`);
+    // PostgreSQL connection test
+    async testPostgreSQLConnection(config) {
+        const pool = new Pool({
+            host: config.host,
+            port: parseInt(config.port) || 5432,
+            database: config.database,
+            user: config.username,
+            password: config.password,
+            connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 5000,
+            max: 1,
+            ssl: false
+        });
+
+        try {
+            const client = await pool.connect();
+            
+            const result = await client.query(`
+                SELECT 
+                    version() as version,
+                    current_database() as database,
+                    current_user as user,
+                    inet_server_addr() as server_ip,
+                    inet_server_port() as server_port
+            `);
+            
+            client.release();
+            await pool.end();
+
+            return {
+                success: true,
+                message: 'PostgreSQL connection successful',
+                details: {
+                    version: result.rows[0].version.split(' ')[0] + ' ' + result.rows[0].version.split(' ')[1],
+                    database: result.rows[0].database,
+                    user: result.rows[0].user,
+                    server_ip: result.rows[0].server_ip || config.host,
+                    server_port: result.rows[0].server_port || config.port
+                }
+            };
+        } catch (error) {
+            await pool.end().catch(() => {});
+            throw error;
         }
-
-        return {
-            success: true,
-            data: result.records,
-            rowCount: result.recordCount,
-            query,
-            queryType
-        };
-    } catch (error) {
-        return { success: false, error: error.message, query, queryType };
     }
-}
-  // PostgreSQL connection test
-async testPostgreSQLConnection(config) {
-    const { host, port, database, username, password } = config;
 
-    // Use connection string format (works better with PAM auth)
-    const connectionString = `postgres://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port || 5432}/${database}`;
-
-    console.log(`🐘 PostgreSQL connecting to: ${host}:${port || 5432}/${database}`);
-
-    const pool = new Pool({
-        connectionString: connectionString,
-        ssl: false,
-        connectionTimeoutMillis: 15000
-    });
-
-    try {
-        const client = await pool.connect();
-
-        const result = await client.query(`
-            SELECT
-                version() as version,
-                current_database() as database,
-                current_user as user
-        `);
-
-        client.release();
-        await pool.end();
-
-        return {
-            success: true,
-            message: 'PostgreSQL connection successful',
-            details: {
-                version: result.rows[0].version.split(',')[0],
-                database: result.rows[0].database,
-                user: result.rows[0].user
-            }
-        };
-    } catch (error) {
-        await pool.end().catch(() => {});
-        console.error('PostgreSQL connection error:', error.message);
-        throw error;
-    }
-}
     // MySQL connection test
     async testMySQLConnection(config) {
         const connection = await mysql.createConnection({
@@ -259,23 +188,33 @@ async testPostgreSQLConnection(config) {
             database: config.database,
             user: config.username,
             password: config.password,
-            connectTimeout: 15000,
+            connectTimeout: 10000,
+            acquireTimeout: 10000,
+            timeout: 10000,
             charset: 'utf8mb4'
         });
 
         try {
-            // Use simpler query compatible with both MySQL and MariaDB
-            const [rows] = await connection.execute(`SELECT VERSION() as version, USER() as user`);
+            const [rows] = await connection.execute(`
+                SELECT 
+                    VERSION() as version, 
+                    DATABASE() as database, 
+                    USER() as user,
+                    @@hostname as hostname,
+                    @@port as port
+            `);
             
             await connection.end();
 
             return {
                 success: true,
-                message: 'MySQL/MariaDB connection successful',
+                message: 'MySQL connection successful',
                 details: {
                     version: rows[0].version,
-                    database: config.database,
-                    user: rows[0].user.split('@')[0]
+                    database: rows[0].database,
+                    user: rows[0].user.split('@')[0],
+                    hostname: rows[0].hostname,
+                    port: rows[0].port
                 }
             };
         } catch (error) {
@@ -292,7 +231,7 @@ async testPostgreSQLConnection(config) {
         const connectionConfig = {
             user: config.username,
             password: config.password,
-            connectString: `${config.host}:${config.port || 1521}/${config.service}`,
+            connectString: this.buildOracleConnectString(config),
             connectTimeout: 15000,
             callTimeout: 15000
         };
@@ -325,7 +264,7 @@ async testPostgreSQLConnection(config) {
                     database: result.rows[0] ? result.rows[0][1] : config.service,
                     user: result.rows[0] ? result.rows[0][2] : config.username,
                     hostname: result.rows[0] ? result.rows[0][3] : config.host,
-                    service: config.service,
+                    service: config.sid ? `SID: ${config.sid}` : `Service: ${config.serviceName}`,
                     clientMode: oracledb.thin ? 'Thin' : 'Thick',
                     clientVersion: oracledb.oracleClientVersionString || 'Unknown'
                 }
@@ -484,101 +423,82 @@ async testPostgreSQLConnection(config) {
         }
     }
 
-  // Fetch data from source RDBMS
-    async fetchSourceData(dbType, connectionConfig, tableName, primaryKey, comparisonFields, sourceFilter = '', SAMPLE_SIZE = 1000) {
-        try {
-            // Build fields list - remove the duplicate declaration
-            const fields = comparisonFields.length > 0
-                ? [primaryKey, ...comparisonFields].filter(f => f?.trim())
-                : ['*'];
-
-            // Build query based on database type
-            let query;
-            switch(dbType.toLowerCase()) {
-                case 'oracle':
-                    query = `SELECT ${fields.join(', ')} FROM ${tableName} WHERE ${sourceFilter ? `${sourceFilter} AND ` : ''}ROWNUM <= ${SAMPLE_SIZE}`;
-                    break;
-                case 'postgresql':
-                    query = `SELECT ${fields.join(', ')} FROM ${tableName}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
-                    break;
-                case 'mysql':
-                    query = `SELECT ${fields.join(', ')} FROM ${tableName}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
-                    break;
-                case 'sqlserver':
-                    query = `SELECT TOP ${SAMPLE_SIZE} ${fields.join(', ')} FROM ${tableName}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
-                    break;
-                default:
-                    query = `SELECT ${fields.join(', ')} FROM ${tableName}${sourceFilter ? ` WHERE ${sourceFilter}` : ''} LIMIT ${SAMPLE_SIZE}`;
-            }
-
-            console.log(`📋 ${dbType.toUpperCase()} query: ${query}`);
-
-            switch (dbType.toLowerCase()) {
-                case 'oracle':
-                    return await this.fetchOracleData(connectionConfig, query);
-                case 'postgresql':
-                    return await this.fetchPostgreSQLData(connectionConfig, query);
-                case 'mysql':
-                    return await this.fetchMySQLData(connectionConfig, query);
-                case 'sqlserver':
-                    return await this.fetchSQLServerData(connectionConfig, query);
-                default:
-                    throw new Error(`Unsupported database type: ${dbType}`);
-            }
-        } catch (error) {
-            console.error(`Failed to fetch ${dbType} data:`, error.message);
-            throw error;
-        }
-    }
-
-    // Generic data fetch wrapper for all database types
-    async fetchData(dbType, connectionConfig, query) {
-        console.log(`🔄 Generic fetchData called for ${dbType.toUpperCase()}`);
-        console.log(`📋 Query: ${query.substring(0, 150)}...`);
+    // Fetch data from source RDBMS
+	async fetchSourceData(dbType, connectionConfig, tableName, primaryKey, comparisonFields) {
+    try {
+        const fields = [primaryKey, ...comparisonFields].join(', ');
+        let query;
         
-        try {
-            let result;
-            
-            switch(dbType.toLowerCase()) {
-                case 'mysql':
-                    result = await this.fetchMySQLData(connectionConfig, query);
-                    console.log(`✅ MySQL fetch successful: ${result.recordCount} records`);
-                    break;
-                    
-                case 'postgresql':
-                    result = await this.fetchPostgreSQLData(connectionConfig, query);
-                    console.log(`✅ PostgreSQL fetch successful: ${result.recordCount} records`);
-                    break;
-                    
-                case 'oracle':
-                    result = await this.fetchOracleData(connectionConfig, query);
-                    console.log(`✅ Oracle fetch successful: ${result.recordCount} records`);
-                    break;
-                    
-                case 'sqlserver':
-                    result = await this.fetchSQLServerData(connectionConfig, query);
-                    console.log(`✅ SQL Server fetch successful: ${result.recordCount} records`);
-                    break;
-                    
-                default:
-                    throw new Error(`Unsupported database type: ${dbType}`);
-            }
-            
-            return result;
-            
-        } catch (error) {
-            console.error(`❌ ${dbType.toUpperCase()} data fetch failed:`, error.message);
-            throw new Error(`${dbType.toUpperCase()} data fetch failed: ${error.message}`);
+        // Database-specific query syntax
+        switch (dbType.toLowerCase()) {
+            case 'oracle':
+                // Oracle uses ROWNUM instead of LIMIT
+                query = `SELECT ${fields} FROM ${tableName} WHERE ROWNUM <= 1000 ORDER BY ${primaryKey}`;
+                break;
+            case 'postgresql':
+            case 'mysql':
+                // PostgreSQL and MySQL use LIMIT
+                query = `SELECT ${fields} FROM ${tableName} ORDER BY ${primaryKey} LIMIT 1000`;
+                break;
+            case 'sqlserver':
+                // SQL Server uses TOP
+                query = `SELECT TOP 1000 ${fields} FROM ${tableName} ORDER BY ${primaryKey}`;
+                break;
+            default:
+                // Default to LIMIT syntax
+                query = `SELECT ${fields} FROM ${tableName} ORDER BY ${primaryKey} LIMIT 1000`;
+        }
+        
+        console.log(`📋 ${dbType.toUpperCase()} query: ${query}`);
+
+        switch (dbType.toLowerCase()) {
+            case 'oracle':
+                return await this.fetchOracleData(connectionConfig, query);
+            case 'postgresql':
+                return await this.fetchPostgreSQLData(connectionConfig, query);
+            case 'mysql':
+                return await this.fetchMySQLData(connectionConfig, query);
+            case 'sqlserver':
+                return await this.fetchSQLServerData(connectionConfig, query);
+            default:
+                throw new Error(`Unsupported database type: ${dbType}`);
+        }
+    } catch (error) {
+        console.error(`Failed to fetch ${dbType} data:`, error.message);
+        throw error;
         }
     }
-
+    
+    /**
+     * Generic fetchData method that routes to the correct database-specific method
+     * @param {string} dbType - Database type (postgresql, mysql, oracle, sqlserver)
+     * @param {object} config - Connection configuration
+     * @param {string} query - SQL query to execute
+     * @returns {object} - { records: [], recordCount: number }
+     */
+    async fetchData(dbType, config, query) {
+        switch (dbType.toLowerCase()) {
+            case 'postgresql':
+                return await this.fetchPostgreSQLData(config, query);
+            case 'mysql':
+                return await this.fetchMySQLData(config, query);
+            case 'oracle':
+                return await this.fetchOracleData(config, query);
+            case 'sqlserver':
+                return await this.fetchSQLServerData(config, query);
+            default:
+                throw new Error(`Unsupported database type: ${dbType}`);
+        }
+    }
+    
+    // Fetch Oracle data
     async fetchOracleData(config, query) {
         let connection;
         try {
             connection = await oracledb.getConnection({
                 user: config.username,
                 password: config.password,
-                connectString: `${config.host}:${config.port || 1521}/${config.service}`,
+                connectString: this.buildOracleConnectString(config),
                 connectTimeout: 15000
             });
 
@@ -602,36 +522,33 @@ async testPostgreSQLConnection(config) {
     }
 
     // Fetch PostgreSQL data
-    // Fetch PostgreSQL data
-async fetchPostgreSQLData(config, query) {
-    const { host, port, database, username, password } = config;
+    async fetchPostgreSQLData(config, query) {
+        const pool = new Pool({
+            host: config.host,
+            port: parseInt(config.port) || 5432,
+            database: config.database,
+            user: config.username,
+            password: config.password,
+            connectionTimeoutMillis: 10000,
+            max: 1,
+            ssl: false
+        });
 
-    // Use connection string format (same as test connection)
-    const connectionString = `postgres://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port || 5432}/${database}`;
+        try {
+            const client = await pool.connect();
+            const result = await client.query(query);
+            client.release();
+            await pool.end();
 
-  const pool = new Pool({
-    connectionString: connectionString,
-    ssl: false,
-    connectionTimeoutMillis: 15000,
-    query_timeout: 120000,
-    statement_timeout: 120000
-});
-
-    try {
-        const client = await pool.connect();
-        const result = await client.query(query);
-        client.release();
-        await pool.end();
-
-        return {
-            records: result.rows,
-            recordCount: result.rows.length
-        };
-    } catch (error) {
-        await pool.end().catch(() => {});
-        throw error;
+            return {
+                records: result.rows,
+                recordCount: result.rows.length
+            };
+        } catch (error) {
+            await pool.end().catch(() => {});
+            throw error;
+        }
     }
-}
 
     // Fetch MySQL data
     async fetchMySQLData(config, query) {

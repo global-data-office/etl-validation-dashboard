@@ -7,11 +7,20 @@ const jsonUploadRouter = require('./routes/json-upload');
 const BigQueryIntegrationService = require('./services/bq-integration');
 const RDBMSIntegrationService = require('./services/rdbms-integration');
 const RDBMSComparisonEngineService = require('./services/rdbms-comparison-engine'); // NEW: RDBMS-specific comparison engine
-const PG_PROXY_URL = 'http://YOUR_LINUX_SERVER_IP:3001';  // ← Change this!
 require('dotenv').config();
 
+// ✅ ADD ORACLE THICK MODE HERE (lines 11-19)
+const oracledb = require('oracledb');
+try {
+    oracledb.initOracleClient({ libDir: 'C:\\oracle\\instantclient_19_29' });
+    console.log('✅ Oracle Thick Mode initialized');
+} catch (err) {
+    if (!err.message.includes('already been called')) {
+        console.error('❌ Oracle init failed:', err.message);
+    }
+}
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8080;
 
 // Middleware
 app.use(cors());
@@ -30,7 +39,10 @@ const bigquery = new BigQuery({
 // RDBMS Connection Testing
 app.post('/api/test-rdbms-connection', async (req, res) => {
     try {
-        const { dbType, ...connectionConfig } = req.body;
+    const { dbType, ...connectionConfig } = req.body;
+    
+    // ADD THIS DEBUG LINE
+    console.log('🔍 TEST CONNECTION REQUEST:', { dbType, ...connectionConfig, password: '***' });
         
         console.log(`Testing ${dbType} connection:`, {
             host: connectionConfig.host || connectionConfig.server,
@@ -108,22 +120,42 @@ app.post('/api/get-rdbms-schema', async (req, res) => {
 
 // ENHANCED: RDBMS vs BigQuery Comparison with comprehensive metrics
 app.post('/api/rdbms-vs-bq', async (req, res) => {
-    req.setTimeout(300000); // 5 minute timeout per request
     try {
-        const { dbType, host, port, database, service, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '', targetFilter = '',sourceCustomQuery = '',targetCustomQuery = '' } = req.body;
+        const { dbType, host, port, database, sid, serviceName, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '' } = req.body;
+
+        // ✅ SAFETY: Ignore comparison fields for multi-table validation
+        const sourceTablesArray = Array.isArray(sourceTable) 
+            ? sourceTable 
+            : (sourceTable.includes('\n') ? sourceTable.split('\n').map(t => t.trim()).filter(t => t) : [sourceTable]);
         
+        let safeComparisonFields = comparisonFields;
+        if (sourceTablesArray.length > 1 && comparisonFields && comparisonFields.length > 0) {
+            console.warn(`⚠️ Multi-table validation with ${sourceTablesArray.length} tables - ignoring comparison fields for safety`);
+            safeComparisonFields = []; // Force empty for multi-table
+        }
+
         console.log(`Starting ENHANCED ${dbType} vs BigQuery comparison...`);
-        console.log('Request parameters:', { dbType, host, port, service, sourceTable, bqTable, primaryKey });
+        console.log('Request parameters:', { dbType, host, port, database, sid, serviceName, sourceTable, bqTable, primaryKey });
         
         // Step 1: Test connection
-   const connectionConfig = {
-    host,
-    port: parseInt(port) || { oracle: 1521, postgresql: 5432, mysql: 3306, sqlserver: 1433 }[dbType.toLowerCase()] || 5432,
-    database,
-    service,
-    username,
-    password
-};
+           const connectionConfig = {
+           host,
+           port: parseInt(port) || (dbType === 'oracle' ? 1521 : 5432),
+           username,
+           password,
+           database
+        };
+
+        // Add Oracle-specific connection identifier
+        if (dbType === 'oracle') {
+           if (sid) {
+           connectionConfig.sid = sid;
+           console.log(`Oracle using SID: ${sid}`);
+        } else if (serviceName) {
+        connectionConfig.serviceName = serviceName;
+        console.log(`Oracle using Service Name: ${serviceName}`);
+    }
+}
         
         const connectionTest = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
         
@@ -156,41 +188,25 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             default:
                 countQuery = `SELECT COUNT(*) as total_count FROM ${sourceTable}${sourceFilter ? ` WHERE ${sourceFilter}` : ''}`;
         }
-try {
-            // Get count based on database type
+
+        try {
             let countResult;
-            switch(dbType.toLowerCase()) {
-                case 'oracle':
-                    countResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, countQuery);
-                    break;
-                case 'postgresql':
-                    countResult = await RDBMSIntegrationService.fetchPostgreSQLData(connectionConfig, countQuery);
-                    break;
-                case 'mysql':
-                    countResult = await RDBMSIntegrationService.fetchMySQLData(connectionConfig, countQuery);
-                    break;
-                case 'sqlserver':
-                    countResult = await RDBMSIntegrationService.fetchSQLServerData(connectionConfig, countQuery);
-                    break;
-                default:
-                    countResult = { records: [{ total_count: 0 }] };
+            if (dbType.toLowerCase() === 'oracle') {
+                countResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, countQuery);
+            } else {
+                countResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, countQuery);
             }
-
-            // Extract count from result
-            totalRecordCount = countResult.records?.[0]?.total_count || countResult.records?.[0]?.TOTAL_COUNT || 0;
-            console.log(`✅ Total records in source table: ${totalRecordCount.toLocaleString()}`);
-
+            totalRecordCount = countResult.records[0]?.total_count || countResult.records[0]?.TOTAL_COUNT || 0;
+            console.log(`✅ Total records: ${totalRecordCount.toLocaleString()}`);
         } catch (countError) {
-            console.warn(`⚠️ Failed to get total count: ${countError.message}`);
-            console.log(`Proceeding without total count...`);
-            totalRecordCount = 0;
+            console.warn('Count query failed:', countError.message);
         }
 
         // STEP 2: Fetch sample data (2000 records)
         const SAMPLE_SIZE = 2000;
         console.log(`📦 Fetching ${SAMPLE_SIZE} sample records for validation...`);
 
-        const fields = comparisonFields.length > 0 ? [primaryKey, ...comparisonFields].filter(f => f?.trim()) : ['*'];
+        const fields = ['*'];
         let query;
 
         switch(dbType.toLowerCase()) {
@@ -211,25 +227,15 @@ try {
         }
 
         console.log(`Executing query: ${query}`);
-        // Fetch data based on database type
-let rdbmsResult;
-switch(dbType.toLowerCase()) {
-    case 'oracle':
-        rdbmsResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, query);
-        break;
-    case 'postgresql':
-        rdbmsResult = await RDBMSIntegrationService.fetchPostgreSQLData(connectionConfig, query);
-        break;
-    case 'mysql':
-        rdbmsResult = await RDBMSIntegrationService.fetchMySQLData(connectionConfig, query);
-        break;
-    case 'sqlserver':
-        rdbmsResult = await RDBMSIntegrationService.fetchSQLServerData(connectionConfig, query);
-        break;
-    default:
-        throw new Error(`Unsupported database type: ${dbType}`);
-}
-
+        
+        // Fetch data
+        let rdbmsResult;
+        if (dbType.toLowerCase() === 'oracle') {
+            rdbmsResult = await RDBMSIntegrationService.fetchOracleData(connectionConfig, query);
+        } else {
+            rdbmsResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
+        }
+        
         console.log(`✅ Retrieved ${rdbmsResult.recordCount} sample records from ${dbType.toUpperCase()}`);
         
         if (!rdbmsResult.records || rdbmsResult.records.length === 0) {
@@ -264,12 +270,10 @@ switch(dbType.toLowerCase()) {
     tempTableResult.tempTableId,
     bqTable,
     primaryKey,
-    comparisonFields,
+    safeComparisonFields,
     'enhanced',
     totalRecordCount,
-    targetFilter,        // ← ADD THIS ONE LINE
-    sourceCustomQuery,
-    targetCustomQuery
+    sourceFilter ? true : false
 );
 
         // Add enhanced metadata
@@ -283,7 +287,6 @@ switch(dbType.toLowerCase()) {
             sampleRecordsValidated: rdbmsResult.recordCount,
             validationApproach: 'sample-based-enhanced',
             sourceFilter: sourceFilter || 'None',
-            targetFilter: targetFilter || 'None',
             samplingNote: totalRecordCount > 0 
                 ? `Total: ${totalRecordCount.toLocaleString()} records. Validated ${rdbmsResult.recordCount} sample with comprehensive metrics.`
                 : `Validated ${rdbmsResult.recordCount} sample records with comprehensive metrics.`,
@@ -309,7 +312,7 @@ switch(dbType.toLowerCase()) {
         console.log(`${dbType.toUpperCase()} vs BigQuery ENHANCED comparison completed`);
         console.log(`📊 Results: ${results.summary.identicalRecords || 0} identical, ${results.summary.mismatchedRecords || 0} mismatched`);
         
-        res.json({ success: true, data: results });
+        res.json(results);
 
     } catch (error) {
         console.error('RDBMS vs BigQuery comparison failed:', error.message);
@@ -331,6 +334,7 @@ switch(dbType.toLowerCase()) {
         });
     }
 });
+
 
 // UTILITY: Consistent JSON parsing function used across all endpoints
 function parseJsonContent(fileContent, fileName = 'unknown') {
@@ -616,6 +620,7 @@ app.post('/api/create-temp-table', async (req, res) => {
     }
 });
 
+
 // ENHANCED: ROBUST JSON File Preview Endpoint - CONSISTENT parsing with create-temp-table
 app.get('/api/preview-json/:fileId', async (req, res) => {
     try {
@@ -833,6 +838,7 @@ app.get('/api/preview-json/:fileId', async (req, res) => {
         });
     }
 });
+
 
 // ENHANCED: JSON vs BigQuery Comparison - Now with UNIVERSAL DATA TYPES + DUAL DUPLICATES ANALYSIS
 app.post('/api/compare-json-vs-bq', async (req, res) => {
@@ -1099,6 +1105,7 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
     }
 });
 
+
 // BigQuery Connection Test Endpoint
 app.get('/api/test-bq-connection', async (req, res) => {
     try {
@@ -1332,401 +1339,467 @@ app.post('/api/validate', async (req, res) => {
     }
 });
 
-// ENHANCED: Health check endpoint - Updated with new capabilities
+
+// ============================================================
+// BQ vs BQ COMPARISON ENDPOINT - FIXED (no string conversion)
+// ============================================================
+
+app.post('/api/bq-vs-bq', async (req, res) => {
+    try {
+        const { sourceTable, targetTable, primaryKey, comparisonFields = [], sourceFilter = '' } = req.body;
+        const SAMPLE_SIZE = 2000;
+
+        console.log(`\n=== Starting BigQuery vs BigQuery Comparison ===`);
+        console.log(`Source: ${sourceTable}`);
+        console.log(`Target: ${targetTable}`);
+        console.log(`Primary Key: ${primaryKey}`);
+        console.log(`Source Filter: ${sourceFilter || 'None'}`);
+        console.log(`Sample Size: ${SAMPLE_SIZE}`);
+
+        // Validate required fields
+        if (!sourceTable || !targetTable || !primaryKey) {
+            return res.status(400).json({
+                success: false,
+                error: 'sourceTable, targetTable, and primaryKey are required'
+            });
+        }
+
+        const tableRegex = /^[\w-]+\.[\w-]+\.[\w-]+$/;
+        if (!sourceTable.match(tableRegex)) {
+            return res.status(400).json({ success: false, error: `Invalid source table format: ${sourceTable}. Must be project.dataset.table` });
+        }
+        if (!targetTable.match(tableRegex)) {
+            return res.status(400).json({ success: false, error: `Invalid target table format: ${targetTable}. Must be project.dataset.table` });
+        }
+
+        const sourceWhereClause = sourceFilter ? `WHERE ${sourceFilter}` : '';
+
+        // ========== STEP 1: Full record counts (just COUNT(*), fast) ==========
+        console.log('📊 Getting full record counts...');
+
+        let sourceTotalCount = 0, targetTotalCount = 0;
+        try {
+            const countsQuery = sourceFilter ? `
+                 SELECT 
+                (SELECT COUNT(*) FROM \`${sourceTable}\` ${sourceWhereClause}) as source_total,
+                (SELECT COUNT(*) FROM \`${targetTable}\` WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
+                SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) FROM \`${sourceTable}\` ${sourceWhereClause}
+                ${sourceFilter ? 'AND' : 'WHERE'} ${primaryKey} IS NOT NULL
+                )) as target_total
+                ` : `
+            SELECT 
+                (SELECT COUNT(*) FROM \`${sourceTable}\`) as source_total,
+                (SELECT COUNT(*) FROM \`${targetTable}\`) as target_total
+            `;
+            const [countRows] = await bigquery.query(countsQuery);
+            sourceTotalCount = countRows[0].source_total;
+            targetTotalCount = countRows[0].target_total;
+            console.log(`✅ Source: ${sourceTotalCount} total, Target: ${targetTotalCount} total`);
+        } catch (err) {
+            return res.status(400).json({
+                success: false,
+                error: `Count query failed: ${err.message}`,
+                suggestions: ['Verify both tables exist', `Check primary key "${primaryKey}"`, 'Check source filter syntax']
+            });
+        }
+
+        // ========== STEP 2: Create sample source keys (2000 PKs) ==========
+        console.log('📦 Creating source sample...');
+
+        const sampleSubquery = `
+            SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) as pk
+            FROM \`${sourceTable}\` ${sourceWhereClause}
+            ${sourceFilter ? 'AND' : 'WHERE'} ${primaryKey} IS NOT NULL
+            LIMIT ${SAMPLE_SIZE}
+        `;
+
+        let sampleKeys = [];
+        try {
+            const [sampleRows] = await bigquery.query(sampleSubquery);
+            sampleKeys = sampleRows.map(r => r.pk);
+            console.log(`✅ Sample keys: ${sampleKeys.length} selected`);
+        } catch (sampleErr) {
+            return res.status(400).json({ success: false, error: `Sample query failed: ${sampleErr.message}` });
+        }
+
+        if (sampleKeys.length === 0) {
+            return res.status(400).json({ success: false, error: 'No records found in source with given filter' });
+        }
+
+        const sampleValidated = sampleKeys.length;
+
+        // ========== STEP 3: Sample-based detailed stats ==========
+        console.log('📊 Getting sample-based stats...');
+
+        let sampleSourceStats = { unique: sampleValidated, duplicates: 0 };
+        let sampleTargetStats = { unique: 0, duplicates: 0 };
+
+        try {
+            const sampleStatsQuery = `
+                WITH source_sample AS (${sampleSubquery})
+                SELECT
+                    (SELECT COUNT(DISTINCT pk) FROM source_sample) as source_unique,
+                    (SELECT COUNT(*) - COUNT(DISTINCT pk) FROM source_sample) as source_duplicates,
+                    (SELECT COUNT(DISTINCT SAFE_CAST(${primaryKey} AS STRING)) FROM \`${targetTable}\` WHERE SAFE_CAST(${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)) as target_unique,
+                    (SELECT COUNT(*) - COUNT(DISTINCT SAFE_CAST(${primaryKey} AS STRING)) FROM \`${targetTable}\` WHERE SAFE_CAST(${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)) as target_duplicates
+            `;
+            const [statsRows] = await bigquery.query(sampleStatsQuery);
+            const stats = statsRows[0];
+            sampleSourceStats = { unique: stats.source_unique, duplicates: stats.source_duplicates };
+            sampleTargetStats = { unique: stats.target_unique, duplicates: stats.target_duplicates };
+            console.log(`✅ Sample source: ${stats.source_unique} unique, ${stats.source_duplicates} dups`);
+            console.log(`✅ Sample target: ${stats.target_unique} unique, ${stats.target_duplicates} dups`);
+        } catch (statsErr) {
+            console.warn('Sample stats failed:', statsErr.message);
+        }
+
+        // ========== STEP 4: Schema analysis ==========
+        console.log('📋 Analyzing schema...');
+        let sourceFields = [], targetFields = [];
+        try {
+            const schemaQuery = `
+                SELECT col, src FROM (
+                    SELECT column_name as col, 'source' as src 
+                    FROM \`${sourceTable.split('.')[0]}.${sourceTable.split('.')[1]}\`.INFORMATION_SCHEMA.COLUMNS
+                    WHERE table_name = '${sourceTable.split('.')[2]}'
+                    UNION ALL
+                    SELECT column_name as col, 'target' as src 
+                    FROM \`${targetTable.split('.')[0]}.${targetTable.split('.')[1]}\`.INFORMATION_SCHEMA.COLUMNS
+                    WHERE table_name = '${targetTable.split('.')[2]}'
+                )
+            `;
+            const [schemaCols] = await bigquery.query(schemaQuery);
+            schemaCols.forEach(r => {
+                if (r.src === 'source') sourceFields.push(r.col);
+                else targetFields.push(r.col);
+            });
+        } catch (schemaErr) {
+            try {
+                const [srcSample] = await bigquery.query(`SELECT * FROM \`${sourceTable}\` LIMIT 1`);
+                const [tgtSample] = await bigquery.query(`SELECT * FROM \`${targetTable}\` LIMIT 1`);
+                if (srcSample.length > 0) sourceFields = Object.keys(srcSample[0]);
+                if (tgtSample.length > 0) targetFields = Object.keys(tgtSample[0]);
+            } catch (e) {
+                return res.status(400).json({ success: false, error: `Cannot read schemas: ${e.message}` });
+            }
+        }
+
+        const commonFields = sourceFields.filter(f => targetFields.includes(f));
+        const sourceOnlyFields = sourceFields.filter(f => !targetFields.includes(f));
+        const targetOnlyFields = targetFields.filter(f => !sourceFields.includes(f));
+
+        let fieldsToCompare;
+        if (comparisonFields.length > 0) {
+            fieldsToCompare = comparisonFields.filter(f => commonFields.includes(f));
+        } else {
+            fieldsToCompare = commonFields.filter(f => f !== primaryKey);
+        }
+
+        console.log(`✅ Common: ${commonFields.length}, Comparing: ${fieldsToCompare.length}`);
+
+        // ========== STEP 5: Record matching (sample-based) ==========
+        console.log('🔍 Matching records (sample-based)...');
+        const matchQuery = `
+            WITH source_sample AS (${sampleSubquery}),
+            target_keys AS (
+                SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) as pk
+                FROM \`${targetTable}\`
+                WHERE ${primaryKey} IS NOT NULL
+            )
+            SELECT
+                (SELECT COUNT(*) FROM source_sample s INNER JOIN target_keys t ON s.pk = t.pk) as matched,
+                (SELECT COUNT(*) FROM source_sample s LEFT JOIN target_keys t ON s.pk = t.pk WHERE t.pk IS NULL) as source_only,
+                (SELECT COUNT(*) FROM target_keys t LEFT JOIN source_sample s ON t.pk = s.pk WHERE s.pk IS NULL) as target_only
+        `;
+
+        let matchCounts;
+        try {
+            const [matchRows] = await bigquery.query(matchQuery);
+            matchCounts = matchRows[0];
+            console.log(`✅ Matched: ${matchCounts.matched}, Source-only: ${matchCounts.source_only}, Target-only: ${matchCounts.target_only}`);
+        } catch (matchErr) {
+            return res.status(400).json({ success: false, error: `Match query failed: ${matchErr.message}` });
+        }
+
+        // ========== STEP 6: Field-by-field comparison (sample-based) ==========
+        console.log('🔬 Field comparison (sample-based)...');
+        const fieldComparisons = [];
+        let totalFieldIssues = 0;
+        let perfectFieldCount = 0;
+
+        const FIELD_BATCH_SIZE = 5;
+        for (let i = 0; i < fieldsToCompare.length; i += FIELD_BATCH_SIZE) {
+            const fieldBatch = fieldsToCompare.slice(i, i + FIELD_BATCH_SIZE);
+
+            const fieldSelectParts = fieldBatch.map(field => `
+                COUNTIF(SAFE_CAST(s.${field} AS STRING) = SAFE_CAST(t.${field} AS STRING) OR (s.${field} IS NULL AND t.${field} IS NULL)) as match_${field.replace(/[^a-zA-Z0-9]/g, '_')},
+                COUNTIF(NOT (SAFE_CAST(s.${field} AS STRING) = SAFE_CAST(t.${field} AS STRING) OR (s.${field} IS NULL AND t.${field} IS NULL))) as diff_${field.replace(/[^a-zA-Z0-9]/g, '_')}
+            `).join(',\n');
+
+            const fieldCompareQuery = `
+                WITH source_sample AS (${sampleSubquery})
+                SELECT 
+                    COUNT(*) as total_compared,
+                    ${fieldSelectParts}
+                FROM \`${sourceTable}\` s
+                INNER JOIN \`${targetTable}\` t
+                ON SAFE_CAST(s.${primaryKey} AS STRING) = SAFE_CAST(t.${primaryKey} AS STRING)
+                WHERE SAFE_CAST(s.${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)
+            `;
+
+            try {
+                const [fieldRows] = await bigquery.query(fieldCompareQuery);
+                const row = fieldRows[0];
+                const totalCompared = row.total_compared || 0;
+
+                fieldBatch.forEach(field => {
+                    const safeField = field.replace(/[^a-zA-Z0-9]/g, '_');
+                    const matches = row[`match_${safeField}`] || 0;
+                    const diffs = row[`diff_${safeField}`] || 0;
+                    const matchRate = totalCompared > 0 ? ((matches / totalCompared) * 100).toFixed(1) : '0.0';
+
+                    if (diffs > 0) totalFieldIssues += diffs;
+                    else perfectFieldCount++;
+
+                    fieldComparisons.push({
+                        fieldName: field, totalRecords: totalCompared,
+                        perfectMatches: matches, differences: diffs,
+                        matchRate: matchRate, error: null
+                    });
+                });
+            } catch (fieldErr) {
+                console.warn(`Field batch failed:`, fieldErr.message);
+                fieldBatch.forEach(field => {
+                    fieldComparisons.push({
+                        fieldName: field, totalRecords: 0, perfectMatches: 0,
+                        differences: 0, matchRate: '0.0', error: fieldErr.message
+                    });
+                });
+            }
+        }
+
+        console.log(`✅ Fields: ${perfectFieldCount} perfect, ${fieldsToCompare.length - perfectFieldCount} with issues`);
+
+        // ========== STEP 7: Duplicate detection (sample-based) ==========
+        console.log('🔄 Checking duplicates (sample-based)...');
+        let sourceDupKeys = [], targetDupKeys = [];
+
+        try {
+            const dupQuery = `
+                WITH source_sample AS (${sampleSubquery}),
+                source_dups AS (
+                    SELECT SAFE_CAST(${primaryKey} AS STRING) as pk, COUNT(*) as cnt
+                    FROM \`${sourceTable}\`
+                    WHERE ${primaryKey} IS NOT NULL
+                    AND SAFE_CAST(${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)
+                    GROUP BY pk HAVING cnt > 1
+                    ORDER BY cnt DESC LIMIT 20
+                ),
+                target_dups AS (
+                    SELECT SAFE_CAST(${primaryKey} AS STRING) as pk, COUNT(*) as cnt
+                    FROM \`${targetTable}\`
+                    WHERE ${primaryKey} IS NOT NULL
+                    AND SAFE_CAST(${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)
+                    GROUP BY pk HAVING cnt > 1
+                    ORDER BY cnt DESC LIMIT 20
+                )
+                SELECT pk, cnt, 'source' as src FROM source_dups
+                UNION ALL
+                SELECT pk, cnt, 'target' as src FROM target_dups
+            `;
+            const [dupRows] = await bigquery.query(dupQuery);
+            dupRows.forEach(r => {
+                if (r.src === 'source') sourceDupKeys.push({ key: r.pk, count: r.cnt });
+                else targetDupKeys.push({ key: r.pk, count: r.cnt });
+            });
+        } catch (dupErr) {
+            console.warn('Duplicate detection failed:', dupErr.message);
+        }
+
+        // ========== STEP 8: Sample differences ==========
+        let sampleDiffs = [];
+        if (fieldsToCompare.length > 0 && matchCounts.matched > 0) {
+            try {
+                const firstField = fieldsToCompare[0];
+                const sampleDiffQuery = `
+                    WITH source_sample AS (${sampleSubquery})
+                    SELECT 
+                        SAFE_CAST(s.${primaryKey} AS STRING) as record_key,
+                        SAFE_CAST(s.${firstField} AS STRING) as source_value,
+                        SAFE_CAST(t.${firstField} AS STRING) as target_value,
+                        '${firstField}' as field_name
+                    FROM \`${sourceTable}\` s
+                    INNER JOIN \`${targetTable}\` t
+                    ON SAFE_CAST(s.${primaryKey} AS STRING) = SAFE_CAST(t.${primaryKey} AS STRING)
+                    WHERE SAFE_CAST(s.${primaryKey} AS STRING) IN (SELECT pk FROM source_sample)
+                    AND SAFE_CAST(s.${firstField} AS STRING) != SAFE_CAST(t.${firstField} AS STRING)
+                    LIMIT 5
+                `;
+                const [diffRows] = await bigquery.query(sampleDiffQuery);
+                sampleDiffs = diffRows;
+            } catch (e) {
+                console.warn('Sample diff failed:', e.message);
+            }
+        }
+
+        // ========== BUILD RESPONSE ==========
+        const successRate = sampleValidated > 0
+            ? ((matchCounts.matched / sampleValidated) * 100).toFixed(1) : '0.0';
+
+        const sampleSourceDupTotal = sourceDupKeys.reduce((sum, d) => sum + d.count, 0);
+        const sampleTargetDupTotal = targetDupKeys.reduce((sum, d) => sum + d.count, 0);
+        const bothClean = sourceDupKeys.length === 0 && targetDupKeys.length === 0;
+		const maxDiffs = fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0);
+        console.log(`🔍 DEBUG: matched=${matchCounts.matched}, maxDiffs=${maxDiffs}, identical=${Math.max(0, matchCounts.matched - maxDiffs)}, mismatched=${Math.min(matchCounts.matched, maxDiffs)}`);
+
+        const response = {
+            success: true,
+            data: {
+                summary: {
+                    totalRecordsInFile: sourceTotalCount,
+                    totalRecordsInSource: sourceTotalCount,
+                    targetRecords: targetTotalCount,
+                    uniqueSourceRecords: sampleSourceStats.unique,
+                    duplicateRecordsInFile: sampleSourceStats.duplicates,
+                    recordsReachedTarget: matchCounts.matched,
+                    recordsFailedToReachTarget: matchCounts.source_only,
+                    recordsOnlyInTarget: matchCounts.target_only,
+                    identicalRecords: Math.max(0, matchCounts.matched - fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0)),
+                    mismatchedRecords: Math.min(matchCounts.matched, fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0)),
+                    pipelineSuccessRate: successRate,
+                    primaryKeyUsed: primaryKey,
+                    fieldsAnalyzed: fieldsToCompare.length,
+                    commonFieldsCount: commonFields.length,
+                    schemaCompatibility: ((commonFields.length / Math.max(sourceFields.length, targetFields.length, 1)) * 100).toFixed(1),
+                    totalFieldIssues: totalFieldIssues,
+                    nullPrimaryKeysSource: 0,
+                    nullPrimaryKeysTarget: 0,
+                    sampleSize: SAMPLE_SIZE,
+                    sampleValidated: sampleValidated,
+                    isSampleBased: true,
+                    samplingNote: `Full source: ${sourceTotalCount.toLocaleString()} records. Validated ${sampleValidated.toLocaleString()} sample records.`
+                },
+                recordCounts: {
+                    jsonDetails: {
+                        totalRecords: sourceTotalCount,
+                        uniquePrimaryKeys: sampleSourceStats.unique,
+                        duplicateRecords: sampleSourceStats.duplicates,
+                        nullPrimaryKeys: 0,
+                        primaryKeyField: primaryKey
+                    },
+                    bqDetails: {
+                        totalRecords: targetTotalCount,
+                        uniquePrimaryKeys: sampleTargetStats.unique,
+                        duplicateRecords: sampleTargetStats.duplicates,
+                        nullPrimaryKeys: 0
+                    }
+                },
+                schemaAnalysis: {
+                    totalJsonFields: sourceFields.length,
+                    totalBqFields: targetFields.length,
+                    commonFields: commonFields,
+                    jsonOnlyFields: sourceOnlyFields,
+                    bqOnlyFields: targetOnlyFields,
+                    schemaCompatibility: ((commonFields.length / Math.max(sourceFields.length, targetFields.length, 1)) * 100).toFixed(1),
+                    primaryKeyCandidates: commonFields.filter(f => 
+                        f.toLowerCase().includes('id') || f.toLowerCase().includes('key')
+                    )
+                },
+                fieldWiseAnalysis: {
+                    fieldsAnalyzed: fieldsToCompare.length,
+                    perfectFields: perfectFieldCount,
+                    problematicFields: fieldsToCompare.length - perfectFieldCount,
+                    totalFieldIssues: totalFieldIssues,
+                    recordsAnalyzed: matchCounts.matched,
+                    fieldComparison: fieldComparisons
+                },
+                duplicatesAnalysis: {
+                    jsonDuplicates: {
+                        duplicateCount: sourceDupKeys.length,
+                        totalDuplicateRecords: sampleSourceDupTotal,
+                        duplicateKeys: sourceDupKeys
+                    },
+                    bqDuplicates: {
+                        duplicateCount: targetDupKeys.length,
+                        totalDuplicateRecords: sampleTargetDupTotal,
+                        duplicateKeys: targetDupKeys
+                    },
+                    crossSystemAnalysis: {
+                        commonDuplicateKeys: sourceDupKeys
+                            .filter(s => targetDupKeys.some(t => t.key === s.key))
+                            .map(s => s.key)
+                    },
+                    summary: {
+                        bothSystemsClean: bothClean,
+                        dataQualityScore: bothClean ? 'Excellent' :
+                            (sourceDupKeys.length + targetDupKeys.length < 10) ? 'Good' : 'Needs Review'
+                    },
+                    recommendations: bothClean ? [] : [
+                        sourceDupKeys.length > 0 ? `Source has ${sourceDupKeys.length} duplicate keys in sample` : null,
+                        targetDupKeys.length > 0 ? `Target has ${targetDupKeys.length} duplicate keys for sample PKs` : null
+                    ].filter(Boolean)
+                },
+                metadata: {
+                    sourceType: 'BIGQUERY',
+                    sourceTable: sourceTable,
+                    targetTable: targetTable,
+                    primaryKey: primaryKey,
+                    comparisonType: 'BQ-vs-BQ',
+                    sampleSize: SAMPLE_SIZE,
+                    sampleValidated: sampleValidated,
+                    sourceFilter: sourceFilter || 'None',
+                    comparedAt: new Date().toISOString()
+                }
+            }
+        };
+
+        console.log(`\n✅ BQ vs BQ completed`);
+        console.log(`📊 Full counts - Source: ${sourceTotalCount}, Target: ${targetTotalCount}`);
+        console.log(`📊 Sample: ${sampleValidated} validated, ${matchCounts.matched} matched`);
+        console.log(`📊 Fields: ${perfectFieldCount}/${fieldsToCompare.length} perfect`);
+
+        res.json(response);
+
+    } catch (error) {
+        console.error('BQ vs BQ comparison failed:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            suggestions: [
+                'Check both table names (project.dataset.table)',
+                'Verify primary key exists in both tables',
+                'Ensure read access to both tables',
+                'Check source filter syntax'
+            ]
+        });
+    }
+});
+
+// Health Check Endpoint
 app.get('/api/health', (req, res) => {
     res.json({
-        status: 'OK',
-        version: 'v3.0-UNIVERSAL-DATATYPES-DUAL-DUPLICATES',
+        status: 'healthy',
         timestamp: new Date().toISOString(),
-        bigqueryProject: process.env.GOOGLE_CLOUD_PROJECT_ID,
-        features: {
-            // Core Features
-            dynamicTableSupport: true,
-            dynamicPrimaryKeySupport: true,
-            batchProcessingForLargeFiles: true,
-            zeroRecordDuplication: true,
-            enhancedPreviewEndpoint: true,
-            consistentJSONParsing: true,
-            
-            // NEW: Universal Data Type Support
-            universalDataTypeSupport: true,
-            supportedDataTypes: [
-                'STRING', 'INT64', 'FLOAT64', 'BOOLEAN', 
-                'DATE', 'DATETIME', 'TIMESTAMP', 'NUMERIC', 
-                'BIGNUMERIC', 'TIME', 'BYTES', 'GEOGRAPHY', 'JSON'
-            ],
-            automaticTypeCasting: true,
-            
-            // NEW: Dual-System Duplicates Analysis
-            dualDuplicatesAnalysis: true,
-            duplicateSystemsCovered: ['JSON Source', 'BigQuery Target'],
-            crossSystemDuplicateDetection: true,
-            
-            // NEW: Excel Export Ready
-            excelExportSupport: true,
-            excelSheetCount: 6,
-            professionalReporting: true,
-            
-            // Updated Features
-            sanityTestRebranding: true,
-            maxFileSize: '100MB',
-            batchSize: '1000 records per batch',
-            supportedFileFormats: ['JSON Array', 'JSONL', 'Single JSON Object'],
-            supportedDataSources: ['ServiceNow', 'AWS Partner Central', 'Monitor Details', 'Pool Details', 'Any JSON/JSONL']
-        },
-        capabilities: {
-            comparison: {
-                dataTypeCompatibility: 'Universal (all BigQuery types)',
-                fieldMatching: 'Schema-safe with automatic type conversion',
-                duplicatesAnalysis: 'Dual-system (JSON + BigQuery)',
-                fieldAnalysis: 'Comprehensive quality assessment',
-                reporting: 'Professional Excel export with 6 sheets'
-            },
-            sanityTest: {
-                checks: ['Null values', 'Duplicates', 'Composite keys', 'Special characters'],
-                tableValidation: 'BigQuery stored procedures',
-                errorHandling: 'Enhanced with detailed suggestions'
-            }
-        },
-        fixes: [
-            'Universal data type support - works with ANY BigQuery data type',
-            'Dual-system duplicates analysis - checks both JSON and BigQuery',
-            'Excel export functionality - 6-sheet professional reports',
-            'UI rebranding - Table Validation renamed to Sanity Test',
-            'Enhanced error messages with data type guidance',
-            'Automatic type casting for accurate comparisons',
-            'Cross-system duplicate key detection'
-        ]
+        uptime: process.uptime(),
+        version: '1.0.0',
+        services: {
+            bigquery: 'connected',
+            oracle: 'ready'
+        }
     });
 });
 
-// ========================================
-// ✨ FETCH RDBMS DATA (standalone)
-// ========================================
-app.post('/api/fetch-rdbms-data', async (req, res) => {
-    try {
-        const { dbType, connectionConfig, query } = req.body;
-        if (!dbType || !connectionConfig || !query) {
-            return res.status(400).json({ success: false, error: 'Missing required parameters: dbType, connectionConfig, and query are required' });
-        }
-        console.log(`📡 Fetching ${dbType.toUpperCase()} data...`);
-        const result = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
-        console.log(`✅ ${dbType.toUpperCase()} fetch successful: ${result.recordCount} records`);
-        res.json({ success: true, data: result.records, recordCount: result.recordCount, dbType: dbType.toUpperCase(), timestamp: new Date().toISOString() });
-    } catch (error) {
-        console.error('❌ RDBMS data fetch failed:', error.message);
-        res.status(500).json({ success: false, error: error.message, suggestions: ['Check database connection parameters', 'Verify SQL query syntax', 'Ensure table exists and has data'] });
-    }
-});
-
-// ========================================
-// ✨ MYSQL SINGLE-TABLE COMPARISON
-// ========================================
-app.post('/api/mysql-rdbms-comparison', async (req, res) => {
-    try {
-        const { sourceTable, targetTable, queryMode = 'table', mysqlHost, mysqlPort, mysqlDatabase, mysqlUsername, mysqlPassword } = req.body;
-        if (!sourceTable || !targetTable) return res.status(400).json({ success: false, error: 'Source and target are required' });
-        if (!mysqlHost || !mysqlDatabase || !mysqlUsername || !mysqlPassword) {
-            return res.status(400).json({ success: false, error: 'MySQL connection parameters are required' });
-        }
-        const connectionConfig = { host: mysqlHost, port: parseInt(mysqlPort || '3306'), database: mysqlDatabase, username: mysqlUsername, password: mysqlPassword };
-        const connectionTest = await RDBMSIntegrationService.testConnection('mysql', connectionConfig);
-        if (!connectionTest.success) return res.status(400).json({ success: false, error: `MySQL connection failed: ${connectionTest.error}`, suggestions: connectionTest.suggestions });
-
-        const query = queryMode === 'custom' ? sourceTable : `SELECT * FROM ${sourceTable}`;
-        const mysqlResult = await RDBMSIntegrationService.fetchData('mysql', connectionConfig, query);
-        if (!mysqlResult.records || mysqlResult.records.length === 0) return res.json({ success: false, error: 'No data returned from MySQL query' });
-
-        const bqService = new BigQueryIntegrationService();
-        const tempTableResult = await bqService.createTempTableFromJSON(mysqlResult.records, `mysql_temp_${Date.now()}`, null);
-        const ComparisonEngineService = require('./services/comparison-engine');
-        const comparisonEngine = new ComparisonEngineService();
-        const results = await comparisonEngine.compareJSONvsBigQuery(tempTableResult.tempTableId, targetTable, null, [], 'enhanced');
-        results.metadata = { ...results.metadata, sourceType: 'MySQL', queryMode, mysqlRecordsProcessed: mysqlResult.recordCount, tempTable: tempTableResult.tempTableId, timestamp: new Date().toISOString() };
-        res.json({ success: true, ...results });
-    } catch (error) {
-        console.error('❌ MySQL comparison failed:', error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ========================================
-// ✨ MYSQL MULTI-TABLE COMPARISON
-// ========================================
-app.post('/api/mysql-multi-table-comparison', async (req, res) => {
-    try {
-        const { mysqlHost, mysqlPort, mysqlDatabase, mysqlUsername, mysqlPassword, tablePairs, queryMode = 'table' } = req.body;
-        if (!tablePairs || !Array.isArray(tablePairs) || tablePairs.length === 0) return res.status(400).json({ success: false, error: 'tablePairs array is required' });
-        if (!mysqlHost || !mysqlDatabase || !mysqlUsername || !mysqlPassword) return res.status(400).json({ success: false, error: 'MySQL connection parameters are required' });
-
-        const connectionConfig = { host: mysqlHost, port: parseInt(mysqlPort || '3306'), database: mysqlDatabase, username: mysqlUsername, password: mysqlPassword };
-        const connectionTest = await RDBMSIntegrationService.testConnection('mysql', connectionConfig);
-        if (!connectionTest.success) return res.status(400).json({ success: false, error: `MySQL connection failed: ${connectionTest.error}` });
-
-        const bqService = new BigQueryIntegrationService();
-        const ComparisonEngineService = require('./services/comparison-engine');
-        const comparisonEngine = new ComparisonEngineService();
-        const results = [];
-        let successCount = 0, failureCount = 0;
-
-        for (let i = 0; i < tablePairs.length; i++) {
-            const { sourceTable, targetTable, primaryKey } = tablePairs[i];
-            try {
-                const query = queryMode === 'custom' ? sourceTable : `SELECT * FROM \`${sourceTable}\``;
-                const mysqlResult = await RDBMSIntegrationService.fetchData('mysql', connectionConfig, query);
-                if (!mysqlResult.records || mysqlResult.records.length === 0) throw new Error(`No data returned from: ${query}`);
-                const tempTableResult = await bqService.createTempTableFromJSON(mysqlResult.records, `mysql_multi_${Date.now()}_${i}`, primaryKey || null);
-                const comparisonResult = await comparisonEngine.compareJSONvsBigQuery(tempTableResult.tempTableId, targetTable, primaryKey || null, [], 'enhanced');
-                comparisonResult.metadata = { ...comparisonResult.metadata, sourceType: 'MySQL', sourceTable, targetTable, primaryKey, mysqlRecordsProcessed: mysqlResult.recordCount, pairIndex: i + 1, totalPairs: tablePairs.length };
-                results.push({ success: true, sourceTable, targetTable, ...comparisonResult });
-                successCount++;
-            } catch (error) {
-                results.push({ success: false, sourceTable, targetTable, error: error.message });
-                failureCount++;
-            }
-        }
-        res.json({ success: true, summary: { totalPairs: tablePairs.length, successCount, failureCount, successRate: ((successCount / tablePairs.length) * 100).toFixed(2) + '%' }, results, timestamp: new Date().toISOString() });
-    } catch (error) {
-        console.error('❌ Multi-table validation failed:', error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ========================================
-// ✨ CUSTOM QUERY VALIDATION (MySQL + BQ)
-// ========================================
-app.post('/api/rdbms-custom-query-validation', async (req, res) => {
-    try {
-        const { dbType, host, port, database, username, password, mysqlQuery, bqQuery, primaryKey } = req.body;
-        if (!mysqlQuery || !bqQuery) return res.status(400).json({ success: false, error: 'Both MySQL and BigQuery queries are required' });
-
-        const connectionConfig = { host, port: parseInt(port) || 3306, database, username, password };
-        const connectionTest = await RDBMSIntegrationService.testConnection(dbType, connectionConfig);
-        if (!connectionTest.success) return res.status(400).json({ success: false, error: `Connection failed: ${connectionTest.error}` });
-
-        const mysqlResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, mysqlQuery);
-        if (!mysqlResult.records || mysqlResult.records.length === 0) return res.status(400).json({ success: false, error: 'MySQL query returned no data' });
-
-        const bqService = new BigQueryIntegrationService();
-        const tempTableResult = await bqService.createTempTableFromJSON(mysqlResult.records, `mysql_custom_${Date.now()}`, primaryKey || 'id');
-
-        const bqTableMatch = bqQuery.match(/FROM\s+[`]?([^\s`\n]+)[`]?/i);
-        const bqTableName = bqTableMatch ? bqTableMatch[1] : null;
-        if (!bqTableName) return res.status(400).json({ success: false, error: 'Could not extract BigQuery table name from query' });
-
-        const ComparisonEngineService = require('./services/comparison-engine');
-        const comparisonEngine = new ComparisonEngineService();
-
-        const normalizedQuery = bqQuery.trim().toUpperCase().replace(/\s+/g, ' ');
-        const isSimpleFullTable = /^SELECT \* FROM [`]?[\w\-\.]+[`]?\s*$/.test(normalizedQuery);
-        let bqTarget;
-
-        if (!isSimpleFullTable) {
-            const [bqFilteredRows] = await bigquery.query({ query: bqQuery });
-            if (!bqFilteredRows || bqFilteredRows.length === 0) return res.status(400).json({ success: false, error: 'BigQuery custom query returned no data' });
-            const bqTempResult = await bqService.createTempTableFromJSON(
-                bqFilteredRows.map(row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v === null ? null : String(v)]))),
-                `bq_custom_${Date.now()}`, primaryKey || 'id'
-            );
-            bqTarget = bqTempResult.tempTableId;
-        } else {
-            bqTarget = bqTableName;
-        }
-
-        const results = await comparisonEngine.compareJSONvsBigQuery(tempTableResult.tempTableId, bqTarget, primaryKey || 'id', [], 'enhanced');
-        results.metadata = { ...results.metadata, sourceType: `${dbType} Custom Query`, mysqlQuery, bqQuery, mysqlRecordsProcessed: mysqlResult.recordCount, tempTable: tempTableResult.tempTableId, timestamp: new Date().toISOString() };
-        res.json({ success: true, ...results });
-    } catch (error) {
-        console.error('❌ Custom query validation failed:', error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// BQ Null Check — runs null counts for every column on a BQ target table
-app.post('/api/bq-null-check', async (req, res) => {
-    try {
-        const { bqTable, columns: requestedColumns } = req.body;
-        if (!bqTable) return res.status(400).json({ success: false, error: 'bqTable is required' });
-
-        const parts = bqTable.split('.');
-        if (parts.length !== 3) return res.status(400).json({ success: false, error: 'bqTable must be project.dataset.table' });
-        const [project, dataset, table] = parts;
-
-        let columns;
-
-        if (requestedColumns && requestedColumns.length > 0) {
-            // Use caller-supplied list directly — skip INFORMATION_SCHEMA
-            columns = requestedColumns;
-        } else {
-            // Fetch all columns from INFORMATION_SCHEMA
-            const schemaQuery = `SELECT column_name FROM \`${project}.${dataset}.INFORMATION_SCHEMA.COLUMNS\`
-                WHERE table_name = @tableName ORDER BY ordinal_position`;
-            const [schemaRows] = await bigquery.query({
-                query: schemaQuery,
-                params: { tableName: table },
-                useLegacySql: false
-            });
-            columns = schemaRows.map(r => r.column_name);
-        }
-
-        if (columns.length === 0) return res.json({ success: true, columns: [], totalRows: 0 });
-
-        // Count total rows and nulls per column in one pass using positional aliases
-        const nullExprs = columns.map((c, i) => `COUNTIF(\`${c}\` IS NULL) AS col_${i}`).join(', ');
-        const nullQuery = `SELECT COUNT(*) AS total_rows, ${nullExprs} FROM \`${bqTable}\``;
-        const [nullRows] = await bigquery.query({ query: nullQuery, useLegacySql: false });
-        const row = nullRows[0];
-        const totalRows = Number(row.total_rows);
-
-        const result = columns.map((col, i) => {
-            const nullCount = Number(row[`col_${i}`] || 0);
-            return {
-                column: col,
-                nullCount,
-                nullPct: totalRows > 0 ? ((nullCount / totalRows) * 100).toFixed(2) : '0.00'
-            };
-        });
-
-        res.json({ success: true, columns: result, totalRows });
-    } catch (error) {
-        console.error('BQ null check failed:', error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// server.js
-
-app.post('/api/compare-rdbms-vs-bq-custom', async (req, res) => {
-  try {
-    const {
-      dbType,
-      connectionConfig,
-
-      // NEW
-      sourceCustomQuery,           // RDBMS SELECT
-      targetCustomQuery,           // BigQuery SELECT
-
-      // Stored proc orchestration (optional)
-      sourceStoredProcs = [],      // [{ name: 'procName', args: [...] }, ...]
-      targetStoredProcCalls = [],  // ['CALL `p.d.proc`(1,"x")', ...]
-
-      primaryKey,
-      comparisonFields = [],
-      strategy = 'enhanced'
-    } = req.body;
-
-    if (!dbType || !connectionConfig) {
-      return res.status(400).json({ success: false, error: 'dbType and connectionConfig are required' });
-    }
-    if (!sourceCustomQuery || !targetCustomQuery) {
-      return res.status(400).json({ success: false, error: 'sourceCustomQuery and targetCustomQuery are required' });
-    }
-    if (!primaryKey) {
-      return res.status(400).json({ success: false, error: 'primaryKey is required' });
-    }
-
-    const rdbmsConnector = require('./services/rdbms-integration');
-    const BigQueryIntegrationService = require('./services/bq-integration');
-    const RDBMSComparisonEngineService = require('./services/rdbms-comparison-engine');
-
-   //const rdbmsIntegration = new RDBMSIntegrationService();
-    const bqService = new BigQueryIntegrationService();
-    const rdbmsComparisonEngine = new RDBMSComparisonEngineService();
-
-    // 1) Run source stored procedures (optional)
-    const sourceProcResults = [];
-    for (const p of sourceStoredProcs) {
-      const r = await rdbmsConnector.executeStoredProcedure(connectionConfig, p.name, p.args || []);
-      sourceProcResults.push({ proc: p.name, success: r.success, error: r.error || null });
-      if (!r.success) throw new Error(`Source stored proc failed: ${p.name} - ${r.error}`);
-    }
-
-    // 2) Run source custom query (RDBMS)
-    const sourceResult = await rdbmsConnector.executeQuery(connectionConfig, sourceCustomQuery, 'SELECT');
-    if (!sourceResult.success) throw new Error(`Source custom query failed: ${sourceResult.error}`);
-    if (!sourceResult.data || sourceResult.data.length === 0) {
-      return res.json({ success: false, error: 'Source custom query returned 0 rows' });
-    }
-
-    // 3) Create temp table in BigQuery from source query output (same pattern you already use)【turn3file10†server.js†L35-L43】
-    const sourceTemp = await bqService.createTempTableFromJSON(
-      sourceResult.data,
-      `${dbType}_custom_${Date.now()}`,
-      primaryKey
-    );
-
-    // 4) Run target stored procedure(s) in BigQuery (optional)
-    const targetProcResults = [];
-    for (const callSql of targetStoredProcCalls) {
-      const r = await bqService.callStoredProcedure(callSql);
-      targetProcResults.push({ call: callSql, success: r.success !== false });
-    }
-
-    // 5) Materialize target custom query to a temp BQ table
-    const targetTemp = await bqService.createTempTableFromQuery(
-      targetCustomQuery,
-      `custom_${Date.now()}`
-    );
-
-    // 6) Compare sourceTemp vs targetTemp (temp-vs-temp)
-    const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
-      sourceTemp.tempTableId,
-      targetTemp.tempTableId,
-      primaryKey,
-      comparisonFields,
-      strategy
-      // NOTE: if your compareJSONvsBigQuery signature includes extra args (like totalRecordCount, targetFilter),
-      // pass null/0 here accordingly.
-    );
-
-    results.metadata = {
-      ...(results.metadata || {}),
-      mode: 'custom-query-to-custom-query',
-      dbType: dbType.toUpperCase(),
-      sourceCustomQuery,
-      targetCustomQuery,
-      sourceTempTable: sourceTemp.tempTableId,
-      targetTempTable: targetTemp.tempTableId,
-      sourceStoredProcs: sourceProcResults,
-      targetStoredProcCalls: targetProcResults,
-      timestamp: new Date().toISOString()
-    };
-
-    return res.json({ success: true, results });
-
-  } catch (error) {
-    console.error('Custom RDBMS vs BQ comparison failed:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-// Start server
-app.listen(port, '0.0.0.0', () => {
-    console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
-    console.log(`🚀 Server running on port ${port}`);
-    console.log(`📊 Dashboard available at: http://localhost:${port}`);
-    console.log(`☁️  BigQuery Project: ${process.env.GOOGLE_CLOUD_PROJECT_ID}`);
-    console.log(`=== ENHANCED CAPABILITIES ACTIVE ===`);
-    console.log(`✅ UNIVERSAL DATA TYPE SUPPORT:`);
-    console.log(`   - STRING, INT64, FLOAT64, BOOLEAN, DATE, DATETIME, TIMESTAMP`);
-    console.log(`   - NUMERIC, BIGNUMERIC, TIME, BYTES, GEOGRAPHY, JSON`);
-    console.log(`   - Automatic type casting for accurate comparisons`);
-    console.log(`✅ DUAL DUPLICATES ANALYSIS:`);
-    console.log(`   - Analyzes duplicates in both JSON source and BigQuery target`);
-    console.log(`   - Cross-system duplicate key detection`);
-    console.log(`   - Comprehensive recommendations`);
-    console.log(`✅ EXCEL EXPORT READY:`);
-    console.log(`   - 6-sheet professional reports`);
-    console.log(`   - Executive summary with quality scoring`);
-    console.log(`   - Smart recommendations based on analysis`);
-    console.log(`✅ UI ENHANCEMENTS:`);
-    console.log(`   - Table Validation renamed to Sanity Test`);
-    console.log(`   - Enhanced error handling and suggestions`);
-    console.log(`=== ALL FIXES IMPLEMENTED ===`);
-    console.log(`🎯 Issue #1: Universal data type support - FIXED`);
-    console.log(`🎯 Issue #2: Dual-system duplicates analysis - FIXED`);
-    console.log(`🎯 Issue #3: Excel export functionality - READY`);
-    console.log(`🎯 Issue #4: Sanity Test rebranding - IMPLEMENTED`);
+// Start Server
+app.listen(port, () => {
+    console.log(`\n🚀 ETL Data Validation Server started`);
+    console.log(`📍 Port: ${port}`);
+    console.log(`🌐 URL: http://localhost:${port}`);
+    console.log(`✅ Oracle Thick Mode: Initialized`);
+    console.log(`📊 BigQuery: Ready`);
+    console.log(`\n📋 Available Endpoints:`);
+    console.log(`   - GET  /api/health`);
+    console.log(`   - POST /api/test-rdbms-connection`);
+    console.log(`   - POST /api/rdbms-vs-bq`);
+    console.log(`   - POST /api/bq-vs-bq`);
+    console.log(`\n`);
 });

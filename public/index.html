@@ -1450,6 +1450,10 @@
                 <span class="tab-icon">🗄️</span>
                 <span class="tab-label">RDBMS vs BQ</span>
             </button>
+            <button class="tab-button" onclick="showPage('bq-vs-bq')">
+                <span class="tab-icon">🔄</span>
+                <span class="tab-label">BQ vs BQ</span>
+            </button>
         </div>
 
         <!-- Page 1: Sanity Test -->
@@ -2080,8 +2084,24 @@
                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                     </div>
                     <div>
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Connection Type</label>
+                        <select id="oracle-connection-type" onchange="toggleOracleConnectionFields()"
+                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; background: white;">
+                            <option value="serviceName">Service Name</option>
+                            <option value="sid">SID</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div id="oracle-service-name-container">
                         <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Service Name</label>
                         <input type="text" id="oracle-service" placeholder="ORCL" 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                    </div>
+                    <div id="oracle-sid-container" style="display: none;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">SID</label>
+                        <input type="text" id="oracle-sid" placeholder="ORCL" 
                                style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
                     </div>
                 </div>
@@ -2106,19 +2126,6 @@
                      💡 Enter one table per line to validate multiple tables at once
                      </small>
                 </div>
-
-                <!-- TASK 1: Source Filter for Incremental Validation -->
-                  <div style="margin-bottom: 20px;">
-                       <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
-                         🔍 Source Filter (WHERE clause) 
-                       <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
-                       </label>
-                       <textarea id="oracle-source-filter" placeholder="e.g., CREATED_DATE >= TO_DATE('2024-01-01', 'YYYY-MM-DD')&#10;or: STATUS = 'ACTIVE' AND DEPARTMENT_ID = 10" 
-                       style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
-                       <small style="color: #856404; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #fff3cd; border-radius: 4px; border-left: 3px solid #ffc107;">
-                      💡 Filter Oracle source data for incremental validation (do not include WHERE keyword)
-                       </small>
-                   </div>
 
                 <button id="testOracleConnection" class="btn-secondary" onclick="testDatabaseConnection('oracle')"
                         style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
@@ -2289,6 +2296,99 @@
         </div>
     </div>
 </div>
+
+        <!-- Page 5: BQ vs BQ Comparison -->
+        <div id="bq-vs-bq-page" class="page-content">
+            <div class="page-header">
+                <h2><span class="tab-icon">🔄</span> BigQuery vs BigQuery Comparison</h2>
+                <p>Cross-dataset validation between BigQuery source and target tables</p>
+            </div>
+
+            <div id="bq-vs-bq-config-section">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px;">
+                    <!-- Left Side: BigQuery Source Configuration -->
+                    <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
+                        <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                            🔵 BigQuery Source Configuration
+                        </h3>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Source Dataset</label>
+                            <input type="text" id="bq-source-dataset" placeholder="project.dataset" 
+                                   style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                                Tables will auto-match: project.dataset + table_name
+                            </small>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Source Table(s)</label>
+                            <textarea id="bq-source-tables" placeholder="table_name1&#10;table_name2&#10;table_name3" 
+                                      style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                            <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                                💡 Enter one table per line to validate multiple tables at once. Use short table names (without project.dataset prefix).
+                            </small>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                                🔍 Source Filter (WHERE clause)
+                                <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+                            </label>
+                            <textarea id="bq-source-filter" placeholder="e.g., created_date >= '2024-01-01'&#10;or: status = 'ACTIVE' AND department_id = 10" 
+                                      style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
+                            <small style="color: #dc3545; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #f8d7da; border-radius: 4px; border-left: 3px solid #dc3545;">
+                                ⚠️ Filter source data for incremental validation. Target records will be automatically matched by primary key. (Do not include WHERE keyword)
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Right Side: BigQuery Target Configuration -->
+                    <div style="background: #e8f4fd; padding: 25px; border-radius: 12px; border: 1px solid #bee5eb;">
+                        <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                            🗄️ BigQuery Target Configuration
+                        </h3>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Target Dataset</label>
+                            <input type="text" id="bq-target-dataset" placeholder="project.dataset" 
+                                   style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                                Tables will auto-match: source table_name → target dataset.table_name
+                            </small>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Key(s)</label>
+                            <textarea id="bq-primary-keys" placeholder="obj_id0&#10;bill_id&#10;config_id" 
+                                      style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                            <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                                💡 One primary key per line (must match source tables order)
+                            </small>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Comparison Fields (Optional)</label>
+                            <input type="text" id="bq-comparison-fields" placeholder="field1, field2, field3" 
+                                   style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                                Leave empty to compare all fields, or specify fields to compare. <span style="color: #dc3545;">Note: Automatically disabled for multi-table validation (2+ tables).</span>
+                            </small>
+                        </div>
+
+                        <button class="btn-primary" onclick="startBQvsBQComparison()"
+                                style="width: 100%; padding: 15px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                            🚀 Start BigQuery vs BigQuery Validation
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section - hidden by default, shown after comparison -->
+            <div id="bq-vs-bq-results" class="comparison-results" style="display: none;">
+            </div>
+        </div>
+
     <script>
         let globalComparisonResults = null;
         let currentFileId = null;
@@ -3759,7 +3859,13 @@ function getConnectionData(dbType) {
         case 'oracle':
             data.host = document.getElementById('oracle-host')?.value?.trim() || '';
             data.port = document.getElementById('oracle-port')?.value || 1521;
-            data.service = document.getElementById('oracle-service')?.value?.trim() || '';
+            // Support both SID and Service Name
+            const oracleConnectionType = document.getElementById('oracle-connection-type')?.value || 'serviceName';
+            if (oracleConnectionType === 'sid') {
+                data.sid = document.getElementById('oracle-sid')?.value?.trim() || '';
+            } else {
+                data.serviceName = document.getElementById('oracle-service')?.value?.trim() || '';
+            }
             data.username = document.getElementById('oracle-username')?.value?.trim() || '';
             data.password = document.getElementById('oracle-password')?.value || '';
             break;
@@ -3775,6 +3881,21 @@ function getConnectionData(dbType) {
     }
     
     return data;
+}
+
+// Toggle Oracle SID/Service Name fields based on connection type
+function toggleOracleConnectionFields() {
+    const connectionType = document.getElementById('oracle-connection-type')?.value || 'serviceName';
+    const serviceNameContainer = document.getElementById('oracle-service-name-container');
+    const sidContainer = document.getElementById('oracle-sid-container');
+    
+    if (connectionType === 'sid') {
+        if (serviceNameContainer) serviceNameContainer.style.display = 'none';
+        if (sidContainer) sidContainer.style.display = 'block';
+    } else {
+        if (serviceNameContainer) serviceNameContainer.style.display = 'block';
+        if (sidContainer) sidContainer.style.display = 'none';
+    }
 }
 
 // Test Database Connection - PRODUCTION READY
@@ -3818,12 +3939,17 @@ async function testDatabaseConnection(dbType) {
         const requiredFields = {
             postgresql: ['host', 'port', 'database', 'username', 'password'],
             mysql: ['host', 'port', 'database', 'username', 'password'],
-            oracle: ['host', 'port', 'service', 'username', 'password'],
+            oracle: ['host', 'port', 'username', 'password'], // SID or serviceName checked separately
             sqlserver: ['server', 'port', 'database', 'username', 'password']
         };
         
         const required = requiredFields[dbType] || [];
         const missing = required.filter(field => !connectionData[field] || connectionData[field].toString().trim() === '');
+        
+        // Special validation for Oracle - must have either SID or Service Name
+        if (dbType === 'oracle' && !connectionData.sid && !connectionData.serviceName) {
+            missing.push('SID or Service Name');
+        }
         
         if (missing.length > 0) {
             throw new Error(`Please fill in all ${dbType.toUpperCase()} connection fields: ${missing.join(', ')}`);
@@ -4375,6 +4501,321 @@ function resetRdbmsComparison(dbType) {
         }
     }
 }
+
+// BQ vs BQ Comparison Function
+async function startBQvsBQComparison() {
+    const configSection = document.getElementById('bq-vs-bq-config-section');
+    const resultsSection = document.getElementById('bq-vs-bq-results');
+    
+    // Get input values
+    const sourceDataset = document.getElementById('bq-source-dataset')?.value?.trim() || '';
+    const sourceTablesRaw = document.getElementById('bq-source-tables')?.value?.trim() || '';
+    const sourceTables = sourceTablesRaw.split('\n').map(t => t.trim()).filter(t => t.length > 0);
+    const targetDataset = document.getElementById('bq-target-dataset')?.value?.trim() || '';
+    const primaryKeysRaw = document.getElementById('bq-primary-keys')?.value?.trim() || '';
+    const primaryKeys = primaryKeysRaw.split('\n').map(k => k.trim()).filter(k => k.length > 0);
+    const sourceFilter = document.getElementById('bq-source-filter')?.value?.trim() || '';
+    const comparisonFieldsRaw = document.getElementById('bq-comparison-fields')?.value?.trim() || '';
+    const comparisonFields = comparisonFieldsRaw 
+        ? comparisonFieldsRaw.split(',').map(f => f.trim()).filter(f => f.length > 0)
+        : [];
+    
+    // Validation
+    const missingFields = [];
+    if (!sourceDataset) missingFields.push('Source Dataset');
+    if (sourceTables.length === 0) missingFields.push('Source Table(s)');
+    if (!targetDataset) missingFields.push('Target Dataset');
+    if (primaryKeys.length === 0) missingFields.push('Primary Key(s)');
+    
+    if (missingFields.length > 0) {
+        alert(`Please fill in: ${missingFields.join(', ')}`);
+        return;
+    }
+    
+    // Validate dataset format (project.dataset)
+    const datasetPattern = /^[\w-]+\.[\w-]+$/;
+    if (!datasetPattern.test(sourceDataset)) {
+        alert('Invalid Source Dataset format. Must be: project.dataset');
+        return;
+    }
+    if (!datasetPattern.test(targetDataset)) {
+        alert('Invalid Target Dataset format. Must be: project.dataset');
+        return;
+    }
+    
+    // Hide config, show results
+    if (configSection) configSection.style.display = 'none';
+    if (resultsSection) resultsSection.style.display = 'block';
+    
+    // Process tables
+    const allResults = [];
+    const totalTables = sourceTables.length;
+    
+    // Ignore comparison fields for multi-table
+    const safeComparisonFields = totalTables > 1 ? [] : comparisonFields;
+    
+    for (let i = 0; i < totalTables; i++) {
+        const currentTableName = sourceTables[i];
+        const sourceTable = `${sourceDataset}.${currentTableName}`;
+        const targetTable = `${targetDataset}.${currentTableName}`;
+        const currentPrimaryKey = primaryKeys[i] || primaryKeys[0] || '';
+        
+        // Show loading
+        resultsSection.innerHTML = `
+            <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+                <div class="spinner" style="margin: 0 auto 20px; width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div style="font-size: 22px; font-weight: bold; margin-bottom: 10px;">🔄 Running BQ vs BQ Comparison...</div>
+                <div style="font-size: 16px; margin-bottom: 15px;">Table ${i + 1} of ${totalTables}</div>
+                <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-size: 14px; opacity: 0.9;">Currently processing:</div>
+                    <div style="font-size: 16px; font-weight: bold; margin-top: 5px;">${sourceTable}</div>
+                    <div style="font-size: 13px; opacity: 0.8; margin-top: 5px;">↓</div>
+                    <div style="font-size: 14px; opacity: 0.9;">${targetTable}</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.3); border-radius: 10px; height: 24px; overflow: hidden;">
+                    <div style="background: rgba(255,255,255,0.9); height: 100%; width: ${((i + 1) / totalTables) * 100}%; transition: width 0.5s;"></div>
+                </div>
+            </div>
+            <style>
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            </style>
+        `;
+        
+        try {
+            const response = await fetch('/api/bq-vs-bq', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sourceTable,
+                    targetTable,
+                    primaryKey: currentPrimaryKey,
+                    comparisonFields: safeComparisonFields,
+                    sourceFilter
+                })
+            });
+            
+            const result = await response.json();
+            
+            allResults.push({
+                sourceTable,
+                targetTable,
+                success: result.success,
+                data: result.success ? result : null,
+                error: result.success ? null : result.error
+            });
+            
+        } catch (error) {
+            allResults.push({
+                sourceTable,
+                targetTable,
+                success: false,
+                error: error.message
+            });
+        }
+    }
+    
+    // Display results
+    if (allResults.length === 1) {
+        if (allResults[0].success) {
+            displayRDBMSResults(allResults[0].data, 'bqvsbq', resultsSection);
+        } else {
+            resultsSection.innerHTML = `
+                <div style="color: #721c24; background: #f8d7da; padding: 20px; border-radius: 8px; margin: 20px;">
+                    ❌ <strong>BQ vs BQ Comparison Failed</strong><br>
+                    ${allResults[0].error}
+                    <br><br>
+                    <button class="btn-secondary" onclick="startNewBQvsBQComparison()" style="margin-top: 10px;">
+                        🔄 New Comparison
+                    </button>
+                </div>
+            `;
+        }
+    } else {
+        // Multi-table results
+        displayMultiTableBQResults(allResults, resultsSection);
+    }
+}
+
+function displayMultiTableBQResults(results, container) {
+    console.log('=== DISPLAYING BQ VS BQ MULTI-TABLE RESULTS ===', results.length, 'tables');
+    
+    // Store results globally for export
+    window.multiTableResults = results;
+    window.multiTableDbType = 'bqvsbq';
+    
+    // Calculate summary stats
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.length - successCount;
+    const totalSourceRecords = results.reduce((sum, r) => {
+        if (r.success) {
+            const data = r.data.data || r.data;
+            return sum + parseInt(data.summary?.totalRecordsInSource || data.summary?.sourceTotalCount || 0);
+        }
+        return sum;
+    }, 0);
+    const totalMatches = results.reduce((sum, r) => {
+        if (r.success) {
+            const data = r.data.data || r.data;
+            return sum + parseInt(data.summary?.recordsReachedTarget || data.summary?.identicalRecords || 0);
+        }
+        return sum;
+    }, 0);
+    
+    // Build tabs HTML
+    const tabsHtml = results.map((result, idx) => {
+        const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
+        const statusIcon = result.success ? '✅' : '❌';
+        const activeClass = idx === 0 ? 'active' : '';
+        return `<button class="multi-table-tab ${activeClass}" onclick="showMultiTableTab(${idx})" data-tab="${idx}">
+            ${statusIcon} "${tableName}"
+        </button>`;
+    }).join('');
+    
+    // Build content for each table
+    const contentsHtml = results.map((result, idx) => {
+        const displayStyle = idx === 0 ? 'block' : 'none';
+        const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
+        
+        if (result.success) {
+            const data = result.data.data || result.data;
+            const summary = data.summary || {};
+            const matchRate = summary.pipelineSuccessRate || summary.matchRate || '0';
+            const sourceTotal = summary.totalRecordsInSource || summary.sourceTotalCount || 0;
+            const matches = summary.recordsReachedTarget || summary.identicalRecords || 0;
+            const mismatches = summary.recordsFailedToReachTarget || summary.mismatchedRecords || 0;
+            
+            return `
+                <div class="multi-table-content" id="multi-table-content-${idx}" style="display: ${displayStyle};">
+                    <div style="background: #d4edda; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+                        <h4 style="margin: 0 0 15px 0; color: #155724;">
+                            ✅ Table ${idx + 1}: "${tableName}"
+                        </h4>
+                        <div style="color: #666; margin-bottom: 15px; font-size: 13px;">
+                            <strong>Source:</strong> ${result.sourceTable} → <strong>Target:</strong> ${result.targetTable}
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+                            <div style="background: white; padding: 15px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div style="font-size: 28px; font-weight: bold; color: #007bff;">${sourceTotal.toLocaleString()}</div>
+                                <div style="font-size: 12px; color: #666;">Source Records</div>
+                            </div>
+                            <div style="background: white; padding: 15px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div style="font-size: 28px; font-weight: bold; color: #28a745;">${matches.toLocaleString()}</div>
+                                <div style="font-size: 12px; color: #666;">Matches</div>
+                            </div>
+                            <div style="background: white; padding: 15px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div style="font-size: 28px; font-weight: bold; color: #dc3545;">${mismatches.toLocaleString()}</div>
+                                <div style="font-size: 12px; color: #666;">Mismatches</div>
+                            </div>
+                            <div style="background: white; padding: 15px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div style="font-size: 28px; font-weight: bold; color: #17a2b8;">${matchRate}%</div>
+                                <div style="font-size: 12px; color: #666;">Success Rate</div>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="viewDetailedResults(${idx})" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        📊 View Detailed Analysis
+                    </button>
+                    <button onclick="exportSingleTable(${idx})" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; margin-left: 10px;">
+                        📥 Export This Table
+                    </button>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="multi-table-content" id="multi-table-content-${idx}" style="display: ${displayStyle};">
+                    <div style="background: #f8d7da; padding: 20px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                        <h4 style="margin: 0 0 10px 0; color: #721c24;">❌ Table ${idx + 1}: "${tableName}"</h4>
+                        <div style="color: #666; margin-bottom: 10px; font-size: 13px;">
+                            <strong>Source:</strong> ${result.sourceTable} → <strong>Target:</strong> ${result.targetTable}
+                        </div>
+                        <p style="color: #721c24; margin: 10px 0;">${result.error}</p>
+                    </div>
+                </div>
+            `;
+        }
+    }).join('');
+    
+    // Build export dropdown options
+    const exportOptions = results.filter(r => r.success).map((result, idx) => {
+        const tableName = result.sourceTable.includes('.') ? result.sourceTable.split('.').pop() : result.sourceTable;
+        const actualIdx = results.indexOf(result);
+        return `<option value="${actualIdx}">${tableName}</option>`;
+    }).join('');
+    
+    container.innerHTML = `
+        <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="color: #495057; margin: 0;">📊 BQ vs BQ Multi-Table Validation Results</h3>
+                <button onclick="startNewBQvsBQComparison()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    🔄 New Comparison
+                </button>
+            </div>
+            
+            <!-- Overall Summary -->
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 25px;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; text-align: center; color: white;">
+                    <div style="font-size: 32px; font-weight: bold;">${results.length}</div>
+                    <div style="font-size: 13px; opacity: 0.9;">Total Tables</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 20px; border-radius: 10px; text-align: center; color: white;">
+                    <div style="font-size: 32px; font-weight: bold;">${successCount}</div>
+                    <div style="font-size: 13px; opacity: 0.9;">Successful</div>
+                </div>
+                <div style="background: ${failCount > 0 ? 'linear-gradient(135deg, #eb3349 0%, #f45c43 100%)' : 'linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%)'}; padding: 20px; border-radius: 10px; text-align: center; color: white;">
+                    <div style="font-size: 32px; font-weight: bold;">${failCount}</div>
+                    <div style="font-size: 13px; opacity: 0.9;">Failed</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 20px; border-radius: 10px; text-align: center; color: white;">
+                    <div style="font-size: 32px; font-weight: bold;">${totalSourceRecords.toLocaleString()}</div>
+                    <div style="font-size: 13px; opacity: 0.9;">Total Records</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); padding: 20px; border-radius: 10px; text-align: center; color: white;">
+                    <div style="font-size: 32px; font-weight: bold;">${totalMatches.toLocaleString()}</div>
+                    <div style="font-size: 13px; opacity: 0.9;">Total Matches</div>
+                </div>
+            </div>
+            
+            <!-- Export Dropdown -->
+            <div style="margin-bottom: 20px;">
+                <select id="exportTableSelect" onchange="exportSelectedTable(this.value)" style="padding: 12px 20px; border: 2px solid #28a745; border-radius: 6px; background: white; cursor: pointer; font-size: 14px; min-width: 250px;">
+                    <option value="">📥 Export Results...</option>
+                    <option value="all">📦 Export All Tables (Combined Excel)</option>
+                    <optgroup label="Individual Tables">
+                        ${exportOptions}
+                    </optgroup>
+                </select>
+            </div>
+            
+            <!-- Table Tabs -->
+            <div style="border-bottom: 2px solid #dee2e6; margin-bottom: 20px;">
+                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                    ${tabsHtml}
+                </div>
+            </div>
+            
+            <!-- Table Contents -->
+            ${contentsHtml}
+        </div>
+    `;
+}
+
+function startNewBQvsBQComparison() {
+    const configSection = document.getElementById('bq-vs-bq-config-section');
+    const resultsSection = document.getElementById('bq-vs-bq-results');
+    
+    if (resultsSection) {
+        resultsSection.style.display = 'none';
+        resultsSection.innerHTML = '';
+    }
+    if (configSection) configSection.style.display = 'block';
+    
+    // Scroll to top so user sees the form
+    window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
 async function startRDBMSComparison(dbType) {
     // Get the correct prefix based on database type
     const prefix = dbType === 'postgresql' ? 'pg' : dbType;
@@ -4588,7 +5029,6 @@ if (isCustomQueryMode) {
                 host: connectionConfig.host || connectionConfig.server,
                 port: connectionConfig.port,
                 database: connectionConfig.database,
-                service: connectionConfig.service,
                 username: connectionConfig.username,
                 password: connectionConfig.password,
                 sourceTable: currentSourceTable,
@@ -4598,6 +5038,15 @@ if (isCustomQueryMode) {
                 sourceFilter: sourceFilter,
                 targetFilter: targetFilter
             };
+            
+            // Add Oracle-specific connection identifier (SID or Service Name)
+            if (dbType === 'oracle') {
+                if (connectionConfig.sid) {
+                    requestData.sid = connectionConfig.sid;
+                } else if (connectionConfig.serviceName) {
+                    requestData.serviceName = connectionConfig.serviceName;
+                }
+            }
 
             console.log(`Validating table ${i + 1}/${totalTables}:`, {
                 sourceTable: currentSourceTable,
@@ -5082,8 +5531,16 @@ function viewDetailedResults(tabIndex) {
     if (result && result.success) {
        const dbType = window.multiTableDbType || 'oracle';
        const prefix = dbType === 'postgresql' ? 'pg' : dbType;
-        const resultsDiv = document.getElementById(`${prefix}-comparison-results`) ||
-                   document.getElementById(`${dbType}-comparison-results`);
+       
+       // Handle BQ vs BQ specially
+       let resultsDiv;
+       if (dbType === 'bqvsbq') {
+           resultsDiv = document.getElementById('bq-vs-bq-results');
+       } else {
+           resultsDiv = document.getElementById(`${prefix}-comparison-results`) ||
+                       document.getElementById(`${dbType}-comparison-results`);
+       }
+       
         if (resultsDiv) {
             // Store current multi-table HTML to restore later
             window.multiTableHTML = resultsDiv.innerHTML;
@@ -5100,7 +5557,7 @@ function viewDetailedResults(tabIndex) {
             `;
             
             // Display detailed results with back button
-            displayRDBMSResults(result.data, window.multiTableDbType || 'oracle', resultsDiv);
+            displayRDBMSResults(result.data, dbType, resultsDiv);
             
             // Prepend back button to results
             resultsDiv.innerHTML = backButton + resultsDiv.innerHTML;
@@ -5112,13 +5569,27 @@ function viewDetailedResults(tabIndex) {
 function backToMultiTableSummary() {
    const dbType = window.multiTableDbType || 'oracle';
     const prefix = dbType === 'postgresql' ? 'pg' : dbType;
-    const resultsDiv = document.getElementById(`${prefix}-comparison-results`) ||
-                   document.getElementById(`${dbType}-comparison-results`);
+    
+    // Handle BQ vs BQ specially
+    let resultsDiv;
+    if (dbType === 'bqvsbq') {
+        resultsDiv = document.getElementById('bq-vs-bq-results');
+    } else {
+        resultsDiv = document.getElementById(`${prefix}-comparison-results`) ||
+                    document.getElementById(`${dbType}-comparison-results`);
+    }
+    
     if (resultsDiv && window.multiTableHTML) {
         resultsDiv.innerHTML = window.multiTableHTML;
     }
 }
 function startNewMultiComparison(dbType) {
+    // Handle BQ vs BQ specially
+    if (dbType === 'bqvsbq') {
+        startNewBQvsBQComparison();
+        return;
+    }
+    
     const prefix = dbType === 'postgresql' ? 'pg' : dbType;
 
     const configSection = document.getElementById(`${prefix}-config-section`) ||

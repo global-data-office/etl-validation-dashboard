@@ -446,38 +446,6 @@ class BigQueryIntegrationService {
         return schema;
     }
 
-    /**
-     * Materialize a BigQuery SQL query into a temp table and return its ID.
-     * Used for custom target queries in RDBMS vs BQ comparisons.
-     */
-    async createTempTableFromQuery(sql, tableId) {
-        await this.initializeTempDataset();
-
-        const timestamp = Date.now();
-        const randomSuffix = Math.floor(Math.random() * 1000);
-        const tempTableName = `${this.config.tempTablePrefix}${tableId}_${timestamp}_${randomSuffix}`;
-        const fullTableId = `${process.env.GOOGLE_CLOUD_PROJECT_ID}.${this.config.tempDataset}.${tempTableName}`;
-
-        console.log(`Materializing query into temp table: ${fullTableId}`);
-
-        const createSql = `CREATE TABLE \`${fullTableId}\`
-OPTIONS(expiration_timestamp = TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR))
-AS (${sql})`;
-
-        const [job] = await this.bigquery.createQueryJob({ query: createSql, useLegacySql: false });
-        await job.getQueryResults();
-
-        console.log(`Temp table created from query: ${tempTableName}`);
-
-        return {
-            success: true,
-            tempTableId: fullTableId,
-            tempTableName,
-            fullTableId,
-            approach: 'query-materialization'
-        };
-    }
-
     async cleanupTempTable(tempTableName) {
         try {
             console.log(`Cleaning up temp table: ${tempTableName}`);
