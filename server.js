@@ -1794,6 +1794,123 @@ function validateBigQueryFilter(filterCondition) {
         };
     }
 }
+
+// Proxy API Request endpoint for multi-API functionality
+app.post('/api/proxy-api-request', async (req, res) => {
+    try {
+        const { url, method = 'GET', headers = {}, body } = req.body;
+        
+        if (!url) {
+            return res.status(400).json({ success: false, error: 'URL is required' });
+        }
+        
+        console.log(`Proxying ${method} request to: ${url}`);
+        console.log('Headers being sent:', JSON.stringify(headers, null, 2));
+        
+        const axios = require('axios');
+        
+        const axiosConfig = {
+            method: method,
+            url: url,
+            headers: headers,
+            timeout: 60000
+        };
+        
+        if (body && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+            axiosConfig.data = body;
+        }
+        
+        const response = await axios(axiosConfig);
+        
+        console.log('API Response status:', response.status);
+        res.json({ success: true, data: response.data, status: response.status });
+        
+    } catch (error) {
+        console.error('Proxy API request failed:', error.message);
+        console.error('Error response data:', error.response?.data);
+        const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || error.message;
+        res.status(error.response?.status || 500).json({ 
+            success: false, 
+            error: errorMsg,
+            details: error.response?.data 
+        });
+    }
+});
+
+// API vs BQ Compare endpoint for multi-API functionality
+app.post('/api/api-vs-bq-compare', async (req, res) => {
+    try {
+        const { apiData, bqTable, primaryKey, bqFilter } = req.body;
+        
+        if (!apiData || !bqTable || !primaryKey) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'apiData, bqTable, and primaryKey are required' 
+            });
+        }
+        
+        console.log(`\n=== API vs BQ COMPARISON ===`);
+        console.log(`📊 API Records: ${apiData.length}`);
+        console.log(`🎯 Target BQ Table: ${bqTable}`);
+        console.log(`🔑 Primary Key: ${primaryKey}`);
+        console.log(`🔍 BQ Filter: ${bqFilter || '(none)'}`);
+        
+        // Create temp table from API data
+        const bqService = new BigQueryIntegrationService();
+        const tempTableResult = await bqService.createTempTableFromJSON(
+            apiData,
+            `api_${Date.now()}`,
+            primaryKey
+        );
+        
+        console.log(`✅ Created temp table: ${tempTableResult.tempTableId}`);
+        
+        // Use comparison engine (same as JSON vs BQ)
+        const ComparisonEngineService = require('./services/comparison-engine');
+        const comparisonEngine = new ComparisonEngineService();
+        
+        let results;
+        if (bqFilter) {
+            // Use filtered comparison if filter is provided
+            console.log(`🔍 Using filtered comparison with: ${bqFilter}`);
+            results = await comparisonEngine.compareJSONvsBigQueryWithFilter(
+                tempTableResult.tempTableId,
+                bqTable,
+                primaryKey,
+                [],
+                'enhanced',
+                bqFilter,
+                null
+            );
+        } else {
+            // Use standard comparison without filter
+            results = await comparisonEngine.compareJSONvsBigQuery(
+                tempTableResult.tempTableId,
+                bqTable,
+                primaryKey,
+                [],
+                'enhanced'
+            );
+        }
+        
+        // Add metadata
+        results.metadata = {
+            ...results.metadata,
+            sourceType: 'API',
+            tempTable: tempTableResult.tempTableId,
+            recordsProcessed: apiData.length,
+            bqFilter: bqFilter || null
+        };
+        
+        console.log(`✅ Comparison complete for ${bqTable}`);
+        res.json(results);
+        
+    } catch (error) {
+        console.error('❌ API vs BQ comparison failed:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 app.listen(port, '0.0.0.0', () => {
     console.log(`=== ETL VALIDATION DASHBOARD v3.0 STARTED ===`);
     console.log(`🚀 Server running on port ${port}`);

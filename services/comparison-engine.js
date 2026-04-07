@@ -793,7 +793,15 @@ class ComparisonEngineService {
                         perfectMatches: matches.length,
                         differences: differences.length,
                         matchRate: fieldResult.length > 0 ? ((matches.length / fieldResult.length) * 100).toFixed(1) : '0.0',
-                        sampleDifferences: differences.slice(0, 3),
+                        sampleDifferences: differences.slice(0, 20).map(d => ({
+                            primaryKey: d.record_key,
+                            apiValue: d.json_value,
+                            bqValue: d.bq_value
+                        })),
+                        sampleMatches: matches.slice(0, 10).map(m => ({
+                            primaryKey: m.record_key,
+                            value: m.json_value
+                        })),
                         allComparisons: fieldResult.slice(0, 10),
                         dataTypes: {
                             jsonType: fieldDataTypes.tempType,
@@ -1592,6 +1600,27 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                 }
 
                 const [sampleResult] = await this.bigquery.query(sampleQuery);
+                
+                // Separate matches and differences for samples
+                const sampleMatches = (sampleResult || [])
+                    .filter(r => r.comparison_result === 'MATCH')
+                    .slice(0, 10)
+                    .map(m => ({
+                        primaryKey: m.record_key,
+                        value: m.json_value
+                    }));
+                
+                const sampleDifferences = (sampleResult || [])
+                    .filter(r => r.comparison_result === 'DIFFER')
+                    .slice(0, 20)
+                    .map(d => ({
+                        primaryKey: d.record_key,
+                        apiValue: d.json_value,
+                        bqValue: d.bq_value
+                    }));
+                
+                fieldComparison.sampleMatches = sampleMatches;
+                fieldComparison.sampleDifferences = sampleDifferences;
                 fieldComparison.allComparisons = sampleResult || [];
 
                 fieldComparisons.push(fieldComparison);
