@@ -544,14 +544,18 @@ class ComparisonEngineService {
             const jsonDuplicateRecordCount = jsonDuplicates.reduce((sum, dup) => sum + parseInt(dup.occurrence_count), 0) - jsonDuplicates.length;
             const bqDuplicateRecordCount = bqDuplicates.reduce((sum, dup) => sum + parseInt(dup.occurrence_count), 0) - bqDuplicates.length;
 
-            const jsonDuplicateKeys = new Set(jsonDuplicates.map(dup => dup.duplicate_key));
-            const bqDuplicateKeys = new Set(bqDuplicates.map(dup => dup.duplicate_key));
+            const jsonDuplicateKeys = new Set(jsonDuplicates.map(dup => String(dup.duplicate_key)));
+            const bqDuplicateKeys = new Set(bqDuplicates.map(dup => String(dup.duplicate_key)));
 
             const commonDuplicateKeys = [...jsonDuplicateKeys].filter(key => bqDuplicateKeys.has(key));
             const jsonOnlyDuplicateKeys = [...jsonDuplicateKeys].filter(key => !bqDuplicateKeys.has(key));
             const bqOnlyDuplicateKeys = [...bqDuplicateKeys].filter(key => !jsonDuplicateKeys.has(key));
 
             console.log(`Common duplicate keys: ${commonDuplicateKeys.length}`);
+
+            // Create sample keys for UI display
+            const jsonSampleKeys = jsonDuplicates.slice(0, 20).map(dup => `${dup.duplicate_key} (${dup.occurrence_count}x)`);
+            const bqSampleKeys = bqDuplicates.slice(0, 20).map(dup => `${dup.duplicate_key} (${dup.occurrence_count}x)`);
 
             const recommendations = [];
 
@@ -579,20 +583,28 @@ class ComparisonEngineService {
                 jsonDuplicates: {
                     hasDuplicates: jsonDuplicates.length > 0,
                     duplicateCount: jsonDuplicates.length,
+                    count: jsonDuplicates.length, // alias for UI compatibility
                     totalDuplicateRecords: jsonDuplicateRecordCount,
+                    sampleKeys: jsonSampleKeys, // for UI display
+                    samples: jsonSampleKeys, // alias for UI compatibility
                     duplicateKeys: jsonDuplicates.map(dup => ({
                         key: dup.duplicate_key,
-                        count: parseInt(dup.occurrence_count)
+                        count: parseInt(dup.occurrence_count),
+                        occurrences: parseInt(dup.occurrence_count)
                     }))
                 },
 
                 bqDuplicates: {
                     hasDuplicates: bqDuplicates.length > 0,
                     duplicateCount: bqDuplicates.length,
+                    count: bqDuplicates.length, // alias for UI compatibility
                     totalDuplicateRecords: bqDuplicateRecordCount,
+                    sampleKeys: bqSampleKeys, // for UI display
+                    samples: bqSampleKeys, // alias for UI compatibility
                     duplicateKeys: bqDuplicates.map(dup => ({
                         key: dup.duplicate_key,
-                        count: parseInt(dup.occurrence_count)
+                        count: parseInt(dup.occurrence_count),
+                        occurrences: parseInt(dup.occurrence_count)
                     }))
                 },
 
@@ -618,8 +630,8 @@ class ComparisonEngineService {
         } catch (error) {
             console.error('Complete duplicates analysis failed:', error.message);
             return {
-                jsonDuplicates: { hasDuplicates: false, duplicateCount: 0, totalDuplicateRecords: 0, duplicateKeys: [] },
-                bqDuplicates: { hasDuplicates: false, duplicateCount: 0, totalDuplicateRecords: 0, duplicateKeys: [] },
+                jsonDuplicates: { hasDuplicates: false, duplicateCount: 0, count: 0, totalDuplicateRecords: 0, duplicateKeys: [], sampleKeys: [], samples: [] },
+                bqDuplicates: { hasDuplicates: false, duplicateCount: 0, count: 0, totalDuplicateRecords: 0, duplicateKeys: [], sampleKeys: [], samples: [] },
                 crossSystemAnalysis: { commonDuplicateKeys: [], jsonOnlyDuplicateKeys: [], bqOnlyDuplicateKeys: [] },
                 summary: { totalSystemsWithDuplicates: 0, totalDuplicateKeys: 0, totalDuplicateRecords: 0, bothSystemsClean: true, criticalIssues: 0, dataQualityScore: 'Unknown' },
                 recommendations: [`Duplicates analysis failed: ${error.message}`]
@@ -761,16 +773,20 @@ class ComparisonEngineService {
                     const tempPkCast = this.getCastExpression(`json_table.${primaryKey}`, pkDataTypes.tempType, pkCommonType);
                     const sourcePkCast = this.getCastExpression(`bq_table.${primaryKey}`, pkDataTypes.sourceType, pkCommonType);
 
-                    // FIXED: Field comparison query with universal data type casting
+                    // FIXED: Field comparison query with proper NULL handling
+                    // NULL to NULL is treated as MATCH, not a mismatch
                     const fieldComparisonQuery = `
                         SELECT
                             ${tempPkCast} as record_key,
-                            COALESCE(${tempFieldCast}, 'NULL') as json_value,
-                            COALESCE(${sourceFieldCast}, 'NULL') as bq_value,
+                            ${tempFieldCast} as json_value,
+                            ${sourceFieldCast} as bq_value,
                             CASE
-                                WHEN COALESCE(${tempFieldCast}, 'NULL') =
-                                     COALESCE(${sourceFieldCast}, 'NULL')
-                                THEN 'MATCH'
+                                -- Both NULL = MATCH
+                                WHEN json_table.${field} IS NULL AND bq_table.${field} IS NULL THEN 'MATCH'
+                                -- One NULL, one not = DIFFER
+                                WHEN json_table.${field} IS NULL OR bq_table.${field} IS NULL THEN 'DIFFER'
+                                -- Both not NULL, compare casted values
+                                WHEN ${tempFieldCast} = ${sourceFieldCast} THEN 'MATCH'
                                 ELSE 'DIFFER'
                             END as comparison_result
                         FROM \`${tempTableId}\` json_table
@@ -787,6 +803,12 @@ class ComparisonEngineService {
 
                     console.log(`FIXED: Field ${field} with universal casting: ${matches.length} matches, ${differences.length} differences`);
 
+                    // For sample matches, prefer records with actual values (not both NULL)
+                    const matchesWithValues = matches.filter(m => m.json_value !== null && m.json_value !== 'null' && m.json_value !== '');
+                    const sampleMatchesToShow = matchesWithValues.length > 0 ? matchesWithValues : matches;
+
+                    console.log(`Field ${field}: ${sampleMatchesToShow.length} sample matches to show`);
+
                     fieldComparison.push({
                         fieldName: field,
                         totalRecords: fieldResult.length,
@@ -798,7 +820,7 @@ class ComparisonEngineService {
                             apiValue: d.json_value,
                             bqValue: d.bq_value
                         })),
-                        sampleMatches: matches.slice(0, 10).map(m => ({
+                        sampleMatches: sampleMatchesToShow.slice(0, 10).map(m => ({
                             primaryKey: m.record_key,
                             value: m.json_value
                         })),
@@ -823,6 +845,7 @@ class ComparisonEngineService {
                         matchRate: '0.0',
                         error: `Data type casting failed: ${fieldError.message}`,
                         sampleDifferences: [],
+                        sampleMatches: [],
                         allComparisons: [],
                         dataTypes: {
                             jsonType: 'UNKNOWN',
@@ -1422,6 +1445,7 @@ preprocessFilter(filterCondition) {
 /**
  * FIXED: Enhanced getFilteredFieldWiseAnalysis with proper subquery handling
  * Replace your existing getFilteredFieldWiseAnalysis method with this version
+ * UPDATED: NULL to NULL is now treated as a MATCH, not a mismatch
  */
 async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey, comparisonFields) {
     try {
@@ -1480,6 +1504,7 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                 console.log(`Analyzing field: ${fieldName} with BigQuery filtering...`);
 
                 // FIXED: Use proper CTE structure with filtered data
+                // UPDATED: NULL to NULL is treated as MATCH using COALESCE or IS NOT DISTINCT FROM logic
                 let comparisonQuery;
 
                 if (filterCondition) {
@@ -1496,6 +1521,11 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                                 CAST(t.${fieldName} AS STRING) as json_value,
                                 CAST(s.${fieldName} AS STRING) as bq_value,
                                 CASE
+                                    -- Both NULL = MATCH
+                                    WHEN t.${fieldName} IS NULL AND s.${fieldName} IS NULL THEN 'MATCH'
+                                    -- One NULL, one not = DIFFER
+                                    WHEN t.${fieldName} IS NULL OR s.${fieldName} IS NULL THEN 'DIFFER'
+                                    -- Both not NULL, compare values
                                     WHEN CAST(t.${fieldName} AS STRING) = CAST(s.${fieldName} AS STRING) THEN 'MATCH'
                                     ELSE 'DIFFER'
                                 END as comparison_result
@@ -1510,7 +1540,7 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                             COUNT(*) as total_records,
                             COUNTIF(comparison_result = 'MATCH') as perfect_matches,
                             COUNTIF(comparison_result = 'DIFFER') as differences,
-                            ROUND(COUNTIF(comparison_result = 'MATCH') * 100.0 / COUNT(*), 2) as match_rate
+                            ROUND(COUNTIF(comparison_result = 'MATCH') * 100.0 / NULLIF(COUNT(*), 0), 2) as match_rate
                         FROM comparison_data
                     `;
                 } else {
@@ -1522,6 +1552,11 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                                 CAST(t.${fieldName} AS STRING) as json_value,
                                 CAST(s.${fieldName} AS STRING) as bq_value,
                                 CASE
+                                    -- Both NULL = MATCH
+                                    WHEN t.${fieldName} IS NULL AND s.${fieldName} IS NULL THEN 'MATCH'
+                                    -- One NULL, one not = DIFFER
+                                    WHEN t.${fieldName} IS NULL OR s.${fieldName} IS NULL THEN 'DIFFER'
+                                    -- Both not NULL, compare values
                                     WHEN CAST(t.${fieldName} AS STRING) = CAST(s.${fieldName} AS STRING) THEN 'MATCH'
                                     ELSE 'DIFFER'
                                 END as comparison_result
@@ -1536,7 +1571,7 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                             COUNT(*) as total_records,
                             COUNTIF(comparison_result = 'MATCH') as perfect_matches,
                             COUNTIF(comparison_result = 'DIFFER') as differences,
-                            ROUND(COUNTIF(comparison_result = 'MATCH') * 100.0 / COUNT(*), 2) as match_rate
+                            ROUND(COUNTIF(comparison_result = 'MATCH') * 100.0 / NULLIF(COUNT(*), 0), 2) as match_rate
                         FROM comparison_data
                     `;
                 }
@@ -1553,7 +1588,7 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                     filterApplied: !!filterCondition
                 };
 
-                // Get sample comparisons using the same CTE approach
+                // Get sample comparisons - ONLY show actual differences (not NULL to NULL)
                 let sampleQuery;
 
                 if (filterCondition) {
@@ -1568,6 +1603,8 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                             CAST(t.${fieldName} AS STRING) as json_value,
                             CAST(s.${fieldName} AS STRING) as bq_value,
                             CASE
+                                WHEN t.${fieldName} IS NULL AND s.${fieldName} IS NULL THEN 'MATCH'
+                                WHEN t.${fieldName} IS NULL OR s.${fieldName} IS NULL THEN 'DIFFER'
                                 WHEN CAST(t.${fieldName} AS STRING) = CAST(s.${fieldName} AS STRING) THEN 'MATCH'
                                 ELSE 'DIFFER'
                             END as comparison_result
@@ -1577,7 +1614,7 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                         WHERE t.${primaryKey} IS NOT NULL
                         AND s.${primaryKey} IS NOT NULL
                         ORDER BY comparison_result DESC
-                        LIMIT 20
+                        LIMIT 50
                     `;
                 } else {
                     sampleQuery = `
@@ -1586,6 +1623,8 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                             CAST(t.${fieldName} AS STRING) as json_value,
                             CAST(s.${fieldName} AS STRING) as bq_value,
                             CASE
+                                WHEN t.${fieldName} IS NULL AND s.${fieldName} IS NULL THEN 'MATCH'
+                                WHEN t.${fieldName} IS NULL OR s.${fieldName} IS NULL THEN 'DIFFER'
                                 WHEN CAST(t.${fieldName} AS STRING) = CAST(s.${fieldName} AS STRING) THEN 'MATCH'
                                 ELSE 'DIFFER'
                             END as comparison_result
@@ -1595,21 +1634,26 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                         WHERE t.${primaryKey} IS NOT NULL
                         AND s.${primaryKey} IS NOT NULL
                         ORDER BY comparison_result DESC
-                        LIMIT 20
+                        LIMIT 50
                     `;
                 }
 
                 const [sampleResult] = await this.bigquery.query(sampleQuery);
                 
                 // Separate matches and differences for samples
-                const sampleMatches = (sampleResult || [])
-                    .filter(r => r.comparison_result === 'MATCH')
+                // For matches, show records that have actual values (prefer non-null values for display)
+                const allMatches = (sampleResult || []).filter(r => r.comparison_result === 'MATCH');
+                const matchesWithValues = allMatches.filter(r => r.json_value !== null && r.json_value !== 'null' && r.json_value !== '');
+                const sampleMatchesToUse = matchesWithValues.length > 0 ? matchesWithValues : allMatches;
+                
+                const sampleMatches = sampleMatchesToUse
                     .slice(0, 10)
                     .map(m => ({
                         primaryKey: m.record_key,
                         value: m.json_value
                     }));
                 
+                // For differences, only show actual value differences
                 const sampleDifferences = (sampleResult || [])
                     .filter(r => r.comparison_result === 'DIFFER')
                     .slice(0, 20)
@@ -1619,6 +1663,8 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                         bqValue: d.bq_value
                     }));
                 
+                console.log(`Field ${fieldName}: ${sampleMatches.length} sample matches, ${sampleDifferences.length} sample differences`);
+
                 fieldComparison.sampleMatches = sampleMatches;
                 fieldComparison.sampleDifferences = sampleDifferences;
                 fieldComparison.allComparisons = sampleResult || [];
@@ -1650,6 +1696,7 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
         return {
             fieldsAnalyzed: fieldsToCompare.length,
             fieldComparison: fieldComparisons,
+            fieldResults: fieldComparisons, // alias for UI compatibility
             perfectFields: perfectFields,
             problematicFields: problematicFields,
             totalFieldIssues: totalIssues,
@@ -1670,86 +1717,95 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
     async getFilteredDuplicatesAnalysis(tempTableId, filteredSourceQuery, primaryKey) {
         try {
             console.log('Running filtered duplicates analysis...');
+            console.log(`Primary key for duplicates check: ${primaryKey}`);
 
-            // API/JSON duplicates (unchanged)
+            // API/JSON duplicates - get both count and sample keys
             const jsonDuplicatesQuery = `
                 SELECT
-                    COUNT(*) as duplicate_count,
-                    SUM(duplicate_records) as total_duplicate_records
-                FROM (
-                    SELECT
-                        CAST(${primaryKey} AS STRING) as key_val,
-                        COUNT(*) - 1 as duplicate_records
-                    FROM \`${tempTableId}\`
-                    WHERE ${primaryKey} IS NOT NULL
-                    GROUP BY CAST(${primaryKey} AS STRING)
-                    HAVING COUNT(*) > 1
-                )
+                    CAST(${primaryKey} AS STRING) as duplicate_key,
+                    COUNT(*) as occurrence_count
+                FROM \`${tempTableId}\`
+                WHERE ${primaryKey} IS NOT NULL
+                GROUP BY CAST(${primaryKey} AS STRING)
+                HAVING COUNT(*) > 1
+                ORDER BY COUNT(*) DESC
+                LIMIT 100
             `;
 
-            // BigQuery duplicates (with filtering applied)
+            // BigQuery duplicates (with filtering applied) - get both count and sample keys
             const bqDuplicatesQuery = `
                 SELECT
-                    COUNT(*) as duplicate_count,
-                    SUM(duplicate_records)
-                    as total_duplicate_records
-                FROM (
-                    SELECT
-                        CAST(${primaryKey} AS STRING) as key_val,
-                        COUNT(*) - 1 as duplicate_records
-                    FROM ${filteredSourceQuery}
-                    WHERE ${primaryKey} IS NOT NULL
-                    GROUP BY CAST(${primaryKey} AS STRING)
-                    HAVING COUNT(*) > 1
-                )
+                    CAST(${primaryKey} AS STRING) as duplicate_key,
+                    COUNT(*) as occurrence_count
+                FROM ${filteredSourceQuery}
+                WHERE ${primaryKey} IS NOT NULL
+                GROUP BY CAST(${primaryKey} AS STRING)
+                HAVING COUNT(*) > 1
+                ORDER BY COUNT(*) DESC
+                LIMIT 100
             `;
+
+            console.log('JSON duplicates query:', jsonDuplicatesQuery);
+            console.log('BQ duplicates query:', bqDuplicatesQuery);
 
             const [jsonDuplicatesResult] = await this.bigquery.query(jsonDuplicatesQuery);
             const [bqDuplicatesResult] = await this.bigquery.query(bqDuplicatesQuery);
 
+            console.log(`JSON duplicates found: ${jsonDuplicatesResult.length}`);
+            console.log(`BQ duplicates found: ${bqDuplicatesResult.length}`);
+
+            // Calculate totals from detailed results
+            const jsonDuplicateCount = jsonDuplicatesResult.length;
+            const jsonTotalDuplicateRecords = jsonDuplicatesResult.reduce((sum, dup) => sum + parseInt(dup.occurrence_count) - 1, 0);
+            const jsonSampleKeys = jsonDuplicatesResult.slice(0, 20).map(dup => `${dup.duplicate_key} (${dup.occurrence_count}x)`);
+
+            const bqDuplicateCount = bqDuplicatesResult.length;
+            const bqTotalDuplicateRecords = bqDuplicatesResult.reduce((sum, dup) => sum + parseInt(dup.occurrence_count) - 1, 0);
+            const bqSampleKeys = bqDuplicatesResult.slice(0, 20).map(dup => `${dup.duplicate_key} (${dup.occurrence_count}x)`);
+
             const jsonDuplicates = {
-                duplicateCount: parseInt(jsonDuplicatesResult[0]?.duplicate_count || 0),
-                totalDuplicateRecords: parseInt(jsonDuplicatesResult[0]?.total_duplicate_records || 0)
+                duplicateCount: jsonDuplicateCount,
+                count: jsonDuplicateCount, // alias for UI compatibility
+                totalDuplicateRecords: jsonTotalDuplicateRecords,
+                sampleKeys: jsonSampleKeys,
+                samples: jsonSampleKeys, // alias for UI compatibility
+                duplicateKeys: jsonDuplicatesResult.map(dup => ({
+                    key: dup.duplicate_key,
+                    occurrences: parseInt(dup.occurrence_count)
+                }))
             };
 
             const bqDuplicates = {
-                duplicateCount: parseInt(bqDuplicatesResult[0]?.duplicate_count || 0),
-                totalDuplicateRecords: parseInt(bqDuplicatesResult[0]?.total_duplicate_records || 0),
-                filterApplied: true
+                duplicateCount: bqDuplicateCount,
+                count: bqDuplicateCount, // alias for UI compatibility
+                totalDuplicateRecords: bqTotalDuplicateRecords,
+                sampleKeys: bqSampleKeys,
+                samples: bqSampleKeys, // alias for UI compatibility
+                filterApplied: true,
+                duplicateKeys: bqDuplicatesResult.map(dup => ({
+                    key: dup.duplicate_key,
+                    occurrences: parseInt(dup.occurrence_count)
+                }))
             };
 
             // Cross-system duplicate analysis (with filtered BigQuery data)
-            const crossSystemQuery = `
-                SELECT
-                    COUNT(*) as common_duplicate_keys
-                FROM (
-                    SELECT CAST(${primaryKey} AS STRING) as key_val
-                    FROM \`${tempTableId}\`
-                    WHERE ${primaryKey} IS NOT NULL
-                    GROUP BY CAST(${primaryKey} AS STRING)
-                    HAVING COUNT(*) > 1
-                ) json_dups
-                INNER JOIN (
-                    SELECT CAST(${primaryKey} AS STRING) as key_val
-                    FROM ${filteredSourceQuery}
-                    WHERE ${primaryKey} IS NOT NULL
-                    GROUP BY CAST(${primaryKey} AS STRING)
-                    HAVING COUNT(*) > 1
-                ) bq_dups
-                ON json_dups.key_val = bq_dups.key_val
-            `;
-
-            const [crossSystemResult] = await this.bigquery.query(crossSystemQuery);
+            const jsonDupKeys = new Set(jsonDuplicatesResult.map(d => d.duplicate_key));
+            const bqDupKeys = new Set(bqDuplicatesResult.map(d => d.duplicate_key));
+            const commonDuplicateKeys = [...jsonDupKeys].filter(k => bqDupKeys.has(k));
 
             const crossSystemAnalysis = {
-                commonDuplicateKeys: [],
-                commonDuplicateCount: parseInt(crossSystemResult[0]?.common_duplicate_keys || 0),
+                commonDuplicateKeys: commonDuplicateKeys.slice(0, 20),
+                commonDuplicateCount: commonDuplicateKeys.length,
+                jsonOnlyDuplicateKeys: [...jsonDupKeys].filter(k => !bqDupKeys.has(k)).slice(0, 20),
+                bqOnlyDuplicateKeys: [...bqDupKeys].filter(k => !jsonDupKeys.has(k)).slice(0, 20),
                 filterApplied: true
             };
 
-            const bothSystemsClean = jsonDuplicates.duplicateCount === 0 && bqDuplicates.duplicateCount === 0;
+            const bothSystemsClean = jsonDuplicateCount === 0 && bqDuplicateCount === 0;
             const dataQualityScore = bothSystemsClean ? 'Excellent' :
-                                    (jsonDuplicates.duplicateCount + bqDuplicates.duplicateCount < 5) ? 'Good' : 'Needs Attention';
+                                    (jsonDuplicateCount + bqDuplicateCount < 5) ? 'Good' : 'Needs Attention';
+
+            console.log(`Duplicates summary - JSON: ${jsonDuplicateCount}, BQ: ${bqDuplicateCount}, Common: ${commonDuplicateKeys.length}`);
 
             return {
                 jsonDuplicates: jsonDuplicates,
@@ -1758,15 +1814,17 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                 summary: {
                     bothSystemsClean: bothSystemsClean,
                     dataQualityScore: dataQualityScore,
+                    totalDuplicateKeys: jsonDuplicateCount + bqDuplicateCount,
+                    totalDuplicateRecords: jsonTotalDuplicateRecords + bqTotalDuplicateRecords,
                     filterContext: 'BigQuery duplicates analysis performed on filtered data'
                 }
             };
 
         } catch (error) {
-        console.error('Filtered duplicates analysis failed:', error.message);
-        throw error;
+            console.error('Filtered duplicates analysis failed:', error.message);
+            throw error;
+        }
     }
-}
 
     /**
      * Get missing records analysis with BigQuery filtering applied
