@@ -2012,11 +2012,11 @@
                         </div>
 
                         <div style="margin-bottom: 15px;">
-                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Keys (one per line)</label>
-                            <textarea id="multi-api-primary-keys" placeholder="id&#10;id&#10;id&#10;flag" 
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Keys (one per line, supports composite keys)</label>
+                            <textarea id="multi-api-primary-keys" placeholder="id&#10;account_id,sitekey&#10;zone_id&#10;flag" 
                                       style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
                             <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
-                                💡 One primary key per line (must match API endpoints order)
+                                💡 One primary key per line. For composite keys, use comma-separated fields (e.g., <code>account_id,zone_id</code>)
                             </small>
                         </div>
 

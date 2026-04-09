@@ -152,6 +152,73 @@ class ComparisonEngineService {
     }
 
     /**
+     * Check if primary key is composite (multiple columns)
+     */
+    isCompositeKey(primaryKey) {
+        return primaryKey && primaryKey.includes(',');
+    }
+
+    /**
+     * Parse composite primary key into array of column names
+     */
+    parseCompositeKey(primaryKey) {
+        if (!primaryKey) return [];
+        return primaryKey.split(',').map(k => k.trim()).filter(k => k);
+    }
+
+    /**
+     * Generate SQL expression for composite key comparison
+     * Creates a concatenated string key from multiple columns
+     * @param {string} primaryKey - Single key or comma-separated composite key
+     * @param {string} tableAlias - Table alias (e.g., 't', 's', 'json_table')
+     * @returns {string} SQL expression for the key
+     */
+    getCompositeKeyExpression(primaryKey, tableAlias = '') {
+        const keys = this.parseCompositeKey(primaryKey);
+        const prefix = tableAlias ? `${tableAlias}.` : '';
+        
+        if (keys.length === 1) {
+            // Single key - just cast to string
+            return `CAST(${prefix}${keys[0]} AS STRING)`;
+        }
+        
+        // Composite key - concatenate with delimiter
+        const keyParts = keys.map(k => `COALESCE(CAST(${prefix}${k} AS STRING), '')`);
+        return `CONCAT(${keyParts.join(", '||', ")})`;
+    }
+
+    /**
+     * Generate SQL WHERE clause for composite key IS NOT NULL check
+     * @param {string} primaryKey - Single key or comma-separated composite key
+     * @param {string} tableAlias - Table alias (optional)
+     * @returns {string} SQL WHERE clause condition
+     */
+    getCompositeKeyNotNullCondition(primaryKey, tableAlias = '') {
+        const keys = this.parseCompositeKey(primaryKey);
+        const prefix = tableAlias ? `${tableAlias}.` : '';
+        
+        return keys.map(k => `${prefix}${k} IS NOT NULL`).join(' AND ');
+    }
+
+    /**
+     * Generate SQL GROUP BY clause for composite key
+     * @param {string} primaryKey - Single key or comma-separated composite key
+     * @param {string} tableAlias - Table alias (optional)
+     * @returns {string} SQL expression for GROUP BY
+     */
+    getCompositeKeyGroupBy(primaryKey, tableAlias = '') {
+        const keys = this.parseCompositeKey(primaryKey);
+        const prefix = tableAlias ? `${tableAlias}.` : '';
+        
+        if (keys.length === 1) {
+            return `CAST(${prefix}${keys[0]} AS STRING)`;
+        }
+        
+        // For composite keys, group by the concatenated expression
+        return this.getCompositeKeyExpression(primaryKey, tableAlias);
+    }
+
+    /**
      * Get common fields with proper field detection
      */
     async getCommonFields(tempTableId, sourceTableReference) {
@@ -263,6 +330,8 @@ class ComparisonEngineService {
                     bqOnlyFields: bqFields.filter(bf =>
                         !caseInsensitiveMatches.some(cf => cf.toLowerCase() === bf.toLowerCase())
                     ),
+                    jsonFields: jsonFields, // All fields from API/JSON temp table
+                    bqFields: bqFields, // All fields from BigQuery table
                     primaryKeyCandidates: caseInsensitiveMatches.filter(field => {
                         const lowerField = field.toLowerCase();
                         return lowerField.includes('id') || lowerField.includes('arn');
@@ -281,6 +350,8 @@ class ComparisonEngineService {
             commonFields: commonFields,
             jsonOnlyFields: jsonOnlyFields,
             bqOnlyFields: bqOnlyFields,
+            jsonFields: jsonFields, // All fields from API/JSON temp table
+            bqFields: bqFields, // All fields from BigQuery table
             primaryKeyCandidates: primaryKeyCandidates,
             totalJsonFields: jsonFields.length,
             totalBqFields: bqFields.length,
@@ -1032,6 +1103,35 @@ class ComparisonEngineService {
             }
         }
 
+        // NEW: Validate that all primary key columns exist in BOTH tables
+        const pkColumns = this.parseCompositeKey(primaryKey);
+        console.log(`Validating primary key columns: [${pkColumns.join(', ')}]`);
+        
+        // Get schema from both tables
+        const schemaInfo = await this.getCommonFields(tempTableId, sourceTable);
+        const tempFields = new Set(schemaInfo.jsonFields || []);
+        const bqFields = new Set(schemaInfo.bqFields || []);
+        const commonFields = new Set(schemaInfo.commonFields || []);
+        
+        // Check each primary key column
+        const missingFromTemp = pkColumns.filter(col => !tempFields.has(col));
+        const missingFromBQ = pkColumns.filter(col => !bqFields.has(col));
+        
+        if (missingFromTemp.length > 0) {
+            const availableInBoth = [...commonFields].slice(0, 10).join(', ');
+            throw new Error(`Primary key column(s) '${missingFromTemp.join(', ')}' not found in API data. ` +
+                `These columns exist in BigQuery but not in the API response. ` +
+                `Available common fields: ${availableInBoth}. ` +
+                `Suggestion: Use only columns that exist in both API response and BigQuery table.`);
+        }
+        
+        if (missingFromBQ.length > 0) {
+            throw new Error(`Primary key column(s) '${missingFromBQ.join(', ')}' not found in BigQuery table. ` +
+                `Suggestion: Check the column names in your BigQuery table.`);
+        }
+        
+        console.log(`All primary key columns validated: [${pkColumns.join(', ')}]`);
+
         // FIXED: Build the filtered source table query with proper error handling
         // NEW: Pass unnestField for nested array support
         const filteredSourceQuery = this.buildFilteredSourceQuery(sourceTable, processedFilter, unnestField);
@@ -1130,7 +1230,7 @@ async validateFilterAgainstTable(sourceTable, filterCondition) {
             };
         }
 
-        const trimmedFilter = filterCondition.trim();
+        let trimmedFilter = filterCondition.trim();
 
         // FIXED: Basic syntax validation before attempting BigQuery execution
         if (trimmedFilter.toLowerCase().startsWith('where')) {
@@ -1141,11 +1241,38 @@ async validateFilterAgainstTable(sourceTable, filterCondition) {
             };
         }
 
-        // Check for obviously problematic patterns
-        if (trimmedFilter.includes(';;') || trimmedFilter.includes('--') || trimmedFilter.match(/['"]\s*['"]/)) {
+        // FIXED: Check for mismatched quotes and try to auto-fix
+        const singleQuoteCount = (trimmedFilter.match(/'/g) || []).length;
+        const doubleQuoteCount = (trimmedFilter.match(/"/g) || []).length;
+        
+        // Check for mismatched quote types (e.g., ='value" instead of ='value')
+        if (trimmedFilter.match(/='[^']*"/g) || trimmedFilter.match(/="[^"]*'/g)) {
+            console.warn('Detected mismatched quote types in filter, attempting to fix...');
+            // Replace double quotes with single quotes for consistency
+            trimmedFilter = trimmedFilter.replace(/"/g, "'");
+            console.log(`Auto-fixed filter: ${trimmedFilter}`);
+        }
+        
+        // Check for unbalanced quotes
+        if (singleQuoteCount % 2 !== 0) {
+            // Try to fix by adding missing quote at the end
+            if (trimmedFilter.match(/='[^']*$/)) {
+                trimmedFilter = trimmedFilter + "'";
+                console.log(`Auto-fixed missing closing quote: ${trimmedFilter}`);
+            } else {
+                return {
+                    isValid: false,
+                    error: `Unbalanced single quotes in filter condition. Found ${singleQuoteCount} single quote(s).`,
+                    suggestion: `Check your filter: "${filterCondition}". Make sure all string values are properly quoted with matching quotes.`
+                };
+            }
+        }
+
+        // Only check for dangerous patterns, not just adjacent quotes
+        if (trimmedFilter.includes(';;') || trimmedFilter.includes('--')) {
             return {
                 isValid: false,
-                error: 'Filter contains potentially problematic syntax. Please check for typos or invalid SQL.',
+                error: 'Filter contains potentially dangerous SQL syntax (;; or --).',
                 suggestion: 'Use standard SQL syntax: field_name = \'value\' AND other_field > 100'
             };
         }
@@ -1175,12 +1302,16 @@ async validateFilterAgainstTable(sourceTable, filterCondition) {
 
         console.log(`Filter validation: ${filteredCount} records match the filter condition`);
 
+        // Check if filter was auto-corrected
+        const wasAutoCorrected = trimmedFilter !== filterCondition.trim();
+
         if (filteredCount === 0) {
             console.warn('Filter condition returns no records - this may not be intended');
             return {
                 isValid: true,
                 warning: `Filter condition "${trimmedFilter}" returns 0 records from ${sourceTable}`,
                 filteredCount: 0,
+                correctedFilter: wasAutoCorrected ? trimmedFilter : null,
                 message: 'Filter is syntactically valid but matches no records'
             };
         }
@@ -1188,6 +1319,7 @@ async validateFilterAgainstTable(sourceTable, filterCondition) {
         return {
             isValid: true,
             filteredCount: filteredCount,
+            correctedFilter: wasAutoCorrected ? trimmedFilter : null,
             message: `Filter validated successfully - ${filteredCount} records match the condition "${trimmedFilter}"`
         };
 
@@ -1316,10 +1448,12 @@ preprocessFilter(filterCondition) {
 
     /**
      * Get record counts with BigQuery filtering applied
+     * UPDATED: Now supports composite primary keys
      */
     async getFilteredRecordCounts(tempTableId, filteredSourceQuery, originalSourceTable, primaryKey, bqFilter, unnestField = null) {
         try {
             console.log('Getting filtered record counts...');
+            console.log(`Primary key: ${primaryKey} (composite: ${this.isCompositeKey(primaryKey)})`);
             
             // Note: unnestField is for API-side explosion only
             // BigQuery tables are assumed to be already flattened
@@ -1327,31 +1461,36 @@ preprocessFilter(filterCondition) {
                 console.log(`Note: API data was exploded using '${unnestField}' - BigQuery table assumed to be already flat`);
             }
 
+            // Generate composite key expressions
+            const tempKeyExpr = this.getCompositeKeyExpression(primaryKey, '');
+            const tempKeyNotNull = this.getCompositeKeyNotNullCondition(primaryKey, '');
+            const tempKeyGroupBy = this.getCompositeKeyGroupBy(primaryKey, '');
+
             const queries = {
-                // API/JSON temp table counts (unchanged)
+                // API/JSON temp table counts (with composite key support)
                 tempTotal: `SELECT COUNT(*) as count FROM \`${tempTableId}\``,
-                tempUnique: `SELECT COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as count FROM \`${tempTableId}\` WHERE ${primaryKey} IS NOT NULL`,
-                tempNulls: `SELECT COUNT(*) as count FROM \`${tempTableId}\` WHERE ${primaryKey} IS NULL`,
+                tempUnique: `SELECT COUNT(DISTINCT ${tempKeyExpr}) as count FROM \`${tempTableId}\` WHERE ${tempKeyNotNull}`,
+                tempNulls: `SELECT COUNT(*) as count FROM \`${tempTableId}\` WHERE NOT (${tempKeyNotNull})`,
                 tempDuplicates: `
                     SELECT COUNT(*) as count FROM (
-                        SELECT CAST(${primaryKey} AS STRING) as key_val
+                        SELECT ${tempKeyExpr} as key_val
                         FROM \`${tempTableId}\`
-                        WHERE ${primaryKey} IS NOT NULL
-                        GROUP BY CAST(${primaryKey} AS STRING)
+                        WHERE ${tempKeyNotNull}
+                        GROUP BY ${tempKeyGroupBy}
                         HAVING COUNT(*) > 1
                     )
                 `,
 
-                // BigQuery source counts (with filtering applied)
+                // BigQuery source counts (with filtering applied and composite key support)
                 sourceTotal: `SELECT COUNT(*) as count FROM ${filteredSourceQuery}`,
-                sourceUnique: `SELECT COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as count FROM ${filteredSourceQuery} WHERE ${primaryKey} IS NOT NULL`,
-                sourceNulls: `SELECT COUNT(*) as count FROM ${filteredSourceQuery} WHERE ${primaryKey} IS NULL`,
+                sourceUnique: `SELECT COUNT(DISTINCT ${tempKeyExpr}) as count FROM ${filteredSourceQuery} WHERE ${tempKeyNotNull}`,
+                sourceNulls: `SELECT COUNT(*) as count FROM ${filteredSourceQuery} WHERE NOT (${tempKeyNotNull})`,
                 sourceDuplicates: `
                     SELECT COUNT(*) as count FROM (
-                        SELECT CAST(${primaryKey} AS STRING) as key_val
+                        SELECT ${tempKeyExpr} as key_val
                         FROM ${filteredSourceQuery}
-                        WHERE ${primaryKey} IS NOT NULL
-                        GROUP BY CAST(${primaryKey} AS STRING)
+                        WHERE ${tempKeyNotNull}
+                        GROUP BY ${tempKeyGroupBy}
                         HAVING COUNT(*) > 1
                     )
                 `
@@ -1364,7 +1503,7 @@ preprocessFilter(filterCondition) {
                 
                 const originalQueries = {
                     originalTotal: `SELECT COUNT(*) as count FROM \`${originalSourceTable}\``,
-                    originalUnique: `SELECT COUNT(DISTINCT CAST(${primaryKey} AS STRING)) as count FROM \`${originalSourceTable}\` WHERE ${primaryKey} IS NOT NULL`
+                    originalUnique: `SELECT COUNT(DISTINCT ${tempKeyExpr}) as count FROM \`${originalSourceTable}\` WHERE ${tempKeyNotNull}`
                 };
 
                 originalCounts = {};
@@ -1444,12 +1583,19 @@ preprocessFilter(filterCondition) {
 }
 /**
  * FIXED: Enhanced getFilteredFieldWiseAnalysis with proper subquery handling
- * Replace your existing getFilteredFieldWiseAnalysis method with this version
  * UPDATED: NULL to NULL is now treated as a MATCH, not a mismatch
+ * UPDATED: Now supports composite primary keys
  */
 async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey, comparisonFields) {
     try {
         console.log('Running filtered field-wise analysis...');
+        console.log(`Primary key: ${primaryKey} (composite: ${this.isCompositeKey(primaryKey)})`);
+
+        // Generate composite key expressions
+        const tempKeyExpr = this.getCompositeKeyExpression(primaryKey, 't');
+        const sourceKeyExpr = this.getCompositeKeyExpression(primaryKey, 's');
+        const tempKeyNotNull = this.getCompositeKeyNotNullCondition(primaryKey, 't');
+        const sourceKeyNotNull = this.getCompositeKeyNotNullCondition(primaryKey, 's');
 
         // FIXED: Get schema from original table, not filtered subquery
         let originalTable;
@@ -1472,7 +1618,11 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
 
         console.log(`Using original table for schema analysis: ${originalTable}`);
         const schemaInfo = await this.getCommonFields(tempTableId, originalTable);
-        const fieldsToCompare = comparisonFields.length > 0 ? comparisonFields : schemaInfo.commonFields;
+        
+        // Exclude primary key columns from field comparison
+        const pkColumns = this.parseCompositeKey(primaryKey);
+        const fieldsToCompare = (comparisonFields.length > 0 ? comparisonFields : schemaInfo.commonFields)
+            .filter(f => !pkColumns.includes(f));
 
         if (fieldsToCompare.length === 0) {
             return {
@@ -1517,7 +1667,7 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                         ),
                         comparison_data AS (
                             SELECT
-                                CAST(t.${primaryKey} AS STRING) as record_key,
+                                ${tempKeyExpr} as record_key,
                                 CAST(t.${fieldName} AS STRING) as json_value,
                                 CAST(s.${fieldName} AS STRING) as bq_value,
                                 CASE
@@ -1531,9 +1681,9 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                                 END as comparison_result
                             FROM \`${tempTableId}\` t
                             INNER JOIN filtered_bq_data s
-                            ON CAST(t.${primaryKey} AS STRING) = CAST(s.${primaryKey} AS STRING)
-                            WHERE t.${primaryKey} IS NOT NULL
-                            AND s.${primaryKey} IS NOT NULL
+                            ON ${tempKeyExpr} = ${sourceKeyExpr}
+                            WHERE ${tempKeyNotNull}
+                            AND ${sourceKeyNotNull}
                             LIMIT 1000
                         )
                         SELECT
@@ -1548,7 +1698,7 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                     comparisonQuery = `
                         WITH comparison_data AS (
                             SELECT
-                                CAST(t.${primaryKey} AS STRING) as record_key,
+                                ${tempKeyExpr} as record_key,
                                 CAST(t.${fieldName} AS STRING) as json_value,
                                 CAST(s.${fieldName} AS STRING) as bq_value,
                                 CASE
@@ -1562,9 +1712,9 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                                 END as comparison_result
                             FROM \`${tempTableId}\` t
                             INNER JOIN \`${originalTable}\` s
-                            ON CAST(t.${primaryKey} AS STRING) = CAST(s.${primaryKey} AS STRING)
-                            WHERE t.${primaryKey} IS NOT NULL
-                            AND s.${primaryKey} IS NOT NULL
+                            ON ${tempKeyExpr} = ${sourceKeyExpr}
+                            WHERE ${tempKeyNotNull}
+                            AND ${sourceKeyNotNull}
                             LIMIT 1000
                         )
                         SELECT
@@ -1599,7 +1749,7 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                             WHERE ${filterCondition}
                         )
                         SELECT
-                            CAST(t.${primaryKey} AS STRING) as record_key,
+                            ${tempKeyExpr} as record_key,
                             CAST(t.${fieldName} AS STRING) as json_value,
                             CAST(s.${fieldName} AS STRING) as bq_value,
                             CASE
@@ -1610,16 +1760,16 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                             END as comparison_result
                         FROM \`${tempTableId}\` t
                         INNER JOIN filtered_bq_data s
-                        ON CAST(t.${primaryKey} AS STRING) = CAST(s.${primaryKey} AS STRING)
-                        WHERE t.${primaryKey} IS NOT NULL
-                        AND s.${primaryKey} IS NOT NULL
+                        ON ${tempKeyExpr} = ${sourceKeyExpr}
+                        WHERE ${tempKeyNotNull}
+                        AND ${sourceKeyNotNull}
                         ORDER BY comparison_result DESC
                         LIMIT 50
                     `;
                 } else {
                     sampleQuery = `
                         SELECT
-                            CAST(t.${primaryKey} AS STRING) as record_key,
+                            ${tempKeyExpr} as record_key,
                             CAST(t.${fieldName} AS STRING) as json_value,
                             CAST(s.${fieldName} AS STRING) as bq_value,
                             CASE
@@ -1630,9 +1780,9 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
                             END as comparison_result
                         FROM \`${tempTableId}\` t
                         INNER JOIN \`${originalTable}\` s
-                        ON CAST(t.${primaryKey} AS STRING) = CAST(s.${primaryKey} AS STRING)
-                        WHERE t.${primaryKey} IS NOT NULL
-                        AND s.${primaryKey} IS NOT NULL
+                        ON ${tempKeyExpr} = ${sourceKeyExpr}
+                        WHERE ${tempKeyNotNull}
+                        AND ${sourceKeyNotNull}
                         ORDER BY comparison_result DESC
                         LIMIT 50
                     `;
@@ -1713,20 +1863,26 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
 }
     /**
      * Get duplicates analysis with BigQuery filtering applied
+     * UPDATED: Now supports composite primary keys
      */
     async getFilteredDuplicatesAnalysis(tempTableId, filteredSourceQuery, primaryKey) {
         try {
             console.log('Running filtered duplicates analysis...');
-            console.log(`Primary key for duplicates check: ${primaryKey}`);
+            console.log(`Primary key for duplicates check: ${primaryKey} (composite: ${this.isCompositeKey(primaryKey)})`);
+
+            // Generate composite key expressions
+            const keyExpr = this.getCompositeKeyExpression(primaryKey, '');
+            const keyNotNull = this.getCompositeKeyNotNullCondition(primaryKey, '');
+            const keyGroupBy = this.getCompositeKeyGroupBy(primaryKey, '');
 
             // API/JSON duplicates - get both count and sample keys
             const jsonDuplicatesQuery = `
                 SELECT
-                    CAST(${primaryKey} AS STRING) as duplicate_key,
+                    ${keyExpr} as duplicate_key,
                     COUNT(*) as occurrence_count
                 FROM \`${tempTableId}\`
-                WHERE ${primaryKey} IS NOT NULL
-                GROUP BY CAST(${primaryKey} AS STRING)
+                WHERE ${keyNotNull}
+                GROUP BY ${keyGroupBy}
                 HAVING COUNT(*) > 1
                 ORDER BY COUNT(*) DESC
                 LIMIT 100
@@ -1735,11 +1891,11 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
             // BigQuery duplicates (with filtering applied) - get both count and sample keys
             const bqDuplicatesQuery = `
                 SELECT
-                    CAST(${primaryKey} AS STRING) as duplicate_key,
+                    ${keyExpr} as duplicate_key,
                     COUNT(*) as occurrence_count
                 FROM ${filteredSourceQuery}
-                WHERE ${primaryKey} IS NOT NULL
-                GROUP BY CAST(${primaryKey} AS STRING)
+                WHERE ${keyNotNull}
+                GROUP BY ${keyGroupBy}
                 HAVING COUNT(*) > 1
                 ORDER BY COUNT(*) DESC
                 LIMIT 100
