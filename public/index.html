@@ -2165,6 +2165,20 @@
                             💡 Filter source data for incremental validation. Target records will be automatically matched by primary key. (Do not include WHERE keyword)
                         </small>
                     </div>
+
+                    <!-- Source Custom Query -->
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                            🧾 Source Custom Query
+                            <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+                        </label>
+                        <textarea id="bqvsbq-source-custom-query"
+                            placeholder="SELECT * FROM &#96;project.dataset.table&#96; WHERE condition"
+                            style="width:100%;height:90px;padding:10px;border:2px solid #dee2e6;border-radius:6px;font-size:13px;resize:vertical;font-family:monospace;"></textarea>
+                        <small style="color:#856404;font-style:italic;display:block;margin-top:5px;padding:5px 10px;background:#fff3cd;border-radius:4px;border-left:3px solid #ffc107;">
+                            💡 If both source and target custom queries are provided, they will be used instead of dataset + table names.
+                        </small>
+                    </div>
                 </div>
 
                 <!-- Right Side: BigQuery Target Configuration -->
@@ -2198,6 +2212,20 @@
                         <small style="color: #666; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
                             💡 Leave empty to compare all fields, or specify fields to compare.
                             <span style="color: #dc3545; font-weight: 600;">Note: Automatically disabled for multi-table validation (2+ tables).</span>
+                        </small>
+                    </div>
+
+                    <!-- Target Custom Query -->
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                            🧾 Target Custom Query
+                            <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+                        </label>
+                        <textarea id="bqvsbq-target-custom-query"
+                            placeholder="SELECT * FROM &#96;project.dataset.table&#96; WHERE condition"
+                            style="width:100%;height:90px;padding:10px;border:2px solid #dee2e6;border-radius:6px;font-size:13px;resize:vertical;font-family:monospace;"></textarea>
+                        <small style="color:#155724;font-style:italic;display:block;margin-top:5px;padding:5px 10px;background:#d4edda;border-radius:4px;border-left:3px solid #28a745;">
+                            💡 If both source and target custom queries are provided, they will be used instead of dataset + table names.
                         </small>
                     </div>
 
@@ -5840,10 +5868,15 @@ async function startBQvsBQComparison() {
     const targetDataset = document.getElementById('bqvsbq-target-dataset')?.value?.trim() || '';
     const primaryKeysRaw = document.getElementById('bqvsbq-primary-keys')?.value?.trim() || '';
     const sourceFilter = document.getElementById('bqvsbq-source-filter')?.value?.trim() || '';
+    const sourceCustomQuery = document.getElementById('bqvsbq-source-custom-query')?.value?.trim() || '';
+    const targetCustomQuery = document.getElementById('bqvsbq-target-custom-query')?.value?.trim() || '';
 
     // Parse multi-line inputs
     const sourceTables = sourceTablesRaw.split('\n').map(t => t.trim()).filter(t => t.length > 0);
     const primaryKeys = primaryKeysRaw.split('\n').map(k => k.trim()).filter(k => k.length > 0);
+
+    // Custom query mode detection
+    const isCustomQueryMode = !!(sourceCustomQuery && targetCustomQuery);
 
     // Disable comparison fields for multi-table (2+ tables)
     const comparisonFieldsInput = document.getElementById('bqvsbq-comparison-fields');
@@ -5860,26 +5893,33 @@ async function startBQvsBQComparison() {
     const comparisonFieldsRaw = comparisonFieldsInput?.value?.trim() || '';
     const comparisonFieldsArray = comparisonFieldsRaw ? comparisonFieldsRaw.split(',').map(f => f.trim()).filter(f => f.length > 0) : [];
 
-    // Validation
-    const missingFields = [];
-    if (!sourceDataset) missingFields.push('Source Dataset');
-    if (sourceTables.length === 0) missingFields.push('Source Table(s)');
-    if (!targetDataset) missingFields.push('Target Dataset');
-    if (primaryKeys.length === 0) missingFields.push('Primary Key(s)');
+    // Validation — custom mode only requires primary key
+    if (isCustomQueryMode) {
+        if (primaryKeys.length === 0 || !primaryKeys[0]) {
+            alert('Please fill in: Primary Key(s)');
+            return;
+        }
+    } else {
+        const missingFields = [];
+        if (!sourceDataset) missingFields.push('Source Dataset');
+        if (sourceTables.length === 0) missingFields.push('Source Table(s)');
+        if (!targetDataset) missingFields.push('Target Dataset');
+        if (primaryKeys.length === 0) missingFields.push('Primary Key(s)');
 
-    if (missingFields.length > 0) {
-        alert('Please fill in: ' + missingFields.join(', '));
-        return;
-    }
+        if (missingFields.length > 0) {
+            alert('Please fill in: ' + missingFields.join(', '));
+            return;
+        }
 
-    // Validate dataset format (project.dataset)
-    if (!sourceDataset.match(/^[\w-]+\.[\w-]+$/)) {
-        alert('Source BigQuery Dataset must be in format: project.dataset\nExample: my-project.my_dataset');
-        return;
-    }
-    if (!targetDataset.match(/^[\w-]+\.[\w-]+$/)) {
-        alert('Target BigQuery Dataset must be in format: project.dataset\nExample: my-project.my_dataset');
-        return;
+        // Validate dataset format (project.dataset)
+        if (!sourceDataset.match(/^[\w-]+\.[\w-]+$/)) {
+            alert('Source BigQuery Dataset must be in format: project.dataset\nExample: my-project.my_dataset');
+            return;
+        }
+        if (!targetDataset.match(/^[\w-]+\.[\w-]+$/)) {
+            alert('Target BigQuery Dataset must be in format: project.dataset\nExample: my-project.my_dataset');
+            return;
+        }
     }
 
     // Get config and results sections
@@ -5888,6 +5928,65 @@ async function startBQvsBQComparison() {
 
     if (configSection) configSection.style.display = 'none';
     if (resultsSection) resultsSection.style.display = 'block';
+
+    // =========================================================
+    // CUSTOM QUERY MODE
+    // =========================================================
+    if (isCustomQueryMode) {
+        resultsSection.innerHTML = `
+            <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+                <div class="spinner" style="margin: 0 auto 20px; width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div style="font-size: 22px; font-weight: bold; margin-bottom: 10px;">🔄 Running Custom Query Comparison...</div>
+                <div style="font-size: 14px; opacity: 0.9;">Executing source and target queries against BigQuery</div>
+            </div>`;
+
+        try {
+            const response = await fetch('/api/bq-vs-bq-custom', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sourceQuery: sourceCustomQuery,
+                    targetQuery: targetCustomQuery,
+                    primaryKey: primaryKeys[0],
+                    comparisonFields: comparisonFieldsArray
+                })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                displayRDBMSResults(result, 'bigquery', resultsSection);
+                // Override new comparison button for BQ vs BQ
+                setTimeout(() => {
+                    resultsSection.querySelectorAll('button[onclick^="startNewMultiComparison"]').forEach(btn => {
+                        btn.setAttribute('onclick', 'startNewBQvsBQComparison()');
+                    });
+                }, 100);
+            } else {
+                resultsSection.innerHTML = `
+                    <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                        ❌ <strong>Custom Query Comparison Failed</strong><br>
+                        ${result.error}<br><br>
+                        ${result.suggestions ? `<strong>Suggestions:</strong><ul>${result.suggestions.map(s => '<li>' + s + '</li>').join('')}</ul>` : ''}
+                        <button class="btn-secondary" onclick="startNewBQvsBQComparison()" style="margin-top: 15px;">
+                            🔄 New Comparison
+                        </button>
+                    </div>`;
+            }
+        } catch (fetchError) {
+            resultsSection.innerHTML = `
+                <div style="color: #721c24; background: #f8d7da; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                    ❌ <strong>Network Error:</strong> ${fetchError.message}
+                    <button class="btn-secondary" onclick="startNewBQvsBQComparison()" style="margin-top: 15px;">
+                        🔄 New Comparison
+                    </button>
+                </div>`;
+        }
+        return;
+    }
+
+    // =========================================================
+    // TABLE MODE (existing flow — unchanged)
+    // =========================================================
 
     // Process tables
     const allResults = [];
@@ -6062,6 +6161,32 @@ document.getElementById('bqvsbq-source-tables')?.addEventListener('input', funct
         comparisonFieldsInput.placeholder = 'field1, field2, field3';
     }
 });
+
+// ============================================
+// BQ vs BQ — Grey out fields in custom query mode
+// ============================================
+function toggleBqvsBqCustomQueryMode() {
+    const srcQ = document.getElementById('bqvsbq-source-custom-query')?.value?.trim() || '';
+    const tgtQ = document.getElementById('bqvsbq-target-custom-query')?.value?.trim() || '';
+    const isCustom = !!(srcQ && tgtQ);
+
+    const fieldsToToggle = [
+        'bqvsbq-source-dataset', 'bqvsbq-source-tables', 'bqvsbq-source-filter',
+        'bqvsbq-target-dataset', 'bqvsbq-comparison-fields'
+    ];
+
+    fieldsToToggle.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = isCustom;
+        el.style.background = isCustom ? '#f0f0f0' : '';
+        el.style.cursor = isCustom ? 'not-allowed' : '';
+        el.style.opacity = isCustom ? '0.6' : '1';
+    });
+}
+
+document.getElementById('bqvsbq-source-custom-query')?.addEventListener('input', toggleBqvsBqCustomQueryMode);
+document.getElementById('bqvsbq-target-custom-query')?.addEventListener('input', toggleBqvsBqCustomQueryMode);
 
 // ============================================
 // Schema-Aware Null Check — Content Renderer
