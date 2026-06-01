@@ -5892,12 +5892,12 @@ function exportApiResultsToExcel() {
                 ['', '', '', ''],
                 ['SOURCE ANALYSIS (API)', '', '', ''],
                 ['Metric', 'Count', 'Percentage', 'Notes'],
-                ['Total Records', globalApiResults.recordCounts.apiDetails?.totalRecords || 0, '100%', 'All API records'],
-                ['Unique Primary Keys', globalApiResults.recordCounts.apiDetails?.uniquePrimaryKeys || 0,
-                 `${((globalApiResults.recordCounts.apiDetails?.uniquePrimaryKeys || 0) / Math.max(globalApiResults.recordCounts.apiDetails?.totalRecords || 1, 1) * 100).toFixed(1)}%`,
+                ['Total Records', globalApiResults.recordCounts.apiDetails?.totalRecords || globalApiResults.recordCounts.jsonDetails?.totalRecords || 0, '100%', 'All API records'],
+                ['Unique Primary Keys', globalApiResults.recordCounts.apiDetails?.uniquePrimaryKeys || globalApiResults.recordCounts.jsonDetails?.uniquePrimaryKeys || 0,
+                 `${((globalApiResults.recordCounts.apiDetails?.uniquePrimaryKeys || globalApiResults.recordCounts.jsonDetails?.uniquePrimaryKeys || 0) / Math.max(globalApiResults.recordCounts.apiDetails?.totalRecords || globalApiResults.recordCounts.jsonDetails?.totalRecords || 1, 1) * 100).toFixed(1)}%`,
                  'Distinct key values'],
-                ['Duplicate Records', globalApiResults.recordCounts.apiDetails?.duplicateRecords || 0,
-                 `${((globalApiResults.recordCounts.apiDetails?.duplicateRecords || 0) / Math.max(globalApiResults.recordCounts.apiDetails?.totalRecords || 1, 1) * 100).toFixed(1)}%`,
+                ['Duplicate Records', globalApiResults.recordCounts.apiDetails?.duplicateRecords || globalApiResults.recordCounts.jsonDetails?.duplicateRecords || 0,
+                 `${((globalApiResults.recordCounts.apiDetails?.duplicateRecords || globalApiResults.recordCounts.jsonDetails?.duplicateRecords || 0) / Math.max(globalApiResults.recordCounts.apiDetails?.totalRecords || globalApiResults.recordCounts.jsonDetails?.totalRecords || 1, 1) * 100).toFixed(1)}%`,
                  'Records with duplicate keys'],
                 ['', '', '', ''],
                 [`TARGET ANALYSIS (${filterApplied ? 'Filtered BigQuery' : 'BigQuery'})`, '', '', ''],
@@ -5918,6 +5918,219 @@ function exportApiResultsToExcel() {
             const recordCountSheet = XLSX.utils.aoa_to_sheet(recordCountData);
             XLSX.utils.book_append_sheet(wb, recordCountSheet, 'Record Counts');
         }
+
+        // NEW: Sheet 4 - Field-by-Field Analysis
+        const fieldWiseAnalysis = globalApiResults.fieldWiseAnalysis || {};
+        const fields = fieldWiseAnalysis.fieldResults || fieldWiseAnalysis.fieldComparison || [];
+        
+        console.log('Field-wise analysis data for export:', {
+            hasFieldWiseAnalysis: !!globalApiResults.fieldWiseAnalysis,
+            fieldsCount: fields.length,
+            fieldsAnalyzed: fieldWiseAnalysis.fieldsAnalyzed,
+            perfectFields: fieldWiseAnalysis.perfectFields,
+            problematicFields: fieldWiseAnalysis.problematicFields
+        });
+        
+        // Always create Field Analysis sheet (even if empty, show why)
+        const fieldAnalysisData = [
+            ['FIELD-BY-FIELD ANALYSIS REPORT'],
+            ['Generated:', new Date().toLocaleString()],
+            ['Primary Key:', globalApiResults.summary?.primaryKeyUsed || globalApiResults.metadata?.primaryKey || 'N/A'],
+            ['Total Fields Analyzed:', fieldWiseAnalysis.fieldsAnalyzed || fields.length || 0],
+            ['Records Analyzed:', fieldWiseAnalysis.recordsAnalyzed || 0],
+            [''],
+            ['FIELD COMPARISON SUMMARY'],
+            ['Field Name', 'Total Records', 'Matches', 'Mismatches', 'Match Rate', 'Status']
+        ];
+        
+        let perfectFieldCount = 0;
+        let problematicFieldCount = 0;
+        
+        if (fields.length > 0) {
+            fields.forEach(f => {
+                const fieldName = f.fieldName || f.field || 'Unknown';
+                const totalRecords = f.totalRecords || 0;
+                const matches = f.matchCount || f.matches || f.perfectMatches || 0;
+                const mismatches = f.mismatchCount || f.mismatches || f.differences || 0;
+                const matchRate = f.matchRate || f.matchPercentage || 
+                                 (totalRecords > 0 ? ((matches / totalRecords) * 100).toFixed(1) : '100');
+                const status = parseFloat(matchRate) >= 100 ? '✓ Perfect' : 
+                              parseFloat(matchRate) >= 95 ? '⚠ Minor Issues' : '✗ Needs Review';
+                
+                if (parseFloat(matchRate) >= 100) {
+                    perfectFieldCount++;
+                } else {
+                    problematicFieldCount++;
+                }
+                
+                fieldAnalysisData.push([fieldName, totalRecords, matches, mismatches, matchRate + '%', status]);
+            });
+        } else {
+            // No field data available - add explanation
+            fieldAnalysisData.push(['No field analysis data available', '', '', '', '', '']);
+            fieldAnalysisData.push(['', '', '', '', '', '']);
+            fieldAnalysisData.push(['Possible reasons:', '', '', '', '', '']);
+            fieldAnalysisData.push(['- No matching records found between API and BigQuery', '', '', '', '', '']);
+            fieldAnalysisData.push(['- Field analysis was not performed during comparison', '', '', '', '', '']);
+            fieldAnalysisData.push(['- Primary key mismatch prevented record matching', '', '', '', '', '']);
+        }
+        
+        // Add summary at the end
+        fieldAnalysisData.push(['']);
+        fieldAnalysisData.push(['SUMMARY']);
+        fieldAnalysisData.push(['Perfect Fields (100% match):', perfectFieldCount]);
+        fieldAnalysisData.push(['Fields with Issues:', problematicFieldCount]);
+        fieldAnalysisData.push(['Overall Field Quality:', fields.length > 0 && perfectFieldCount === fields.length ? 'Excellent' : (fields.length === 0 ? 'No Data' : 'Needs Review')]);
+        
+        const fieldAnalysisSheet = XLSX.utils.aoa_to_sheet(fieldAnalysisData);
+        fieldAnalysisSheet['!cols'] = [{wch: 45}, {wch: 15}, {wch: 12}, {wch: 12}, {wch: 12}, {wch: 15}];
+        XLSX.utils.book_append_sheet(wb, fieldAnalysisSheet, 'Field Analysis');
+
+        // NEW: Sheet 5 - Field Mismatches Detail (sample differences)
+        const mismatchDetailData = [
+            ['FIELD MISMATCH DETAILS'],
+            ['Shows sample records where API and BigQuery values differ'],
+            [''],
+            ['Field Name', 'Primary Key', 'API Value', 'BigQuery Value']
+        ];
+        
+        let hasMismatches = false;
+        
+        if (fields.length > 0) {
+            fields.forEach(f => {
+                const fieldName = f.fieldName || f.field || 'Unknown';
+                const sampleDifferences = f.sampleDifferences || f.differenceSamples || [];
+                
+                if (sampleDifferences.length > 0) {
+                    hasMismatches = true;
+                    sampleDifferences.slice(0, 10).forEach(d => {
+                        mismatchDetailData.push([
+                            fieldName,
+                            d.primaryKey || d.key || 'N/A',
+                            String(d.apiValue || d.jsonValue || d.sourceValue || ''),
+                            String(d.bqValue || d.targetValue || '')
+                        ]);
+                    });
+                }
+            });
+        }
+        
+        if (!hasMismatches) {
+            mismatchDetailData.push(['No mismatches found - all field values match perfectly!', '', '', '']);
+        }
+        
+        const mismatchSheet = XLSX.utils.aoa_to_sheet(mismatchDetailData);
+        mismatchSheet['!cols'] = [{wch: 30}, {wch: 40}, {wch: 40}, {wch: 40}];
+        XLSX.utils.book_append_sheet(wb, mismatchSheet, 'Mismatch Details');
+
+        // NEW: Sheet 6 - Sample Matched Records
+        const matchedSamplesData = [
+            ['SAMPLE MATCHED RECORDS'],
+            ['Shows sample records where API and BigQuery values are identical'],
+            [''],
+            ['Field Name', 'Primary Key', 'Matched Value']
+        ];
+        
+        let hasMatches = false;
+        
+        if (fields.length > 0) {
+            fields.forEach(f => {
+                const fieldName = f.fieldName || f.field || 'Unknown';
+                const sampleMatches = f.sampleMatches || f.matchedSamples || [];
+                
+                if (sampleMatches.length > 0) {
+                    hasMatches = true;
+                    sampleMatches.slice(0, 5).forEach(m => {
+                        matchedSamplesData.push([
+                            fieldName,
+                            m.primaryKey || m.key || 'N/A',
+                            String(m.value || m.apiValue || m.matchedValue || '')
+                        ]);
+                    });
+                }
+            });
+        }
+        
+        if (!hasMatches) {
+            matchedSamplesData.push(['No sample matches available', '', '']);
+        }
+        
+        const matchedSheet = XLSX.utils.aoa_to_sheet(matchedSamplesData);
+        matchedSheet['!cols'] = [{wch: 30}, {wch: 40}, {wch: 50}];
+        XLSX.utils.book_append_sheet(wb, matchedSheet, 'Matched Samples');
+
+        // NEW: Sheet 7 - Schema Analysis
+        const schemaAnalysis = globalApiResults.schemaAnalysis || {};
+        const schemaData = [
+            ['SCHEMA ANALYSIS REPORT'],
+            ['Comparison of fields between API response and BigQuery table'],
+            [''],
+            ['COMMON FIELDS (exist in both)', 'API-ONLY FIELDS', 'BIGQUERY-ONLY FIELDS']
+        ];
+        
+        const commonFields = schemaAnalysis.commonFields || [];
+        const apiOnlyFields = schemaAnalysis.jsonOnlyFields || schemaAnalysis.tempOnlyFields || [];
+        const bqOnlyFields = schemaAnalysis.bqOnlyFields || schemaAnalysis.sourceOnlyFields || [];
+        
+        if (commonFields.length > 0 || apiOnlyFields.length > 0 || bqOnlyFields.length > 0) {
+            const maxRows = Math.max(commonFields.length, apiOnlyFields.length, bqOnlyFields.length);
+            
+            for (let i = 0; i < maxRows; i++) {
+                schemaData.push([
+                    commonFields[i] || '',
+                    apiOnlyFields[i] || '',
+                    bqOnlyFields[i] || ''
+                ]);
+            }
+        } else {
+            schemaData.push(['No schema analysis data available', '', '']);
+        }
+        
+        schemaData.push(['']);
+        schemaData.push(['SUMMARY']);
+        schemaData.push(['Common Fields:', commonFields.length]);
+        schemaData.push(['API-Only Fields:', apiOnlyFields.length]);
+        schemaData.push(['BigQuery-Only Fields:', bqOnlyFields.length]);
+        schemaData.push(['Schema Compatibility:', commonFields.length > 0 ? `${((commonFields.length / Math.max(commonFields.length + apiOnlyFields.length, 1)) * 100).toFixed(1)}%` : 'N/A']);
+        
+        const schemaSheet = XLSX.utils.aoa_to_sheet(schemaData);
+        schemaSheet['!cols'] = [{wch: 40}, {wch: 40}, {wch: 40}];
+        XLSX.utils.book_append_sheet(wb, schemaSheet, 'Schema Analysis');
+
+        // NEW: Sheet 8 - Duplicates Analysis
+        const duplicatesAnalysis = globalApiResults.duplicatesAnalysis || {};
+        const duplicatesData = [
+            ['DUPLICATES ANALYSIS REPORT'],
+            ['Analysis of duplicate primary keys in API and BigQuery data'],
+            [''],
+            ['SOURCE', 'METRIC', 'VALUE']
+        ];
+        
+        // API Duplicates
+        const apiDuplicates = duplicatesAnalysis.apiDuplicates || duplicatesAnalysis.jsonDuplicates || {};
+        duplicatesData.push(['API Data', 'Total Duplicate Keys', apiDuplicates.count || apiDuplicates.duplicateCount || 0]);
+        
+        if (apiDuplicates.sampleKeys && apiDuplicates.sampleKeys.length > 0) {
+            duplicatesData.push(['API Data', 'Sample Duplicate Keys', apiDuplicates.sampleKeys.slice(0, 10).join(', ')]);
+        }
+        
+        // BQ Duplicates
+        const bqDuplicates = duplicatesAnalysis.bqDuplicates || {};
+        duplicatesData.push(['BigQuery Data', 'Total Duplicate Keys', bqDuplicates.count || bqDuplicates.duplicateCount || 0]);
+        
+        if (bqDuplicates.sampleKeys && bqDuplicates.sampleKeys.length > 0) {
+            duplicatesData.push(['BigQuery Data', 'Sample Duplicate Keys', bqDuplicates.sampleKeys.slice(0, 10).join(', ')]);
+        }
+        
+        duplicatesData.push(['']);
+        duplicatesData.push(['SUMMARY']);
+        duplicatesData.push(['Total API Duplicates:', apiDuplicates.count || apiDuplicates.duplicateCount || 0]);
+        duplicatesData.push(['Total BQ Duplicates:', bqDuplicates.count || bqDuplicates.duplicateCount || 0]);
+        duplicatesData.push(['Data Quality:', (apiDuplicates.count || 0) === 0 && (bqDuplicates.count || 0) === 0 ? 'Excellent - No Duplicates' : 'Review Required - Duplicates Found']);
+        
+        const duplicatesSheet = XLSX.utils.aoa_to_sheet(duplicatesData);
+        duplicatesSheet['!cols'] = [{wch: 20}, {wch: 25}, {wch: 60}];
+        XLSX.utils.book_append_sheet(wb, duplicatesSheet, 'Duplicates Analysis');
 
         // Generate filename with filter context
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
