@@ -1423,6 +1423,118 @@
             font-size: 14px;
             display: none;
         }
+
+        /* API vs BQ Styles */
+        .api-configuration {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .api-header {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 20px;
+            margin: -30px -30px 30px -30px;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .api-header h3 {
+            margin: 0;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .api-form-section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .api-form-section h4 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .api-method-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .method-option {
+            padding: 8px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .method-option:hover {
+            border-color: #3498db;
+            background: #f0f8ff;
+        }
+
+        .method-option.selected {
+            border-color: #3498db;
+            background: #3498db;
+            color: white;
+        }
+
+        .api-preview {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .api-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .api-stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #27ae60;
+        }
+
+        .api-stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .api-stat-label {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-top: 5px;
+        }
+
+        .api-tab-content {
+            display: none;
+        }
+
+        .api-tab-content.active,
+        .api-tab-content[style*="display: block"] {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -1686,20 +1798,474 @@
         <div id="api-comparison-page" class="page-content">
             <div class="page-header">
                 <h2><span class="tab-icon">🔗</span> API vs BigQuery Comparison</h2>
-                <p>Real-time API data validation and synchronization with BigQuery tables</p>
+                <p>Real-time API data validation with comprehensive authentication support</p>
             </div>
 
-            <div class="coming-soon-section">
-                <div class="coming-soon-icon">🔗</div>
-                <div class="coming-soon-title">API vs BigQuery Comparison</div>
-                <div class="coming-soon-description">
-                    Compare live API responses with your BigQuery tables to ensure data pipeline integrity.
+            <!-- API Mode Selection Tabs -->
+            <div class="results-tabs" style="margin-bottom: 0;">
+                <button class="results-tab-button active" onclick="showAPITab('single')">🔗 Single API</button>
+                <button class="results-tab-button" onclick="showAPITab('multi')">📋 Multi-API Batch</button>
+            </div>
+
+            <!-- Single API Tab (existing functionality) -->
+            <div id="single-api-tab" class="api-tab-content" style="display: block;">
+
+            <div class="upload-section" id="api-upload-section">
+                <div class="upload-container">
+                    <div class="api-configuration">
+                        <div class="api-header">
+                            <h3>🔗 API Data Configuration</h3>
+                        </div>
+
+                        <div class="api-form-section">
+                            <h4>🌐 Endpoint Configuration</h4>
+                            <div class="option-group">
+                                <label>API URL</label>
+                                <input type="text" id="apiUrl" placeholder="https://rackspace.service-now.com/api/now/table/domain" required>
+                                <small class="field-notice info">Enter the complete API endpoint URL</small>
+                            </div>
+                            <!-- Replace the existing method selector with this -->
+<div class="option-group">
+    <label>HTTP Method</label>
+    <div class="api-method-selector">
+        <div class="method-option selected" data-method="GET">GET</div>
+        <div class="method-option" data-method="POST">POST</div>
+        <div class="method-option disabled" data-method="PUT" style="opacity: 0.5; cursor: not-allowed;" title="PUT method temporarily disabled">PUT</div>
+        <div class="method-option disabled" data-method="PATCH" style="opacity: 0.5; cursor: not-allowed;" title="PATCH method temporarily disabled">PATCH</div>
+    </div>
+    <small class="field-notice info">Select the HTTP method for your API endpoint (PUT/PATCH temporarily disabled)</small>
+</div>
+
+                        </div>
+
+                        <div class="api-form-section">
+                            <h4>🔐 Authentication Configuration</h4>
+
+                            <div class="option-group">
+                                <label>Authentication Type</label>
+                                <select id="authType" onchange="toggleAuthFields()">
+                                    <option value="none">No Authentication</option>
+                                    <option value="basic">Basic Authentication (Username/Password)</option>
+                                    <option value="apikey">API Key Authentication</option>
+                                    <option value="bearer">Bearer Token</option>
+                                    <option value="custom">Custom Headers Only</option>
+                                </select>
+                                <small class="field-notice info">Select the authentication method required by your API</small>
+                            </div>
+
+                            <!-- Basic Auth Fields -->
+                            <div id="basicAuthFields" style="display: none;">
+                                <div class="option-group">
+                                    <label>Username</label>
+                                    <input type="text" id="apiUsername" placeholder="Enter ServiceNow username">
+                                </div>
+                                <div class="option-group">
+                                    <label>Password</label>
+                                    <input type="password" id="apiPassword" placeholder="Enter ServiceNow password">
+                                </div>
+                            </div>
+
+                            <!-- API Key Fields -->
+                            <div id="apiKeyFields" style="display: none;">
+                                <div class="option-group">
+                                    <label>API Key Header Name</label>
+                                    <input type="text" id="apiKeyHeader" placeholder="X-API-Key" value="X-API-Key">
+                                </div>
+                                <div class="option-group">
+                                    <label>API Key Value</label>
+                                    <input type="password" id="apiKeyValue" placeholder="Enter your API key">
+                                </div>
+                            </div>
+
+                            <!-- Bearer Token Fields -->
+                            <div id="bearerTokenFields" style="display: none;">
+                                <div class="option-group">
+                                    <label>Bearer Token</label>
+                                    <input type="password" id="bearerToken" placeholder="Enter your bearer token">
+                                </div>
+                            </div>
+
+                            <!-- Additional Headers -->
+                            <div class="option-group">
+                                <label>Additional Headers (Optional)</label>
+                                <textarea id="apiHeaders" placeholder="Content-Type: application/json&#10;Accept: application/json"></textarea>
+                                <small class="field-notice success">One header per line in format: Header-Name: Header-Value</small>
+                            </div>
+<!-- ✅ REQUEST BODY SECTION - NOW APPEARS BEFORE TEST BUTTON -->
+<div class="api-form-section" id="apiBodySection" style="display: none;">
+    <h4>📝 Request Body</h4>
+    <div class="option-group">
+        <label>JSON Body (for POST/PUT/PATCH)</label>
+        <textarea id="apiBody" placeholder='{"key": "value"}'></textarea>
+        <small class="field-notice warning">Enter valid JSON for the request body</small>
+    </div>
+</div>
+
+
+                            <button class="btn-secondary" id="testApiConnection" style="width: 100%; margin-top: 15px;">
+                                🔗 Test API Connection & Authentication
+                            </button>
+                            <div id="connectionTestResult" style="margin-top: 15px; display: none;"></div>
+                        </div>
+
+
+                        <button class="btn-primary" id="fetchApiData" style="width: 100%; margin-top: 20px;" disabled>
+                            📄 Fetch API Data
+                            <div style="font-size: 0.8rem; margin-top: 4px; opacity: 0.9;">⚠️ Test connection first</div>
+                        </button>
+
+                    </div>
+
+                     <!-- Right Side: SINGLE BigQuery Configuration -->
+        <div class="comparison-options">
+            <h3 style="margin-bottom: 20px; color: #2c3e50;">🗄️ BigQuery Target Configuration</h3>
+
+            <div class="option-group">
+                <label>BigQuery Table</label>
+                <input type="text" id="apiBqTable" placeholder="project.dataset.table">
+                <small class="field-notice info">Enter the BigQuery table to compare against</small>
+            </div>
+
+            <div class="option-group">
+                <label>Primary Key Field</label>
+                <input type="text" id="apiPrimaryKey" placeholder="sys_id">
+                <small class="field-notice success">Field that exists in both API data and BigQuery table</small>
+            </div>
+            
+            <div class="option-group">
+                <label>
+                    Explode Nested Array (Optional)
+                    <span style="color: #666; font-weight: normal; margin-left: 10px;">- For nested array comparisons</span>
+                </label>
+                <input type="text" id="apiExplodeArrayField" placeholder="e.g., metrics">
+                <small class="field-notice info">
+                    <strong>Use when:</strong> Your API returns nested arrays (e.g., <code>metrics: [{metric_id: ...}, ...]</code>)<br>
+                    This will "explode" each array item into a separate row, allowing you to use nested fields like <code>metric_id</code> as the primary key.
+                </small>
+            </div>
+
+            <div class="option-group">
+                <label>
+                    BigQuery Filter Condition (Optional)
+                    <span style="color: #666; font-weight: normal; margin-left: 10px;">- Filter records before comparison</span>
+                </label>
+                <textarea id="apiBqFilter" placeholder="account_id = '4ad8c07d3053ca49828dbd7d626b66cf'&#10;OR status = 'active'&#10;OR created_date > '2024-01-01'" rows="3"></textarea>
+                <small class="field-notice info">
+                    <strong>Examples:</strong><br>
+                    • <code>account_id = '4ad8c07d3053ca49828dbd7d626b66cf'</code><br>
+                    • <code>status IN ('active', 'enabled') AND region = 'us-east'</code><br>
+                    • <code>created_date >= '2024-01-01'</code>
+                </small>
+            </div>
+
+            <!-- Collapsible Filter Help -->
+            <details style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #3498db;">
+                <summary style="cursor: pointer; font-weight: 600; color: #2c3e50; margin-bottom: 10px;">
+                    🔍 Filter Guide & Examples
+                </summary>
+                <div style="font-size: 0.9rem; color: #34495e; margin-top: 10px;">
+                    <p><strong>Purpose:</strong> Filter BigQuery data to match specific criteria from your API source</p>
+                    <p><strong>Common Use Cases:</strong></p>
+                    <ul style="margin: 8px 0; padding-left: 20px;">
+                        <li><strong>Account Filtering:</strong> <code>account_id = 'abc123'</code></li>
+                        <li><strong>Status Filtering:</strong> <code>status = 'active' OR enabled = true</code></li>
+                        <li><strong>Date Range:</strong> <code>created_date >= '2024-01-01' AND created_date <= '2024-12-31'</code></li>
+                        <li><strong>Multiple Conditions:</strong> <code>region IN ('us-east', 'eu-west') AND tier = 'premium'</code></li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>💡 Tip:</strong> Use standard SQL WHERE clause syntax. Leave empty to compare all BigQuery records.</p>
                 </div>
-                <button class="btn-primary" style="margin-top: 30px;" onclick="alert('API vs BQ comparison feature is currently under development.')">
-                    🔔 Notify Me When Available
-                </button>
+            </details>
+
+            <button class="btn-primary" id="startApiComparison" style="width: 100%; margin-top: 20px;" disabled>
+                🚀 Start API vs BigQuery Comparison
+            </button>
+        </div>
+    </div>
+
+                <div class="api-preview" id="api-preview">
+                    <div class="preview-header">
+                        🔗 API Data Preview: <span id="apiDataSource">-</span>
+                    </div>
+
+                    <div class="api-stats" id="api-stats"></div>
+
+                    <div id="api-available-fields" style="margin-top: 15px; padding: 15px; background: #e8f5e8; border-radius: 8px;">
+                        <h4 style="color: #2c3e50; margin-bottom: 10px;">Available Fields for Primary Key (Click to Use):</h4>
+                        <div id="api-field-suggestions" style="font-size: 0.9rem; line-height: 1.6;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="processing-state" id="api-processing-section" style="display: none;">
+                <div class="processing-spinner"></div>
+                <div class="processing-text" id="api-processing-text">Fetching API data...</div>
+                <div class="processing-subtext" id="api-processing-subtext">Connecting to API endpoint</div>
+            </div>
+
+            <!-- Enhanced API Comparison Results -->
+            <div class="comparison-results" id="api-comparison-results">
+                <div class="results-header">
+                    <div class="results-title">
+                        <span>🔗</span> API vs BigQuery Analysis Results
+                    </div>
+                    <div class="results-actions">
+                        <button class="btn-export" id="exportApiToExcel" onclick="exportApiResultsToExcel()" disabled>
+                            📊 Export to Excel
+                        </button>
+                        <button class="btn-secondary" onclick="startNewApiComparison()">
+                            New API Comparison
+                        </button>
+                    </div>
+                </div>
+
+                <div class="results-navigation-tabs">
+                    <button class="results-tab-button active" onclick="showApiResultsTab('api-record-count')">
+                        <span class="results-tab-icon">📊</span>
+                        <span class="results-tab-label">Record Count</span>
+                    </button>
+                    <button class="results-tab-button" onclick="showApiResultsTab('api-column-names')">
+                        <span class="results-tab-icon">📋</span>
+                        <span class="results-tab-label">Column Names</span>
+                    </button>
+                    <button class="results-tab-button" onclick="showApiResultsTab('api-comparison')">
+                        <span class="results-tab-icon">🔍</span>
+                        <span class="results-tab-label">Comparison</span>
+                    </button>
+                    <button class="results-tab-button" onclick="showApiResultsTab('api-field-wise')">
+                        <span class="results-tab-icon">🔬</span>
+                        <span class="results-tab-label">Field Analysis</span>
+                    </button>
+                    <button class="results-tab-button" onclick="showApiResultsTab('api-duplicates')">
+                        <span class="results-tab-icon">🔄</span>
+                        <span class="results-tab-label">Duplicates</span>
+                    </button>
+                </div>
+
+                <!-- Tab 1: Record Count -->
+                <div id="api-record-count-tab" class="results-tab-content active">
+                    <div class="tab-summary-cards" id="api-record-count-summary"></div>
+                    <div class="tab-detail-section">
+                        <div class="tab-detail-header">📊 Detailed Record Analysis</div>
+                        <div id="api-record-count-details"></div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Column Names -->
+                <div id="api-column-names-tab" class="results-tab-content">
+                    <div class="tab-summary-cards" id="api-column-names-summary"></div>
+                    <div class="tab-detail-section">
+                        <div class="tab-detail-header">📋 Schema Compatibility Analysis</div>
+                        <div class="column-comparison-grid" id="api-column-comparison-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Comparison Summary -->
+                <div id="api-comparison-tab" class="results-tab-content">
+                    <div class="strategy-info" id="api-strategy-info"></div>
+                    <div class="tab-summary-cards" id="api-comparison-summary"></div>
+                    <div class="tab-detail-section">
+                        <div class="tab-detail-header">🔍 Detailed Comparison Analysis</div>
+                        <div id="api-comparison-details"></div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Field-wise Analysis -->
+                <div id="api-field-wise-tab" class="results-tab-content">
+                    <div class="tab-summary-cards" id="api-field-wise-summary"></div>
+                    <div class="tab-detail-section">
+                        <div class="tab-detail-header">🔬 Comprehensive Field-by-Field Quality Analysis</div>
+                        <div id="api-field-wise-details"></div>
+                    </div>
+                </div>
+
+                <!-- Tab 5: Duplicates Analysis -->
+                <div id="api-duplicates-tab" class="results-tab-content">
+                    <div class="tab-summary-cards" id="api-duplicates-summary"></div>
+                    <div class="tab-detail-section">
+                        <div class="tab-detail-header">🔄 Comprehensive Duplicate Records Analysis</div>
+                        <div id="api-duplicates-details"></div>
+                    </div>
+                </div>
+            </div>
+        </div> <!-- Close single-api-tab -->
+
+        <!-- Multi-API Batch Tab -->
+        <div id="multi-api-tab" class="api-tab-content" style="display: none;">
+            <div id="multi-api-config-section" style="padding: 20px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                    <!-- Left Side: API Configuration -->
+                    <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef;">
+                        <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                            🔗 API Configuration
+                        </h3>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Base API URL</label>
+                            <input type="text" id="multi-api-base-url" placeholder="https://api.cloudflare.com/client/v4" 
+                                   style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                                Base URL without endpoint paths
+                            </small>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">API Endpoints (one per line)</label>
+                            <textarea id="multi-api-endpoints" placeholder="/accounts/{account_id}/members&#10;/accounts/{account_id}/custom_pages&#10;/zones/{zone_id}/custom_pages&#10;/zones/{zone_id}/logs/control/retention/flag" 
+                                      style="width: 100%; height: 150px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                            <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                                💡 Enter one endpoint per line. Use {account_id} or {zone_id} as placeholders.
+                            </small>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Account ID</label>
+                                <input type="text" id="multi-api-account-id" placeholder="your_account_id" 
+                                       style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Zone ID</label>
+                                <input type="text" id="multi-api-zone-id" placeholder="your_zone_id" 
+                                       style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Authentication Type</label>
+                            <select id="multi-api-auth-type" onchange="toggleMultiApiAuthFields()"
+                                    style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; background: white;">
+                                <option value="cloudflare">Cloudflare API Key (X-Auth-Email + X-Auth-Key)</option>
+                                <option value="bearer">Bearer Token</option>
+                                <option value="apikey">Custom API Key Header</option>
+                                <option value="basic">Basic Auth</option>
+                            </select>
+                        </div>
+
+                        <div id="multi-api-cloudflare-fields">
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">X-Auth-Email</label>
+                                <input type="text" id="multi-api-cf-email" placeholder="your@email.com" 
+                                       style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">X-Auth-Key</label>
+                                <input type="password" id="multi-api-cf-key" placeholder="Enter your Cloudflare API key" 
+                                       style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            </div>
+                        </div>
+
+                        <div id="multi-api-bearer-fields" style="display: none;">
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Bearer Token</label>
+                                <input type="password" id="multi-api-bearer-token" placeholder="Enter your bearer token" 
+                                       style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            </div>
+                        </div>
+
+                        <div id="multi-api-apikey-fields" style="display: none;">
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">API Key Header</label>
+                                <input type="text" id="multi-api-key-header" placeholder="X-Auth-Key" value="X-Auth-Key"
+                                       style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">API Key Value</label>
+                                <input type="password" id="multi-api-key-value" placeholder="Enter your API key" 
+                                       style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Email (for Cloudflare)</label>
+                                <input type="text" id="multi-api-email" placeholder="your@email.com" 
+                                       style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            </div>
+                        </div>
+
+                        <div id="multi-api-basic-fields" style="display: none;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Username</label>
+                                    <input type="text" id="multi-api-username" placeholder="username" 
+                                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Password</label>
+                                    <input type="password" id="multi-api-password" placeholder="password" 
+                                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="testMultiApiConnection" class="btn-secondary" onclick="testMultiApiConnection()"
+                                style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
+                            🔍 Test API Connection
+                        </button>
+                        <div id="multi-api-connection-status" style="margin-top: 10px;"></div>
+                    </div>
+
+                    <!-- Right Side: BigQuery Configuration -->
+                    <div style="background: #e8f4fd; padding: 25px; border-radius: 12px; border: 1px solid #bee5eb;">
+                        <h3 style="color: #495057; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                            🗄️ BigQuery Target Configuration
+                        </h3>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">BigQuery Dataset</label>
+                            <input type="text" id="multi-api-bq-dataset" placeholder="project.dataset" 
+                                   style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                                Tables will be matched by name from the list below
+                            </small>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Target Table Names (one per line)</label>
+                            <textarea id="multi-api-bq-tables" placeholder="account_members&#10;custom_pages_accounts&#10;custom_pages_zones&#10;log_pull_retention_flag" 
+                                      style="width: 100%; height: 120px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                            <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                                💡 One table name per line (must match API endpoints order)
+                            </small>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Primary Keys (one per line, supports composite keys)</label>
+                            <textarea id="multi-api-primary-keys" placeholder="id&#10;account_id,sitekey&#10;zone_id&#10;flag" 
+                                      style="width: 100%; height: 80px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                            <small style="color: #17a2b8; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #e7f5ff; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                                💡 One primary key per line. For composite keys, use comma-separated fields (e.g., <code>account_id,zone_id</code>)
+                            </small>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">🔍 BQ Filter Conditions (one per line, optional)</label>
+                            <textarea id="multi-api-bq-filters" placeholder="account_id = '827a10bb3a8d52a448b892bb77df8865'&#10;account_id = 'e1ed825a76913f75331609b9e36e34b5'&#10;zone_id = 'your_zone_id'&#10;" 
+                                      style="width: 100%; height: 100px; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                            <small style="color: #e67e22; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #fef9e7; border-radius: 4px; border-left: 3px solid #e67e22;">
+                                💡 WHERE clause conditions (without WHERE keyword). One per line matching table order. Leave blank for no filter.
+                            </small>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">Data Path in API Response (Optional)</label>
+                            <input type="text" id="multi-api-data-path" placeholder="result" 
+                                   style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 14px;">
+                            <small style="color: #666; font-style: italic; display: block; margin-top: 5px;">
+                                Path to data array in API response (e.g., "result" for Cloudflare APIs)
+                            </small>
+                        </div>
+
+                        <button class="btn-primary" onclick="startMultiApiComparison()"
+                                style="width: 100%; padding: 15px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                            🚀 Start Multi-API vs BigQuery Validation
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Multi-API Results Section -->
+            <div id="multi-api-results" style="display: none;">
             </div>
         </div>
+        </div> <!-- Close api-comparison-page -->
 
         <!-- Page 4: RDBMS vs BigQuery -->
 <div id="rdbms-comparison-page" class="page-content">
@@ -6878,5 +7444,6 @@ function startNewMySQLComparison() {
     if (configSection) configSection.style.display = 'block';
 }
     </script>
+    <script src="api-vs-bq.js"></script>
 </body>
 </html>
