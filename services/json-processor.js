@@ -15,6 +15,31 @@ class JSONProcessor {
     };
   }
 
+  // Detect if object is a keyed-object format (keys are identifiers, values are arrays/objects of data)
+  isKeyedObject(obj) {
+    if (typeof obj !== 'object' || Array.isArray(obj)) return false;
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return false;
+    // Check if all values are arrays or objects (not primitive values)
+    // This indicates the keys are identifiers and values are the actual data
+    const sampleKeys = keys.slice(0, Math.min(10, keys.length));
+    const allValuesAreStructured = sampleKeys.every(key => 
+      Array.isArray(obj[key]) || (typeof obj[key] === 'object' && obj[key] !== null)
+    );
+    // Also ensure keys don't look like regular field names (they should be IDs/identifiers)
+    // Regular fields are typically short lowercase words, IDs tend to be longer or have special patterns
+    const keysLookLikeIds = sampleKeys.every(key => {
+      // UUID pattern
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) return true;
+      // Numeric IDs
+      if (/^\d+$/.test(key)) return true;
+      // Long alphanumeric strings (hashes, encoded IDs)
+      if (key.length > 20 && /^[a-zA-Z0-9_-]+$/.test(key)) return true;
+      return false;
+    });
+    return allValuesAreStructured && keysLookLikeIds;
+  }
+
   // Flatten nested objects for BQ compatibility
   flattenObject(obj, prefix = '') {
     const flattened = {};
@@ -109,6 +134,35 @@ class JSONProcessor {
       if (Array.isArray(jsonData)) {
         records = jsonData.map(obj => this.flattenObject(obj));
         this.stats.totalRecords = jsonData.length;
+      } else if (this.isKeyedObject(jsonData)) {
+        // Handle keyed-object format: keys are identifiers (UUIDs), values are arrays/objects of data
+        // Expand into rows with the key as 'uuid' column to match BQ schema
+        console.log('Detected keyed-object format, expanding keys to rows');
+        const keys = Object.keys(jsonData);
+        console.log(`Found ${keys.length} top-level keys`);
+        
+        for (const [keyValue, entries] of Object.entries(jsonData)) {
+          if (Array.isArray(entries)) {
+            for (const entry of entries) {
+              // Add the key as 'uuid' column and normalize camelCase to snake_case
+              const row = { uuid: keyValue };
+              for (const [field, value] of Object.entries(entry)) {
+                const snakeField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
+                row[snakeField] = value;
+              }
+              records.push(this.flattenObject(row));
+            }
+          } else if (typeof entries === 'object' && entries !== null) {
+            const row = { uuid: keyValue };
+            for (const [field, value] of Object.entries(entries)) {
+              const snakeField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
+              row[snakeField] = value;
+            }
+            records.push(this.flattenObject(row));
+          }
+        }
+        this.stats.totalRecords = records.length;
+        console.log(`Expanded to ${records.length} rows`);
       } else {
         // Single object
         records = [this.flattenObject(jsonData)];

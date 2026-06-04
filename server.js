@@ -24,6 +24,80 @@ const app = express();
 const port = process.env.PORT || 3000;
 const apiFetcher = new APIFetcherService();
 
+// Helper: Expand UUID-keyed or numeric-keyed objects into row arrays with snake_case fields
+function camelToSnake(field) {
+    return field
+        .replace(/([A-Z])/g, '_$1')
+        .toLowerCase()
+        .replace(/^_/, ''); // Remove leading underscore if field started with uppercase
+}
+
+function expandUUIDKeyedData(data) {
+    if (Array.isArray(data)) {
+        // Even if it's already an array, apply camelCase to snake_case conversion
+        return data.map(record => {
+            const converted = {};
+            for (const [field, value] of Object.entries(record)) {
+                converted[camelToSnake(field)] = value;
+            }
+            return converted;
+        });
+    }
+    
+    const keys = Object.keys(data || {});
+    if (keys.length === 0) return [data];
+    
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isUUIDKeyed = keys.slice(0, 5).every(k => uuidPattern.test(k));
+    const isNumericKeyed = keys.slice(0, 5).every(k => /^\d+$/.test(k));
+    
+    if (isUUIDKeyed) {
+        console.log(`Detected UUID-keyed object with ${keys.length} keys, expanding to rows...`);
+        const rows = [];
+        for (const [uuid, entries] of Object.entries(data)) {
+            if (Array.isArray(entries)) {
+                for (const entry of entries) {
+                    const row = { uuid };
+                    for (const [field, value] of Object.entries(entry)) {
+                        row[camelToSnake(field)] = value;
+                    }
+                    rows.push(row);
+                }
+            } else if (typeof entries === 'object' && entries !== null) {
+                const row = { uuid };
+                for (const [field, value] of Object.entries(entries)) {
+                    row[camelToSnake(field)] = value;
+                }
+                rows.push(row);
+            }
+        }
+        console.log(`Expanded UUID-keyed to ${rows.length} rows`);
+        return rows;
+    } else if (isNumericKeyed) {
+        // Numeric keys mean it's an array-like object — convert values to rows
+        console.log(`Detected numeric-keyed object with ${keys.length} keys, converting to array...`);
+        const rows = [];
+        for (const entry of Object.values(data)) {
+            if (typeof entry === 'object' && entry !== null) {
+                const row = {};
+                for (const [field, value] of Object.entries(entry)) {
+                    row[camelToSnake(field)] = value;
+                }
+                rows.push(row);
+            }
+        }
+        console.log(`Converted numeric-keyed to ${rows.length} rows`);
+        return rows;
+    }
+    
+    // Single object, still convert camelCase
+    const converted = {};
+    for (const [field, value] of Object.entries(data)) {
+        converted[camelToSnake(field)] = value;
+    }
+    return [converted];
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -1242,12 +1316,11 @@ app.post('/api/validate', async (req, res) => {
         console.log('Running sanity test for table:', tableName);
 
         const query = `
-            CALL \`${process.env.GOOGLE_CLOUD_PROJECT_ID}.${process.env.BIGQUERY_DATASET}.data_validation_checks\`(
+            CALL \`${process.env.VALIDATION_PROCEDURE_PROJECT || 'rax-staging-qa'}.${process.env.VALIDATION_PROCEDURE_DATASET || 'stage_three_dw'}.data_validation_checks\`(
                 @table_name,
                 @null_check_columns,
                 @duplicate_key_columns,
-                @special_char_check_columns,
-                @composite_key_columns
+                @special_char_check_columns
             )
         `;
 
@@ -1257,15 +1330,13 @@ app.post('/api/validate', async (req, res) => {
                 table_name: tableName,
                 null_check_columns: nullCheckColumns || [],
                 duplicate_key_columns: duplicateKeyColumns || [],
-                special_char_check_columns: specialCharCheckColumns || [],
-                composite_key_columns: compositeKeyColumns || []
+                special_char_check_columns: specialCharCheckColumns || []
             },
             types: {
                 table_name: 'STRING',
                 null_check_columns: ['STRING'],
                 duplicate_key_columns: ['STRING'],
-                special_char_check_columns: ['STRING'],
-                composite_key_columns: ['STRING']
+                special_char_check_columns: ['STRING']
             }
         };
 
@@ -1941,7 +2012,7 @@ app.post('/api/create-temp-table-from-api', async (req, res) => {
         if (!apiDataResult.success) return res.status(404).json({ success: false, error: 'API data not found' });
 
         let jsonData = apiDataResult.data.result || apiDataResult.data;
-        if (!Array.isArray(jsonData)) jsonData = [jsonData];
+        jsonData = expandUUIDKeyedData(jsonData);
 
         const bqService = new BigQueryIntegrationService();
         const result = await bqService.createTempTableFromJSON(jsonData, dataId, primaryKey);
@@ -1958,7 +2029,7 @@ app.post('/api/compare-api-vs-bq', async (req, res) => {
 
         const apiDataResult = await apiFetcher.getAPIData(dataId);
         let jsonData = apiDataResult.data.result || apiDataResult.data;
-        if (!Array.isArray(jsonData)) jsonData = [jsonData];
+        jsonData = expandUUIDKeyedData(jsonData);
 
         const bqService = new BigQueryIntegrationService();
         const tempTableResult = await bqService.createTempTableFromJSON(jsonData, dataId, primaryKey);
@@ -2042,8 +2113,12 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
                     || apiDataResult.data.items    // Items pattern
                     || apiDataResult.data;         // Direct data fallback
         
-        if (!Array.isArray(jsonData)) {
-            jsonData = [jsonData];
+        // Normalize data: expand keyed objects and convert camelCase to snake_case
+        jsonData = expandUUIDKeyedData(jsonData);
+        
+        // Debug: log field names after conversion
+        if (jsonData.length > 0) {
+            console.log(`After expandUUIDKeyedData - fields: [${Object.keys(jsonData[0]).join(', ')}]`);
         }
         
         // Filter out wrapper objects that don't contain actual record data
@@ -2304,7 +2379,7 @@ app.post('/api/create-temp-table-from-api', async (req, res) => {
         }
 
         let jsonData = apiDataResult.data.result || apiDataResult.data;
-        if (!Array.isArray(jsonData)) jsonData = [jsonData];
+        jsonData = expandUUIDKeyedData(jsonData);
 
         const bqService = new BigQueryIntegrationService();
         const result = await bqService.createTempTableFromJSON(jsonData, dataId, primaryKey);
@@ -2455,8 +2530,9 @@ app.post('/api/api-vs-bq-compare', async (req, res) => {
         
         // Create temp table from API data
         const bqService = new BigQueryIntegrationService();
+        const expandedApiData = Array.isArray(apiData) ? apiData : expandUUIDKeyedData(apiData);
         const tempTableResult = await bqService.createTempTableFromJSON(
-            apiData,
+            expandedApiData,
             `api_${Date.now()}`,
             primaryKey
         );

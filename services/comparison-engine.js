@@ -7,6 +7,10 @@ class ComparisonEngineService {
             projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
         });
 
+        // ETL-added columns that exist in BQ but not in source APIs
+        // These are excluded from field-by-field comparison (but still available as join keys)
+        this.etlExcludeColumns = ['dw_timestamp', 'year', 'month'];
+
         console.log('Comparison Engine Service initialized - FIXED VERSION with Universal Data Types');
         console.log('FIXED: SQL table aliasing + universal data type support + BigQuery filtering for ALL field comparisons');
     }
@@ -227,6 +231,9 @@ class ComparisonEngineService {
         console.log(`Temp table: ${tempTableId}`);
         console.log(`Source table reference: ${sourceTableReference}`);
 
+        // Strip backticks from source table reference to avoid double-backtick issues
+        sourceTableReference = sourceTableReference.replace(/`/g, '').trim();
+
         let jsonFields = [];
         try {
             const jsonSchemaQuery = `SELECT * FROM \`${tempTableId}\` LIMIT 1`;
@@ -284,7 +291,16 @@ class ComparisonEngineService {
 
         for (const jsonField of jsonFields) {
             if (bqFields.includes(jsonField)) {
-                commonFields.push(jsonField);
+                // Exclude known ETL-added columns from common fields (move to BQ-only)
+                if (this.etlExcludeColumns.includes(jsonField) && !jsonFields.includes(jsonField + '_from_api')) {
+                    // Only exclude if this field came from BQ schema matching, not genuinely from API
+                    // Check: if field is in temp table AND in BQ, it could be legitimately common
+                    // ETL columns like dw_timestamp/year/month are added by pipeline, not API
+                    console.log(`ETL column detected in both tables: ${jsonField} (excluding from field comparison)`);
+                    commonFields.push(jsonField); // Keep in common for schema display
+                } else {
+                    commonFields.push(jsonField);
+                }
             } else {
                 jsonOnlyFields.push(jsonField);
             }
@@ -812,6 +828,7 @@ class ComparisonEngineService {
             const safeFields = commonFields.filter(field => {
                 const lowerField = field.toLowerCase();
                 return field !== primaryKey &&
+                       !this.etlExcludeColumns.includes(field) &&
                        !lowerField.includes('comment') &&
                        !lowerField.includes('description') &&
                        !lowerField.includes('sys_domain_path') &&
@@ -958,6 +975,9 @@ class ComparisonEngineService {
      */
     async compareJSONvsBigQuery(tempTableId, sourceTableName, primaryKey = 'Id', comparisonFields = [], strategy = 'enhanced') {
         try {
+            // Strip backticks from source table name to prevent double-backtick issues
+            sourceTableName = sourceTableName.replace(/`/g, '').trim();
+
             console.log('Starting comparison...');
             console.log(`SOURCE (JSON): ${tempTableId}`);
             console.log(`TARGET (BigQuery): ${sourceTableName}`);
@@ -1602,6 +1622,9 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
         if (filteredSourceQuery.includes('SELECT') && filteredSourceQuery.includes('FROM `')) {
             const tableMatch = filteredSourceQuery.match(/FROM\s+`([^`]+)`/);
             originalTable = tableMatch ? tableMatch[1] : null;
+        } else {
+            // Direct table reference (no filter) - strip backticks
+            originalTable = filteredSourceQuery.replace(/`/g, '').trim();
         }
 
         if (!originalTable) {
@@ -1619,10 +1642,10 @@ async getFilteredFieldWiseAnalysis(tempTableId, filteredSourceQuery, primaryKey,
         console.log(`Using original table for schema analysis: ${originalTable}`);
         const schemaInfo = await this.getCommonFields(tempTableId, originalTable);
         
-        // Exclude primary key columns from field comparison
+        // Exclude primary key columns and ETL-added columns from field comparison
         const pkColumns = this.parseCompositeKey(primaryKey);
         const fieldsToCompare = (comparisonFields.length > 0 ? comparisonFields : schemaInfo.commonFields)
-            .filter(f => !pkColumns.includes(f));
+            .filter(f => !pkColumns.includes(f) && !this.etlExcludeColumns.includes(f));
 
         if (fieldsToCompare.length === 0) {
             return {
