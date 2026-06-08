@@ -1,4 +1,4 @@
-// server.js - UNIVERSAL DATA TYPES + DUAL DUPLICATES ANALYSIS + EXCEL EXPORT READY
+﻿// server.js - UNIVERSAL DATA TYPES + DUAL DUPLICATES ANALYSIS + EXCEL EXPORT READY
 const express = require('express');
 const { BigQuery } = require('@google-cloud/bigquery');
 const cors = require('cors');
@@ -10,14 +10,14 @@ const RDBMSComparisonEngineService = require('./services/rdbms-comparison-engine
 const APIFetcherService = require('./services/api-fetcher');
 require('dotenv').config();
 
-// ✅ ADD ORACLE THICK MODE HERE (lines 11-19)
+// âœ… ADD ORACLE THICK MODE HERE (lines 11-19)
 const oracledb = require('oracledb');
 try {
     oracledb.initOracleClient({ libDir: 'C:\\oracle\\instantclient_19_29' });
-    console.log('✅ Oracle Thick Mode initialized');
+    console.log('âœ… Oracle Thick Mode initialized');
 } catch (err) {
     if (!err.message.includes('already been called')) {
-        console.error('❌ Oracle init failed:', err.message);
+        console.error('âŒ Oracle init failed:', err.message);
     }
 }
 const app = express();
@@ -74,7 +74,7 @@ function expandUUIDKeyedData(data) {
         console.log(`Expanded UUID-keyed to ${rows.length} rows`);
         return rows;
     } else if (isNumericKeyed) {
-        // Numeric keys mean it's an array-like object — convert values to rows
+        // Numeric keys mean it's an array-like object â€” convert values to rows
         console.log(`Detected numeric-keyed object with ${keys.length} keys, converting to array...`);
         const rows = [];
         for (const entry of Object.values(data)) {
@@ -118,7 +118,7 @@ app.post('/api/test-rdbms-connection', async (req, res) => {
     const { dbType, ...connectionConfig } = req.body;
     
     // ADD THIS DEBUG LINE
-    console.log('🔍 TEST CONNECTION REQUEST:', { dbType, ...connectionConfig, password: '***' });
+    console.log('ðŸ” TEST CONNECTION REQUEST:', { dbType, ...connectionConfig, password: '***' });
         
         console.log(`Testing ${dbType} connection:`, {
             host: connectionConfig.host || connectionConfig.server,
@@ -199,14 +199,14 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
     try {
         const { dbType, host, port, database, sid, serviceName, username, password, sourceTable, bqTable, primaryKey, comparisonFields = [], sourceFilter = '' } = req.body;
 
-        // ✅ SAFETY: Ignore comparison fields for multi-table validation
+        // âœ… SAFETY: Ignore comparison fields for multi-table validation
         const sourceTablesArray = Array.isArray(sourceTable) 
             ? sourceTable 
             : (sourceTable.includes('\n') ? sourceTable.split('\n').map(t => t.trim()).filter(t => t) : [sourceTable]);
         
         let safeComparisonFields = comparisonFields;
         if (sourceTablesArray.length > 1 && comparisonFields && comparisonFields.length > 0) {
-            console.warn(`⚠️ Multi-table validation with ${sourceTablesArray.length} tables - ignoring comparison fields for safety`);
+            console.warn(`âš ï¸ Multi-table validation with ${sourceTablesArray.length} tables - ignoring comparison fields for safety`);
             safeComparisonFields = []; // Force empty for multi-table
         }
 
@@ -244,7 +244,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
         }
 
         // STEP 1: Get total count (fast - no data transfer)
-        console.log(`📊 Getting total record count from ${sourceTable}...`);
+        console.log(`ðŸ“Š Getting total record count from ${sourceTable}...`);
         let totalRecordCount = 0;
         let countQuery;
 
@@ -273,14 +273,14 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
                 countResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, countQuery);
             }
             totalRecordCount = countResult.records[0]?.total_count || countResult.records[0]?.TOTAL_COUNT || 0;
-            console.log(`✅ Total records: ${totalRecordCount.toLocaleString()}`);
+            console.log(`âœ… Total records: ${totalRecordCount.toLocaleString()}`);
         } catch (countError) {
             console.warn('Count query failed:', countError.message);
         }
 
         // STEP 2: Fetch sample data (2000 records)
         const SAMPLE_SIZE = 2000;
-        console.log(`📦 Fetching ${SAMPLE_SIZE} sample records for validation...`);
+        console.log(`ðŸ“¦ Fetching ${SAMPLE_SIZE} sample records for validation...`);
 
         const fields = ['*'];
         let query;
@@ -312,7 +312,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             rdbmsResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, query);
         }
         
-        console.log(`✅ Retrieved ${rdbmsResult.recordCount} sample records from ${dbType.toUpperCase()}`);
+        console.log(`âœ… Retrieved ${rdbmsResult.recordCount} sample records from ${dbType.toUpperCase()}`);
         
         if (!rdbmsResult.records || rdbmsResult.records.length === 0) {
             return res.json({
@@ -339,7 +339,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
         console.log(`Created temp table: ${tempTableResult.tempTableId}`);
 
         // Step 3: Use ENHANCED RDBMS comparison engine
-        console.log('🔍 Using ENHANCED RDBMS Comparison Engine with comprehensive metrics...');
+        console.log('ðŸ” Using ENHANCED RDBMS Comparison Engine with comprehensive metrics...');
         const rdbmsComparisonEngine = new RDBMSComparisonEngineService();
         
        const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
@@ -357,6 +357,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             ...results.metadata,
             sourceType: dbType.toUpperCase(),
             sourceTable: sourceTable,
+            targetTable: bqTable,
             tempTable: tempTableResult.tempTableId,
             recordsProcessed: rdbmsResult.recordCount,
             totalRecordsInSource: totalRecordCount,
@@ -386,7 +387,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
         };
 
         console.log(`${dbType.toUpperCase()} vs BigQuery ENHANCED comparison completed`);
-        console.log(`📊 Results: ${results.summary.identicalRecords || 0} identical, ${results.summary.mismatchedRecords || 0} mismatched`);
+        console.log(`ðŸ“Š Results: ${results.summary.identicalRecords || 0} identical, ${results.summary.mismatchedRecords || 0} mismatched`);
         
         res.json(results);
 
@@ -1095,7 +1096,7 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
         
         console.log(`ENHANCED comparison completed successfully`);
         console.log(`Results summary: ${results.summary?.recordsReachedTarget || 0} matches found using '${primaryKey}' with universal data type support`);
-        console.log(`Data types detected: JSON ${results.comparisonResults?.dataTypes?.tempType || 'STRING'} ↔ BQ ${results.comparisonResults?.dataTypes?.sourceType || 'STRING'}`);
+        console.log(`Data types detected: JSON ${results.comparisonResults?.dataTypes?.tempType || 'STRING'} â†” BQ ${results.comparisonResults?.dataTypes?.sourceType || 'STRING'}`);
         console.log(`Duplicates analysis: JSON has ${results.duplicatesAnalysis?.jsonDuplicates?.duplicateCount || 0}, BQ has ${results.duplicatesAnalysis?.bqDuplicates?.duplicateCount || 0} duplicate keys`);
         
         // Include enhanced temp table info in response
@@ -1414,7 +1415,7 @@ app.post('/api/validate', async (req, res) => {
 
 
 // ============================================================
-// BQ vs BQ COMPARISON ENDPOINT - FIXED (no string conversion)
+// BQ vs BQ COMPARISON ENDPOINT - FROM QE_Consol_QA
 // ============================================================
 
 app.post('/api/bq-vs-bq', async (req, res) => {
@@ -1429,7 +1430,6 @@ app.post('/api/bq-vs-bq', async (req, res) => {
         console.log(`Source Filter: ${sourceFilter || 'None'}`);
         console.log(`Sample Size: ${SAMPLE_SIZE}`);
 
-        // Validate required fields
         if (!sourceTable || !targetTable || !primaryKey) {
             return res.status(400).json({
                 success: false,
@@ -1447,9 +1447,8 @@ app.post('/api/bq-vs-bq', async (req, res) => {
 
         const sourceWhereClause = sourceFilter ? `WHERE ${sourceFilter}` : '';
 
-        // ========== STEP 1: Full record counts (just COUNT(*), fast) ==========
-        console.log('📊 Getting full record counts...');
-
+        // STEP 1: Full record counts
+        console.log('Getting full record counts...');
         let sourceTotalCount = 0, targetTotalCount = 0;
         try {
             const countsQuery = sourceFilter ? `
@@ -1467,7 +1466,7 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             const [countRows] = await bigquery.query(countsQuery);
             sourceTotalCount = countRows[0].source_total;
             targetTotalCount = countRows[0].target_total;
-            console.log(`✅ Source: ${sourceTotalCount} total, Target: ${targetTotalCount} total`);
+            console.log(`Source: ${sourceTotalCount} total, Target: ${targetTotalCount} total`);
         } catch (err) {
             return res.status(400).json({
                 success: false,
@@ -1476,9 +1475,8 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             });
         }
 
-        // ========== STEP 2: Create sample source keys (2000 PKs) ==========
-        console.log('📦 Creating source sample...');
-
+        // STEP 2: Create sample source keys
+        console.log('Creating source sample...');
         const sampleSubquery = `
             SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) as pk
             FROM \`${sourceTable}\` ${sourceWhereClause}
@@ -1490,7 +1488,7 @@ app.post('/api/bq-vs-bq', async (req, res) => {
         try {
             const [sampleRows] = await bigquery.query(sampleSubquery);
             sampleKeys = sampleRows.map(r => r.pk);
-            console.log(`✅ Sample keys: ${sampleKeys.length} selected`);
+            console.log(`Sample keys: ${sampleKeys.length} selected`);
         } catch (sampleErr) {
             return res.status(400).json({ success: false, error: `Sample query failed: ${sampleErr.message}` });
         }
@@ -1501,9 +1499,8 @@ app.post('/api/bq-vs-bq', async (req, res) => {
 
         const sampleValidated = sampleKeys.length;
 
-        // ========== STEP 3: Sample-based detailed stats ==========
-        console.log('📊 Getting sample-based stats...');
-
+        // STEP 3: Sample-based detailed stats
+        console.log('Getting sample-based stats...');
         let sampleSourceStats = { unique: sampleValidated, duplicates: 0 };
         let sampleTargetStats = { unique: 0, duplicates: 0 };
 
@@ -1520,14 +1517,12 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             const stats = statsRows[0];
             sampleSourceStats = { unique: stats.source_unique, duplicates: stats.source_duplicates };
             sampleTargetStats = { unique: stats.target_unique, duplicates: stats.target_duplicates };
-            console.log(`✅ Sample source: ${stats.source_unique} unique, ${stats.source_duplicates} dups`);
-            console.log(`✅ Sample target: ${stats.target_unique} unique, ${stats.target_duplicates} dups`);
         } catch (statsErr) {
             console.warn('Sample stats failed:', statsErr.message);
         }
 
-        // ========== STEP 4: Schema analysis ==========
-        console.log('📋 Analyzing schema...');
+        // STEP 4: Schema analysis
+        console.log('Analyzing schema...');
         let sourceFields = [], targetFields = [];
         try {
             const schemaQuery = `
@@ -1568,10 +1563,8 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             fieldsToCompare = commonFields.filter(f => f !== primaryKey);
         }
 
-        console.log(`✅ Common: ${commonFields.length}, Comparing: ${fieldsToCompare.length}`);
-
-        // ========== STEP 5: Record matching (sample-based) ==========
-        console.log('🔍 Matching records (sample-based)...');
+        // STEP 5: Record matching (sample-based)
+        console.log('Matching records (sample-based)...');
         const matchQuery = `
             WITH source_sample AS (${sampleSubquery}),
             target_keys AS (
@@ -1589,13 +1582,12 @@ app.post('/api/bq-vs-bq', async (req, res) => {
         try {
             const [matchRows] = await bigquery.query(matchQuery);
             matchCounts = matchRows[0];
-            console.log(`✅ Matched: ${matchCounts.matched}, Source-only: ${matchCounts.source_only}, Target-only: ${matchCounts.target_only}`);
         } catch (matchErr) {
             return res.status(400).json({ success: false, error: `Match query failed: ${matchErr.message}` });
         }
 
-        // ========== STEP 6: Field-by-field comparison (sample-based) ==========
-        console.log('🔬 Field comparison (sample-based)...');
+        // STEP 6: Field-by-field comparison (sample-based)
+        console.log('Field comparison (sample-based)...');
         const fieldComparisons = [];
         let totalFieldIssues = 0;
         let perfectFieldCount = 0;
@@ -1651,12 +1643,8 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             }
         }
 
-        console.log(`✅ Fields: ${perfectFieldCount} perfect, ${fieldsToCompare.length - perfectFieldCount} with issues`);
-
-        // ========== STEP 7: Duplicate detection (sample-based) ==========
-        console.log('🔄 Checking duplicates (sample-based)...');
+        // STEP 7: Duplicate detection (sample-based)
         let sourceDupKeys = [], targetDupKeys = [];
-
         try {
             const dupQuery = `
                 WITH source_sample AS (${sampleSubquery}),
@@ -1689,7 +1677,7 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             console.warn('Duplicate detection failed:', dupErr.message);
         }
 
-        // ========== STEP 8: Sample differences ==========
+        // STEP 8: Sample differences
         let sampleDiffs = [];
         if (fieldsToCompare.length > 0 && matchCounts.matched > 0) {
             try {
@@ -1715,15 +1703,14 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             }
         }
 
-        // ========== BUILD RESPONSE ==========
+        // BUILD RESPONSE
         const successRate = sampleValidated > 0
             ? ((matchCounts.matched / sampleValidated) * 100).toFixed(1) : '0.0';
 
         const sampleSourceDupTotal = sourceDupKeys.reduce((sum, d) => sum + d.count, 0);
         const sampleTargetDupTotal = targetDupKeys.reduce((sum, d) => sum + d.count, 0);
         const bothClean = sourceDupKeys.length === 0 && targetDupKeys.length === 0;
-		const maxDiffs = fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0);
-        console.log(`🔍 DEBUG: matched=${matchCounts.matched}, maxDiffs=${maxDiffs}, identical=${Math.max(0, matchCounts.matched - maxDiffs)}, mismatched=${Math.min(matchCounts.matched, maxDiffs)}`);
+        const maxDiffs = fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0);
 
         const response = {
             success: true,
@@ -1737,8 +1724,8 @@ app.post('/api/bq-vs-bq', async (req, res) => {
                     recordsReachedTarget: matchCounts.matched,
                     recordsFailedToReachTarget: matchCounts.source_only,
                     recordsOnlyInTarget: matchCounts.target_only,
-                    identicalRecords: Math.max(0, matchCounts.matched - fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0)),
-                    mismatchedRecords: Math.min(matchCounts.matched, fieldComparisons.reduce((max, f) => Math.max(max, f.differences || 0), 0)),
+                    identicalRecords: Math.max(0, matchCounts.matched - maxDiffs),
+                    mismatchedRecords: Math.min(matchCounts.matched, maxDiffs),
                     pipelineSuccessRate: successRate,
                     primaryKeyUsed: primaryKey,
                     fieldsAnalyzed: fieldsToCompare.length,
@@ -1826,11 +1813,7 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             }
         };
 
-        console.log(`\n✅ BQ vs BQ completed`);
-        console.log(`📊 Full counts - Source: ${sourceTotalCount}, Target: ${targetTotalCount}`);
-        console.log(`📊 Sample: ${sampleValidated} validated, ${matchCounts.matched} matched`);
-        console.log(`📊 Fields: ${perfectFieldCount}/${fieldsToCompare.length} perfect`);
-
+        console.log(`BQ vs BQ completed - Source: ${sourceTotalCount}, Target: ${targetTotalCount}, Sample: ${sampleValidated} validated`);
         res.json(response);
 
     } catch (error) {
@@ -1846,6 +1829,91 @@ app.post('/api/bq-vs-bq', async (req, res) => {
             ]
         });
     }
+});
+
+// Schema-aware null check endpoint (from QE_Consol_QA)
+app.post('/api/bq-schema-null-check', async (req, res) => {
+    const { compareSchemas, identifyNotNullColumns, buildNullValidationResults, validateRequestParams } = require('./services/schema-null-check');
+
+    const validation = validateRequestParams(req.body);
+    if (!validation.valid) {
+        return res.status(400).json({ success: false, error: validation.error });
+    }
+
+    const { sourceTable, targetTable, primaryKey } = req.body;
+
+    const [srcProject, srcDataset, srcTableName] = sourceTable.split('.');
+    const [tgtProject, tgtDataset, tgtTableName] = targetTable.split('.');
+
+    let sourceColumns, targetColumns;
+
+    try {
+        const [rows] = await bigquery.query({
+            query: `SELECT column_name, data_type, is_nullable FROM \`${srcProject}.${srcDataset}\`.INFORMATION_SCHEMA.COLUMNS WHERE table_name = '${srcTableName}' ORDER BY ordinal_position`,
+            location: 'US',
+        });
+        sourceColumns = rows;
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            error: `Failed to read schema for source table ${sourceTable}: ${error.message}`,
+        });
+    }
+
+    try {
+        const [rows] = await bigquery.query({
+            query: `SELECT column_name, data_type, is_nullable FROM \`${tgtProject}.${tgtDataset}\`.INFORMATION_SCHEMA.COLUMNS WHERE table_name = '${tgtTableName}' ORDER BY ordinal_position`,
+            location: 'US',
+        });
+        targetColumns = rows;
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            error: `Failed to read schema for target table ${targetTable}: ${error.message}`,
+        });
+    }
+
+    const schemaComparison = compareSchemas(sourceColumns, targetColumns);
+    const notNullColumns = identifyNotNullColumns(sourceColumns, primaryKey);
+
+    let nullValidation = { notNullColumns, results: [], summary: { totalColumnsValidated: 0, columnsPassed: 0, columnsFailed: 0, passRate: '0.0' } };
+
+    if (notNullColumns.length > 0) {
+        try {
+            const countifClauses = notNullColumns
+                .map((col) => `COUNTIF(\`${col}\` IS NULL) as null_${col}`)
+                .join(', ');
+            const nullQuery = `SELECT COUNT(*) as total_rows, ${countifClauses} FROM \`${targetTable}\``;
+
+            const [rows] = await bigquery.query({ query: nullQuery, location: 'US' });
+            const nullCountRow = rows[0];
+            const totalRows = parseInt(nullCountRow.total_rows, 10) || 0;
+
+            nullValidation = {
+                notNullColumns,
+                ...buildNullValidationResults(notNullColumns, nullCountRow, totalRows),
+            };
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                error: `Null count query failed: ${error.message}`,
+            });
+        }
+    }
+
+    res.json({
+        success: true,
+        data: {
+            schemaComparison,
+            nullValidation,
+            metadata: {
+                sourceTable,
+                targetTable,
+                primaryKey,
+                checkedAt: new Date().toISOString(),
+            },
+        },
+    });
 });
 
 // Health Check Endpoint
@@ -2134,7 +2202,7 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
             console.log(`=== EXPLODING NESTED ARRAY: ${explodeArrayField} ===`);
             const originalCount = jsonData.length;
             jsonData = explodeNestedArray(jsonData, explodeArrayField.trim());
-            console.log(`Array explosion: ${originalCount} records GåÆ ${jsonData.length} records`);
+            console.log(`Array explosion: ${originalCount} records GÃ¥Ã† ${jsonData.length} records`);
             console.log(`Each nested ${explodeArrayField} item is now a separate row with parent fields preserved`);
         }
         
@@ -2523,10 +2591,10 @@ app.post('/api/api-vs-bq-compare', async (req, res) => {
         }
         
         console.log(`\n=== API vs BQ COMPARISON ===`);
-        console.log(`=ƒôè API Records: ${apiData.length}`);
-        console.log(`=ƒÄ» Target BQ Table: ${bqTable}`);
-        console.log(`=ƒöæ Primary Key: ${primaryKey}`);
-        console.log(`=ƒöì BQ Filter: ${bqFilter || '(none)'}`);
+        console.log(`=Æ’Ã´Ã¨ API Records: ${apiData.length}`);
+        console.log(`=Æ’Ã„Â» Target BQ Table: ${bqTable}`);
+        console.log(`=Æ’Ã¶Ã¦ Primary Key: ${primaryKey}`);
+        console.log(`=Æ’Ã¶Ã¬ BQ Filter: ${bqFilter || '(none)'}`);
         
         // Create temp table from API data
         const bqService = new BigQueryIntegrationService();
@@ -2537,7 +2605,7 @@ app.post('/api/api-vs-bq-compare', async (req, res) => {
             primaryKey
         );
         
-        console.log(`G£à Created temp table: ${tempTableResult.tempTableId}`);
+        console.log(`GÂ£Ã  Created temp table: ${tempTableResult.tempTableId}`);
         
         // Use comparison engine (same as JSON vs BQ)
         const ComparisonEngineService = require('./services/comparison-engine');
@@ -2546,7 +2614,7 @@ app.post('/api/api-vs-bq-compare', async (req, res) => {
         let results;
         if (bqFilter) {
             // Use filtered comparison if filter is provided
-            console.log(`=ƒöì Using filtered comparison with: ${bqFilter}`);
+            console.log(`=Æ’Ã¶Ã¬ Using filtered comparison with: ${bqFilter}`);
             results = await comparisonEngine.compareJSONvsBigQueryWithFilter(
                 tempTableResult.tempTableId,
                 bqTable,
@@ -2576,11 +2644,11 @@ app.post('/api/api-vs-bq-compare', async (req, res) => {
             bqFilter: bqFilter || null
         };
         
-        console.log(`G£à Comparison complete for ${bqTable}`);
+        console.log(`GÂ£Ã  Comparison complete for ${bqTable}`);
         res.json(results);
         
     } catch (error) {
-        console.error('G¥î API vs BQ comparison failed:', error.message);
+        console.error('GÂ¥Ã® API vs BQ comparison failed:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -2590,12 +2658,12 @@ app.post('/api/api-vs-bq-compare', async (req, res) => {
 
 // Start Server
 app.listen(port, () => {
-    console.log(`\n🚀 ETL Data Validation Server started`);
-    console.log(`📍 Port: ${port}`);
-    console.log(`🌐 URL: http://localhost:${port}`);
-    console.log(`✅ Oracle Thick Mode: Initialized`);
-    console.log(`📊 BigQuery: Ready`);
-    console.log(`\n📋 Available Endpoints:`);
+    console.log(`\nðŸš€ ETL Data Validation Server started`);
+    console.log(`ðŸ“ Port: ${port}`);
+    console.log(`ðŸŒ URL: http://localhost:${port}`);
+    console.log(`âœ… Oracle Thick Mode: Initialized`);
+    console.log(`ðŸ“Š BigQuery: Ready`);
+    console.log(`\nðŸ“‹ Available Endpoints:`);
     console.log(`   - GET  /api/health`);
     console.log(`   - POST /api/test-rdbms-connection`);
     console.log(`   - POST /api/rdbms-vs-bq`);

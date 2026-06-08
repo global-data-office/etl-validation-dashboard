@@ -2693,6 +2693,19 @@
                      </small>
                 </div>
 
+                <!-- TASK 1: Source Filter for Incremental Validation -->
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
+                    🔍 Source Filter (WHERE clause)
+                    <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
+                    </label>
+                    <textarea id="oracle-source-filter" placeholder="e.g., CREATED_DATE >= TO_DATE('2024-01-01', 'YYYY-MM-DD')&#10;or: STATUS = 'ACTIVE' AND DEPARTMENT_ID = 10" 
+                    style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
+                    <small style="color: #dc3545; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #f8d7da; border-radius: 4px; border-left: 3px solid #dc3545;">
+                   ⚠️ Filter Oracle source data for incremental validation. BigQuery records will be automatically matched by primary key from filtered Oracle results. (Do not include WHERE keyword)
+                    </small>
+               </div>
+
                 <button id="testOracleConnection" class="btn-secondary" onclick="testDatabaseConnection('oracle')"
                         style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; font-weight: 600;">
                     🔍 Test Oracle Connection
@@ -2731,19 +2744,6 @@
                                Leave empty to compare all fields, or specify fields to compare (comma-separated)
                         </small>
                   </div>
-
-                <!-- TASK 1: Target Filter for Incremental Validation -->
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-weight: 600; color: #495057; margin-bottom: 5px;">
-                    🔍 Target Filter (WHERE clause)
-                    <span style="font-weight: normal; color: #6c757d; font-size: 12px;">(Optional)</span>
-                    </label>
-                    <textarea id="oracle-target-filter" placeholder="e.g., created_date >= '2024-01-01'&#10;or: status = 'ACTIVE' AND department_id = 10" 
-                    style="width: 100%; height: 60px; padding: 10px; border: 2px solid #dee2e6; border-radius: 6px; font-size: 13px; resize: vertical; font-family: monospace;"></textarea>
-                    <small style="color: #155724; font-style: italic; display: block; margin-top: 5px; padding: 5px 10px; background: #d4edda; border-radius: 4px; border-left: 3px solid #28a745;">
-                   💡 Filter BigQuery target data to match source filter (do not include WHERE keyword)
-                    </small>
-               </div>
 
                 <button class="btn-primary" onclick="startRDBMSComparison('oracle')"
                         style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: 600;">
@@ -4741,7 +4741,8 @@ function exportRdbmsToExcel(dbType) {
             'postgresql': 'PostgreSQL',
             'mysql': 'MySQL',
             'oracle': 'Oracle',
-            'sqlserver': 'SQL Server'
+            'sqlserver': 'SQL Server',
+            'bigquery': 'Source BQ'
         };
         const dbName = dbDisplayNames[dbType] || dbType.toUpperCase();
         
@@ -5186,7 +5187,10 @@ async function startBQvsBQComparison() {
     // Display results
     if (allResults.length === 1) {
         if (allResults[0].success) {
-            displayRDBMSResults(allResults[0].data, 'bqvsbq', resultsSection);
+            displayRDBMSResults(allResults[0].data, 'bigquery', resultsSection);
+            // Auto-call schema null check
+            const meta = allResults[0].data?.data?.metadata || {};
+            callSchemaNullCheck(meta.sourceTable || allResults[0].sourceTable, meta.targetTable || allResults[0].targetTable, meta.primaryKey || primaryKeys[0], 'bigquery');
         } else {
             resultsSection.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 20px; border-radius: 8px; margin: 20px;">
@@ -5201,6 +5205,7 @@ async function startBQvsBQComparison() {
         }
     } else {
         // Multi-table results
+        window.multiTableDbType = 'bigquery';
         displayMultiTableBQResults(allResults, resultsSection);
     }
 }
@@ -5210,7 +5215,7 @@ function displayMultiTableBQResults(results, container) {
     
     // Store results globally for export
     window.multiTableResults = results;
-    window.multiTableDbType = 'bqvsbq';
+    window.multiTableDbType = 'bigquery';
     
     // Calculate summary stats
     const successCount = results.filter(r => r.success).length;
@@ -5713,7 +5718,8 @@ function displayRDBMSResults(result, dbType, targetDiv) {
         'postgresql': 'PostgreSQL',
         'mysql': 'MySQL',
         'oracle': 'Oracle',
-        'sqlserver': 'SQL Server'
+        'sqlserver': 'SQL Server',
+        'bigquery': 'Source BQ'
     };
     const dbName = dbDisplayNames[dbType] || dbType.toUpperCase();
     
@@ -5787,9 +5793,9 @@ function displayRDBMSResults(result, dbType, targetDiv) {
                     <span class="results-tab-icon">🔄</span>
                     <span class="results-tab-label">Duplicates</span>
                 </button>
-                <button class="results-tab-button" onclick="switchRdbmsTab('${dbType}', 'null-analysis'); loadBqNullAnalysis('${dbType}', '${data.metadata?.sourceTableName || ''}')">
+                <button class="results-tab-button" onclick="switchRdbmsTab('${dbType}', 'null-analysis'); loadSchemaNulls('${dbType}', '${data.data?.metadata?.targetTable || data.metadata?.targetTable || data.data?.metadata?.sourceTable || data.metadata?.sourceTable || ''}', '${data.data?.metadata?.targetTable || data.metadata?.targetTable || ''}', '${data.data?.metadata?.primaryKey || data.metadata?.primaryKey || data.data?.summary?.primaryKeyUsed || ''}')">
                     <span class="results-tab-icon">🔎</span>
-                    <span class="results-tab-label">Null Analysis</span>
+                    <span class="results-tab-label">Schema & Nulls</span>
                 </button>
           </div>
 
@@ -5878,11 +5884,11 @@ function displayRDBMSResults(result, dbType, targetDiv) {
                 ${populateDuplicatesContent(duplicatesAnalysis, dbName, sourceDuplicates, targetDuplicates)}
             </div>  <!-- Close last tab -->
 
-            <!-- TAB 6: NULL ANALYSIS (BQ Target) -->
+            <!-- TAB 6: SCHEMA & NULLS -->
             <div id="rdbms-tab-${dbType}-null-analysis" class="results-tab-content" style="display: none;">
                 <div id="rdbms-null-analysis-${dbType}">
                     <div style="text-align:center;padding:40px;color:#6c757d;">
-                        Click the <strong>Null Analysis</strong> tab to load null counts for the BigQuery target table.
+                        Loading Schema & Null validation...
                     </div>
                 </div>
             </div>  <!-- Close null analysis tab -->
@@ -6100,7 +6106,7 @@ function viewDetailedResults(tabIndex) {
        
        // Handle BQ vs BQ specially
        let resultsDiv;
-       if (dbType === 'bqvsbq') {
+       if (dbType === 'bigquery' || dbType === 'bqvsbq') {
            resultsDiv = document.getElementById('bq-vs-bq-results');
        } else {
            resultsDiv = document.getElementById(`${prefix}-comparison-results`) ||
@@ -6138,7 +6144,7 @@ function backToMultiTableSummary() {
     
     // Handle BQ vs BQ specially
     let resultsDiv;
-    if (dbType === 'bqvsbq') {
+    if (dbType === 'bigquery' || dbType === 'bqvsbq') {
         resultsDiv = document.getElementById('bq-vs-bq-results');
     } else {
         resultsDiv = document.getElementById(`${prefix}-comparison-results`) ||
@@ -6151,7 +6157,7 @@ function backToMultiTableSummary() {
 }
 function startNewMultiComparison(dbType) {
     // Handle BQ vs BQ specially
-    if (dbType === 'bqvsbq') {
+    if (dbType === 'bigquery' || dbType === 'bqvsbq') {
         startNewBQvsBQComparison();
         return;
     }
@@ -7442,6 +7448,179 @@ function startNewMySQLComparison() {
         resultsSection.innerHTML = '';
     }
     if (configSection) configSection.style.display = 'block';
+}
+
+// ============================================
+// Schema-Aware Null Check Functions
+// ============================================
+async function loadSchemaNulls(dbType, sourceTable, targetTable, primaryKey) {
+    const container = document.getElementById(`rdbms-null-analysis-${dbType}`);
+    if (!container) return;
+    
+    // For RDBMS, sourceTable might be an Oracle/PG table - use targetTable (BQ) as both
+    const bqTablePattern = /^[\w-]+\.[\w-]+\.[\w-]+$/;
+    if (!bqTablePattern.test(sourceTable) && bqTablePattern.test(targetTable)) {
+        sourceTable = targetTable;
+    }
+    
+    if (!sourceTable || !targetTable) {
+        container.innerHTML = '<div style="padding:15px;color:#856404;background:#fff3cd;border-radius:8px;">BigQuery table name not available. Please ensure the comparison completed successfully.</div>';
+        return;
+    }
+    container.innerHTML = '<div style="text-align:center;padding:30px;"><div class="spinner" style="margin:0 auto 15px;width:40px;height:40px;border:3px solid #dee2e6;border-top:3px solid #667eea;border-radius:50%;animation:spin 1s linear infinite;"></div>Loading Schema & Null check...</div>';
+    try {
+        const response = await fetch('/api/bq-schema-null-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sourceTable, targetTable, primaryKey })
+        });
+        const result = await response.json();
+        if (result.success) {
+            container.innerHTML = populateSchemaNullContent(result.data);
+        } else {
+            container.innerHTML = '<div style="padding:15px;color:#721c24;background:#f8d7da;border-radius:8px;">Schema & Null check failed: ' + (result.error || 'Unknown error') + '</div>';
+        }
+    } catch (err) {
+        container.innerHTML = '<div style="padding:15px;color:#721c24;background:#f8d7da;border-radius:8px;">Error: ' + err.message + '</div>';
+    }
+}
+
+async function callSchemaNullCheck(sourceTable, targetTable, primaryKey, dbType) {
+    console.log('Calling schema-null-check for', sourceTable, '->', targetTable);
+    try {
+        const response = await fetch('/api/bq-schema-null-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sourceTable, targetTable, primaryKey })
+        });
+        const result = await response.json();
+        if (result.success) {
+            injectSchemaNullTab(result.data, dbType);
+        } else {
+            injectSchemaNullTab({ error: result.error || 'Unknown error' }, dbType);
+        }
+    } catch (err) {
+        injectSchemaNullTab({ error: err.message }, dbType);
+    }
+}
+
+function injectSchemaNullTab(schemaNullData, dbType) {
+    if (document.getElementById('rdbms-tab-' + dbType + '-schema-nulls')) return;
+
+    var tabNav = document.querySelector('#bq-vs-bq-results .results-navigation-tabs');
+    if (!tabNav) {
+        var recordCountTab = document.getElementById('rdbms-tab-' + dbType + '-record-count');
+        if (recordCountTab) {
+            tabNav = recordCountTab.closest('.comparison-results');
+            if (tabNav) tabNav = tabNav.querySelector('.results-navigation-tabs');
+        }
+    }
+    if (!tabNav) return;
+
+    var tabButton = document.createElement('button');
+    tabButton.className = 'results-tab-button';
+    tabButton.setAttribute('onclick', "switchRdbmsTab('" + dbType + "', 'schema-nulls')");
+    tabButton.innerHTML = '<span class="results-tab-icon">&#128270;</span><span class="results-tab-label">Schema & Nulls</span>';
+    tabNav.appendChild(tabButton);
+
+    var contentWrapper = document.getElementById('rdbms-tab-' + dbType + '-duplicates');
+    if (contentWrapper) {
+        contentWrapper = contentWrapper.parentElement;
+    } else {
+        var rcTab = document.getElementById('rdbms-tab-' + dbType + '-record-count');
+        if (rcTab) contentWrapper = rcTab.parentElement;
+    }
+    if (!contentWrapper) return;
+
+    var contentDiv = document.createElement('div');
+    contentDiv.id = 'rdbms-tab-' + dbType + '-schema-nulls';
+    contentDiv.className = 'results-tab-content';
+    contentDiv.style.display = 'none';
+
+    if (schemaNullData && schemaNullData.error) {
+        contentDiv.innerHTML = '<div style="padding: 20px; color: #721c24; background: #f8d7da; border-radius: 8px; border-left: 4px solid #dc3545;">'
+            + '<strong>Schema & Null check failed:</strong> ' + schemaNullData.error
+            + '<br><small style="color: #856404;">The other validation results are unaffected.</small></div>';
+    } else {
+        contentDiv.innerHTML = populateSchemaNullContent(schemaNullData);
+    }
+
+    contentWrapper.appendChild(contentDiv);
+}
+
+function populateSchemaNullContent(data) {
+    const schemaComparison = data.schemaComparison || {};
+    const nullValidation = data.nullValidation || {};
+    const schemaCols = schemaComparison.columns || [];
+    const schemaSummary = schemaComparison.summary || {};
+    const nullResults = nullValidation.results || [];
+    const nullSummary = nullValidation.summary || {};
+
+    const totalValidated = nullSummary.totalColumnsValidated || 0;
+    const passed = nullSummary.columnsPassed || 0;
+    const failed = nullSummary.columnsFailed || 0;
+    const passRate = nullSummary.passRate || '0.0';
+
+    let html = '<div class="tab-summary-cards">';
+    html += '<div class="summary-card"><div class="summary-number">' + totalValidated + '</div><div class="summary-label">NOT NULL COLUMNS CHECKED</div></div>';
+    html += '<div class="summary-card"><div class="summary-number" style="color: #28a745;">' + passed + '</div><div class="summary-label">COLUMNS PASSED</div></div>';
+    html += '<div class="summary-card"><div class="summary-number" style="color: #dc3545;">' + failed + '</div><div class="summary-label">COLUMNS FAILED</div></div>';
+    html += '<div class="summary-card"><div class="summary-number" style="color: #17a2b8;">' + passRate + '%</div><div class="summary-label">PASS RATE</div></div>';
+    html += '</div>';
+
+    // Schema comparison table
+    if (schemaCols.length > 0) {
+        const typeMismatches = schemaCols.filter(c => c.dataTypeMatch === false).length;
+        const nullableMismatches = schemaCols.filter(c => c.nullableMatch === false).length;
+        const sourceOnly = schemaCols.filter(c => c.status === 'source_only').length;
+        const targetOnly = schemaCols.filter(c => c.status === 'target_only').length;
+
+        html += '<h4 style="margin: 20px 0 10px;">Schema Comparison - Source vs Target</h4>';
+        html += '<div style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">';
+        html += '<span style="background: #d4edda; padding: 4px 10px; border-radius: 4px;">Total Columns: ' + schemaCols.length + '</span>';
+        html += '<span style="background: #f8d7da; padding: 4px 10px; border-radius: 4px;">Type Mismatches: ' + typeMismatches + '</span>';
+        html += '<span style="background: #fff3cd; padding: 4px 10px; border-radius: 4px;">Nullable Mismatches: ' + nullableMismatches + '</span>';
+        html += '<span style="background: #cce5ff; padding: 4px 10px; border-radius: 4px;">Source Only: ' + sourceOnly + '</span>';
+        html += '<span style="background: #e2e3e5; padding: 4px 10px; border-radius: 4px;">Target Only: ' + targetOnly + '</span>';
+        html += '</div>';
+
+        html += '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+        html += '<thead><tr style="background: #f1f3f5;"><th style="padding: 8px; border: 1px solid #dee2e6;">#</th><th style="padding: 8px; border: 1px solid #dee2e6;">Column Name</th><th style="padding: 8px; border: 1px solid #dee2e6;">Source Type</th><th style="padding: 8px; border: 1px solid #dee2e6;">Target Type</th><th style="padding: 8px; border: 1px solid #dee2e6;">Type Match</th><th style="padding: 8px; border: 1px solid #dee2e6;">Source Nullable</th><th style="padding: 8px; border: 1px solid #dee2e6;">Target Nullable</th><th style="padding: 8px; border: 1px solid #dee2e6;">Nullable Match</th><th style="padding: 8px; border: 1px solid #dee2e6;">Status</th></tr></thead><tbody>';
+
+        schemaCols.forEach(function(col, idx) {
+            const typeIcon = col.dataTypeMatch === false ? '<span style="color:red;">&#10060;</span>' : '<span style="color:green;">&#9989;</span>';
+            const nullIcon = col.nullableMatch === false ? '<span style="color:red;">&#10060;</span>' : '<span style="color:green;">&#9989;</span>';
+            const statusLabel = col.status === 'both' ? 'Both' : col.status === 'source_only' ? 'Source Only' : 'Target Only';
+            html += '<tr><td style="padding: 6px; border: 1px solid #dee2e6;">' + (idx+1) + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6; font-weight: 600;">' + (col.columnName || '-') + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6;">' + (col.sourceDataType || '-') + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6;">' + (col.targetDataType || '-') + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6; text-align: center;">' + typeIcon + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6;">' + (col.sourceNullable || '-') + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6;">' + (col.targetNullable || '-') + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6; text-align: center;">' + nullIcon + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6;">' + statusLabel + '</td></tr>';
+        });
+        html += '</tbody></table>';
+    }
+
+    // Null validation results
+    if (nullResults.length > 0) {
+        html += '<h4 style="margin: 20px 0 10px;">NOT NULL Validation Results</h4>';
+        html += '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+        html += '<thead><tr style="background: #f1f3f5;"><th style="padding: 8px; border: 1px solid #dee2e6;">Column</th><th style="padding: 8px; border: 1px solid #dee2e6;">Null Count</th><th style="padding: 8px; border: 1px solid #dee2e6;">Total Rows</th><th style="padding: 8px; border: 1px solid #dee2e6;">Status</th></tr></thead><tbody>';
+        nullResults.forEach(function(r) {
+            const statusColor = r.status === 'PASS' ? '#28a745' : '#dc3545';
+            const statusText = r.status === 'PASS' ? 'PASS' : 'FAIL (' + r.nullCount + ' nulls)';
+            html += '<tr><td style="padding: 6px; border: 1px solid #dee2e6; font-weight: 600;">' + r.columnName + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6;">' + r.nullCount + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6;">' + r.totalRows + '</td>';
+            html += '<td style="padding: 6px; border: 1px solid #dee2e6; color: ' + statusColor + '; font-weight: bold;">' + statusText + '</td></tr>';
+        });
+        html += '</tbody></table>';
+    }
+
+    return html;
 }
     </script>
     <script src="api-vs-bq.js"></script>

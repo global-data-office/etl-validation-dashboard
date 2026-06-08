@@ -830,7 +830,6 @@ class ComparisonEngineService {
             throw new Error(`Comparison failed: ${error.message}`);
         }
     }
-
 /**
  * Get record counts using dynamic primary key
  * NOW SUPPORTS: Passing actual source total (for Oracle with sampling)

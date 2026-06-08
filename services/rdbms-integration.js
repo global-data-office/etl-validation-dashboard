@@ -468,29 +468,6 @@ buildOracleConnectString(config) {
         throw error;
         }
     }
-    
-    /**
-     * Generic fetchData method that routes to the correct database-specific method
-     * @param {string} dbType - Database type (postgresql, mysql, oracle, sqlserver)
-     * @param {object} config - Connection configuration
-     * @param {string} query - SQL query to execute
-     * @returns {object} - { records: [], recordCount: number }
-     */
-    async fetchData(dbType, config, query) {
-        switch (dbType.toLowerCase()) {
-            case 'postgresql':
-                return await this.fetchPostgreSQLData(config, query);
-            case 'mysql':
-                return await this.fetchMySQLData(config, query);
-            case 'oracle':
-                return await this.fetchOracleData(config, query);
-            case 'sqlserver':
-                return await this.fetchSQLServerData(config, query);
-            default:
-                throw new Error(`Unsupported database type: ${dbType}`);
-        }
-    }
-    
     // Fetch Oracle data
     async fetchOracleData(config, query) {
         let connection;
