@@ -5361,8 +5361,33 @@ function displayMultiTableBQResults(results, container) {
             </div>
             
             <!-- Table Tabs -->
-            <div style="border-bottom: 2px solid #dee2e6; margin-bottom: 20px;">
-                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <style>
+                .multi-table-tab {
+                    padding: 10px 18px;
+                    border: 1px solid #dee2e6;
+                    background: white;
+                    color: #495057;
+                    cursor: pointer;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    transition: all 0.2s;
+                }
+                .multi-table-tab:hover {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border-color: transparent;
+                    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                }
+                .multi-table-tab.active {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border-color: transparent;
+                    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                }
+            </style>
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     ${tabsHtml}
                 </div>
             </div>
@@ -6066,24 +6091,27 @@ function displayMultiTableResults(allResults, dbType, targetDiv) {
         
         <style>
             .multi-table-tab {
-                padding: 12px 20px;
-                border: none;
-                background: #f8f9fa;
-                cursor: pointer;
-                border-radius: 8px 8px 0 0;
-                font-size: 13px;
-                font-weight: 500;
-                transition: all 0.2s;
+                padding: 10px 18px;
                 border: 1px solid #dee2e6;
-                border-bottom: none;
+                background: white;
+                color: #495057;
+                cursor: pointer;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 600;
+                transition: all 0.2s;
             }
             .multi-table-tab:hover {
-                background: #e9ecef;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border-color: transparent;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
             }
             .multi-table-tab.active {
-                background: #007bff;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 color: white;
-                border-color: #007bff;
+                border-color: transparent;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
             }
         </style>
     `;
