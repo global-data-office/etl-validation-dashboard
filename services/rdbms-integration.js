@@ -197,12 +197,12 @@ buildOracleConnectString(config) {
         try {
             const [rows] = await connection.execute(`
                 SELECT 
-                    VERSION() as version, 
-                    DATABASE() as database, 
-                    USER() as user,
-                    @@hostname as hostname,
-                    @@port as port
-            `);
+                VERSION() as version, 
+                DATABASE() as \`database\`,
+                USER() as user,
+                @@hostname as hostname,
+                @@port as port
+`);
             
             await connection.end();
 
@@ -468,6 +468,47 @@ buildOracleConnectString(config) {
         throw error;
         }
     }
+	// ADDITION: Generic data fetch wrapper for all database types
+    async fetchData(dbType, connectionConfig, query) {
+        console.log(`🔄 Generic fetchData called for ${dbType.toUpperCase()}`);
+        console.log(`📋 Query: ${query.substring(0, 150)}...`);
+        
+        try {
+            let result;
+            
+            switch(dbType.toLowerCase()) {
+                case 'mysql':
+                    result = await this.fetchMySQLData(connectionConfig, query);
+                    console.log(`✅ MySQL fetch successful: ${result.recordCount} records`);
+                    break;
+                    
+                case 'postgresql':
+                    result = await this.fetchPostgreSQLData(connectionConfig, query);
+                    console.log(`✅ PostgreSQL fetch successful: ${result.recordCount} records`);
+                    break;
+                    
+                case 'oracle':
+                    result = await this.fetchOracleData(connectionConfig, query);
+                    console.log(`✅ Oracle fetch successful: ${result.recordCount} records`);
+                    break;
+                    
+                case 'sqlserver':
+                    result = await this.fetchSQLServerData(connectionConfig, query);
+                    console.log(`✅ SQL Server fetch successful: ${result.recordCount} records`);
+                    break;
+                    
+                default:
+                    throw new Error(`Unsupported database type: ${dbType}`);
+            }
+            
+            return result;
+            
+        } catch (error) {
+            console.error(`❌ ${dbType.toUpperCase()} data fetch failed:`, error.message);
+            throw new Error(`${dbType.toUpperCase()} data fetch failed: ${error.message}`);
+        }
+    }
+
     // Fetch Oracle data
     async fetchOracleData(config, query) {
         let connection;

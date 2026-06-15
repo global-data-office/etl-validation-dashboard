@@ -479,30 +479,66 @@ class ComparisonEngineService {
             const sourceCast = this.getCastExpression(primaryKey, dataTypes.sourceType, commonType);
 
             // Analyze JSON duplicates
-            const jsonDuplicateQuery = `
-                SELECT 
-                    ${tempCast} as duplicate_key,
-                    COUNT(*) as occurrence_count
-                FROM \`${tempTableId}\`
-                WHERE ${primaryKey} IS NOT NULL
-                GROUP BY ${tempCast}
-                HAVING COUNT(*) > 1
-                ORDER BY occurrence_count DESC
-                LIMIT 100
-            `;
+            // Analyze JSON duplicates
+const jsonDuplicateQuery = `
+    WITH duplicate_keys AS (
+        SELECT 
+            CAST(${primaryKey} AS STRING) as duplicate_key,
+            COUNT(*) as occurrence_count
+        FROM \`${tempTableId}\`
+        WHERE ${primaryKey} IS NOT NULL
+        GROUP BY CAST(${primaryKey} AS STRING)
+        HAVING COUNT(*) > 1
+        ORDER BY occurrence_count DESC
+    )
+    SELECT 
+        dk.duplicate_key,
+        dk.occurrence_count,
+        ARRAY_AGG(
+            STRUCT(
+                t.${primaryKey} as id,
+                t.name as name,
+                t.username as username
+            )
+            LIMIT 5
+        ) as sample_records
+    FROM duplicate_keys dk
+    INNER JOIN \`${tempTableId}\` t 
+    ON CAST(t.${primaryKey} AS STRING) = dk.duplicate_key
+    GROUP BY dk.duplicate_key, dk.occurrence_count
+    ORDER BY dk.occurrence_count DESC
+`;
 
             // Analyze BigQuery duplicates  
-            const bqDuplicateQuery = `
-                SELECT 
-                    ${sourceCast} as duplicate_key,
-                    COUNT(*) as occurrence_count
-                FROM \`${sourceTableName}\`
-                WHERE ${primaryKey} IS NOT NULL
-                GROUP BY ${sourceCast}
-                HAVING COUNT(*) > 1
-                ORDER BY occurrence_count DESC
-                LIMIT 100
-            `;
+            // Analyze BigQuery duplicates  
+const bqDuplicateQuery = `
+    WITH duplicate_keys AS (
+        SELECT 
+            CAST(${primaryKey} AS STRING) as duplicate_key,
+            COUNT(*) as occurrence_count
+        FROM \`${sourceTableName}\`
+        WHERE ${primaryKey} IS NOT NULL
+        GROUP BY CAST(${primaryKey} AS STRING)
+        HAVING COUNT(*) > 1
+        ORDER BY occurrence_count DESC
+    )
+    SELECT 
+        dk.duplicate_key,
+        dk.occurrence_count,
+        ARRAY_AGG(
+            STRUCT(
+                t.${primaryKey} as id,
+                t.name as name,
+                t.username as username
+            )
+            LIMIT 5
+        ) as sample_records
+    FROM duplicate_keys dk
+    INNER JOIN \`${sourceTableName}\` t 
+    ON CAST(t.${primaryKey} AS STRING) = dk.duplicate_key
+    GROUP BY dk.duplicate_key, dk.occurrence_count
+    ORDER BY dk.occurrence_count DESC
+`;
 
             const [jsonDuplicateResult, bqDuplicateResult] = await Promise.all([
                 this.bigquery.query(jsonDuplicateQuery).catch(error => {
@@ -561,9 +597,10 @@ class ComparisonEngineService {
                     duplicateCount: jsonDuplicates.length,
                     totalDuplicateRecords: jsonDuplicateRecordCount,
                     duplicateKeys: jsonDuplicates.map(dup => ({
-                        key: dup.duplicate_key,
-                        count: parseInt(dup.occurrence_count)
-                    }))
+                    key: dup.duplicate_key,
+                    count: parseInt(dup.occurrence_count),
+                    sampleRecords: dup.sample_records || []
+                                  }))
                 },
                 
                 bqDuplicates: {
@@ -571,9 +608,10 @@ class ComparisonEngineService {
                     duplicateCount: bqDuplicates.length,
                     totalDuplicateRecords: bqDuplicateRecordCount,
                     duplicateKeys: bqDuplicates.map(dup => ({
-                        key: dup.duplicate_key,
-                        count: parseInt(dup.occurrence_count)
-                    }))
+                    key: dup.duplicate_key,
+                    count: parseInt(dup.occurrence_count),
+                    sampleRecords: dup.sample_records || []
+                                 }))
                 },
                 
                 crossSystemAnalysis: {
@@ -819,17 +857,13 @@ class ComparisonEngineService {
             const fieldComparison = [];
             let totalFieldIssues = 0;
             
-            const safeFields = commonFields.filter(field => {
-                const lowerField = field.toLowerCase();
-                return field !== primaryKey && 
-                       !lowerField.includes('comment') &&
-                       !lowerField.includes('description') &&
-                       !lowerField.includes('sys_domain_path') &&
-                       !lowerField.includes('sys_tags') &&
-                       !lowerField.includes('header') &&
-                       field.length < 50;
-            }).slice(0, 10);
-            
+           const safeFields = commonFields.filter(field => {
+                // Only exclude the primary key field itself
+                // Include ALL other common fields for comprehensive analysis
+                return field !== primaryKey;
+            }).slice(0, 20); // Increased limit from 10 to 20 fields
+			
+			
             console.log(`Safe fields to analyze with universal data type support: [${safeFields.join(', ')}]`);
             
             for (const field of safeFields) {

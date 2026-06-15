@@ -28,7 +28,7 @@ steps:
     - 'us-central1'
     - '--platform'
     - 'managed'
-    - '--allow-unauthenticated'
+    - '--no-allow-unauthenticated'
     - '--port'
     - '8080'
     - '--memory'
