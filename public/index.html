@@ -5546,7 +5546,7 @@ if (isCustomQueryMode) {
         if (!bqDataset) missingFields.push('BigQuery Dataset');
         if (primaryKeys.length === 0) missingFields.push('Primary Key(s)');
         if (!connectionConfig.host && !connectionConfig.server) missingFields.push('Host');
-        if (!connectionConfig.database && !connectionConfig.service) missingFields.push('Database/Service');
+        if (!connectionConfig.database && !connectionConfig.service && !connectionConfig.serviceName && !connectionConfig.sid) missingFields.push('Database/Service');
         if (!connectionConfig.username) missingFields.push('Username');
         if (!connectionConfig.password) missingFields.push('Password');
 
