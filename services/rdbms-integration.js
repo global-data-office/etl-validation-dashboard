@@ -17,6 +17,9 @@ try {
     console.log('Continuing with thin mode - some Oracle features may be limited');
 }
 
+// Fetch Oracle NUMBER columns as strings to avoid JS 53-bit precision loss on 18-digit IDs
+oracledb.fetchAsString = [oracledb.NUMBER];
+
 class RDBMSIntegrationService {
     constructor() {
         this.connections = new Map();

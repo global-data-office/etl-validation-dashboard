@@ -3809,13 +3809,6 @@
                     <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">In Source Only</div>
                 </div>
                 
-                <!-- NEW: Extra in Target -->
-                <div class="summary-card ${(summary.recordsOnlyInTarget || 0) > 0 ? 'warning' : 'pass'}">
-                    <div class="summary-number">${summary.recordsOnlyInTarget || 0}</div>
-                    <div class="summary-label">Extra in Target</div>
-                    <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">In Target Only</div>
-                </div>
-                
                 <!-- NEW: NULL Primary Keys -->
                 <div class="summary-card ${((summary.nullPrimaryKeysSource || 0) + (summary.nullPrimaryKeysTarget || 0)) > 0 ? 'warning' : 'pass'}">
                     <div class="summary-number">${(summary.nullPrimaryKeysSource || 0) + (summary.nullPrimaryKeysTarget || 0)}</div>
@@ -6522,13 +6515,7 @@ function populateComparisonContent(summary, schemaAnalysis, matchCount, failedCo
                 <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">In Source Only</div>
             </div>
             
-            <!-- Card 5: Extra in Target (NEW) -->
-            <div class="summary-card ${(summary.recordsOnlyInTarget || 0) > 0 ? 'warning' : 'pass'}">
-                <div class="summary-number">${summary.recordsOnlyInTarget || 0}</div>
-                <div class="summary-label">Extra in Target</div>
-                <div class="summary-sublabel" style="font-size: 11px; color: #666; margin-top: 5px;">In Target Only</div>
-            </div>
-            
+          
             <!-- Card 6: NULL Primary Keys (NEW) -->
             <div class="summary-card ${((summary.nullPrimaryKeysSource || 0) + (summary.nullPrimaryKeysTarget || 0)) > 0 ? 'warning' : 'pass'}">
                 <div class="summary-number">${(summary.nullPrimaryKeysSource || 0) + (summary.nullPrimaryKeysTarget || 0)}</div>

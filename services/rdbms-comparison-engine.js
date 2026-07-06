@@ -480,24 +480,6 @@ class ComparisonEngineService {
             }
             console.log(`JSON-only keys: ${jsonOnlyKeys.length} found`);
 
-            // FIXED: Get sample keys only in BigQuery with proper aliasing
-            const getBqOnlyKeysQuery = `
-                SELECT DISTINCT ${this.getCastExpression(primaryKey, dataTypes.sourceType, commonType)} as bq_only_key
-                FROM \`${sourceTableName}\` bq_table
-                WHERE bq_table.${primaryKey} IS NOT NULL
-                  AND ${this.getCastExpression(primaryKey, dataTypes.sourceType, commonType)} NOT IN (
-                    SELECT DISTINCT ${this.getCastExpression(primaryKey, dataTypes.tempType, commonType)}
-                    FROM \`${tempTableId}\` 
-                    WHERE ${primaryKey} IS NOT NULL
-                  )
-                LIMIT 10
-            `;
-            
-            const [bqOnlyKeys] = await this.bigquery.query(getBqOnlyKeysQuery);
-            const bqOnlyKeysList = bqOnlyKeys.map(r => r.bq_only_key);
-            
-            console.log(`BigQuery-only keys (sample): ${bqOnlyKeysList.length} found`);
-
             let sampleMatches = [];
             if (matchedKeysList.length > 0) {
                 // FIXED: Sample query with proper table aliasing
@@ -533,8 +515,8 @@ class ComparisonEngineService {
                 jsonOnlyCount: jsonOnlyKeys.length,
                 jsonOnlyIds: jsonOnlyKeys,
                 jsonOnlyRecords: jsonOnlyKeys.map(key => ({ [primaryKey]: key })),
-                bqOnlyCount: bqOnlyKeysList.length,
-                bqOnlyRecords: bqOnlyKeysList.map(key => ({ [primaryKey]: key })),
+                bqOnlyCount: 0,
+                bqOnlyRecords: [],
                 sampleMatches: sampleMatches,
                 primaryKeyUsed: primaryKey,
                 dataTypes: dataTypes
@@ -577,8 +559,8 @@ class ComparisonEngineService {
                 SELECT 
                 ${sourceCast} as duplicate_key,
                 COUNT(*) as occurrence_count
-            FROM \`${sourceTableName}\`                           // ✅ Query BQ table
-            WHERE SAFE_CAST(${primaryKey} AS STRING) IN (         // ✅ Filter to sample
+            FROM \`${sourceTableName}\`
+            WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
                 SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
                 FROM \`${tempTableId}\`
                 WHERE ${primaryKey} IS NOT NULL

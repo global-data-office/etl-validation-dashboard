@@ -272,7 +272,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             } else {
                 countResult = await RDBMSIntegrationService.fetchData(dbType, connectionConfig, countQuery);
             }
-            totalRecordCount = countResult.records[0]?.total_count || countResult.records[0]?.TOTAL_COUNT || 0;
+            totalRecordCount = parseInt(countResult.records[0]?.total_count || countResult.records[0]?.TOTAL_COUNT || 0, 10);
             console.log(`âœ… Total records: ${totalRecordCount.toLocaleString()}`);
         } catch (countError) {
             console.warn('Count query failed:', countError.message);
@@ -372,7 +372,6 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
                 'Identical Records',
                 'Mismatched Records (same PK, different data)',
                 'Missing in Target',
-                'Extra in Target',
                 'NULL Primary Keys (Source & Target)'
             ]
         };
