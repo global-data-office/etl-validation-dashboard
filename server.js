@@ -98,6 +98,51 @@ function expandUUIDKeyedData(data) {
     return [converted];
 }
 
+// Helper: Parse Azure Application Insights tabular format (tables[].columns + tables[].rows)
+// Converts { tables: [{ columns: [{name, type}], rows: [[...], ...] }] } into flat row objects
+function parseTabularFormat(data) {
+    if (!data || typeof data !== 'object') return null;
+
+    // Detect the tabular format: must have a 'tables' array with columns and rows
+    const tables = data.tables || data.Tables;
+    if (!Array.isArray(tables) || tables.length === 0) return null;
+
+    const table = tables[0]; // Use the first (usually "PrimaryResult") table
+    const columns = table.columns || table.Columns;
+    const rows = table.rows || table.Rows;
+
+    if (!Array.isArray(columns) || !Array.isArray(rows)) return null;
+    if (columns.length === 0 || rows.length === 0) return null;
+
+    // Validate it looks like a proper tabular response (columns have name property)
+    if (!columns[0].name && !columns[0].Name) return null;
+
+    console.log(`=== DETECTED AZURE APP INSIGHTS TABULAR FORMAT ===`);
+    console.log(`Table: ${table.name || 'PrimaryResult'}`);
+    console.log(`Columns: ${columns.length}`);
+    console.log(`Rows: ${rows.length}`);
+    console.log(`Column names: [${columns.slice(0, 10).map(c => c.name || c.Name).join(', ')}${columns.length > 10 ? '...' : ''}]`);
+
+    // Build column name list
+    const columnNames = columns.map(col => col.name || col.Name);
+
+    // Convert each row array into a flat object using column names as keys
+    const records = rows.map(row => {
+        const record = {};
+        columnNames.forEach((colName, index) => {
+            record[colName] = row[index] !== undefined ? row[index] : null;
+        });
+        return record;
+    });
+
+    console.log(`Parsed ${records.length} records from tabular format`);
+    if (records.length > 0) {
+        console.log(`Sample fields: [${Object.keys(records[0]).slice(0, 8).join(', ')}]`);
+    }
+
+    return records;
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -2173,15 +2218,28 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
         }
 
         // Extract actual data from various API response structures
-        let jsonData = apiDataResult.data.results  // ServiceNow/common pattern (plural)
-                    || apiDataResult.data.result   // Alternative pattern (singular)
-                    || apiDataResult.data.data     // Nested data pattern
-                    || apiDataResult.data.records  // Records pattern
-                    || apiDataResult.data.items    // Items pattern
-                    || apiDataResult.data;         // Direct data fallback
+        // FIRST: Check for Azure App Insights tabular format (tables/columns/rows)
+        let jsonData = parseTabularFormat(apiDataResult.data);
         
-        // Normalize data: expand keyed objects and convert camelCase to snake_case
-        jsonData = expandUUIDKeyedData(jsonData);
+        if (!jsonData) {
+            // Standard extraction for other API formats
+            jsonData = apiDataResult.data.results  // ServiceNow/common pattern (plural)
+                        || apiDataResult.data.result   // Alternative pattern (singular)
+                        || apiDataResult.data.data     // Nested data pattern
+                        || apiDataResult.data.records  // Records pattern
+                        || apiDataResult.data.items    // Items pattern
+                        || apiDataResult.data;         // Direct data fallback
+            
+            // Normalize data: expand keyed objects and convert camelCase to snake_case
+            jsonData = expandUUIDKeyedData(jsonData);
+        } else {
+            console.log(`Tabular format parsed successfully - skipping expandUUIDKeyedData`);
+        }
+        
+        // Ensure jsonData is always an array
+        if (!Array.isArray(jsonData)) {
+            jsonData = [jsonData];
+        }
         
         // Debug: log field names after conversion
         if (jsonData.length > 0) {

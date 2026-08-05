@@ -571,6 +571,25 @@ async fetchWithProperTotalAndComparisonLogic(config) {
         }
 
         if (data && typeof data === 'object') {
+            // Check for Azure App Insights tabular format (tables/columns/rows)
+            const tables = data.tables || data.Tables;
+            if (Array.isArray(tables) && tables.length > 0) {
+                const table = tables[0];
+                const columns = table.columns || table.Columns;
+                const rows = table.rows || table.Rows;
+                if (Array.isArray(columns) && Array.isArray(rows) && columns.length > 0 && rows.length > 0) {
+                    console.log(`Detected tabular format in extractRecordsFromResponse: ${rows.length} rows, ${columns.length} columns`);
+                    const columnNames = columns.map(col => col.name || col.Name);
+                    return rows.map(row => {
+                        const record = {};
+                        columnNames.forEach((colName, index) => {
+                            record[colName] = row[index] !== undefined ? row[index] : null;
+                        });
+                        return record;
+                    });
+                }
+            }
+
             // Find the largest array - likely the main data
             let largestArray = [];
             let largestCount = 0;
@@ -602,6 +621,17 @@ async fetchWithProperTotalAndComparisonLogic(config) {
         }
 
         if (data && typeof data === 'object') {
+            // Check for Azure App Insights tabular format (tables/columns/rows)
+            const tables = data.tables || data.Tables;
+            if (Array.isArray(tables) && tables.length > 0) {
+                const table = tables[0];
+                const rows = table.rows || table.Rows;
+                if (Array.isArray(rows)) {
+                    console.log(`Detected tabular format in countRecordsInResponse: ${rows.length} rows`);
+                    return rows.length;
+                }
+            }
+
             // Find the largest array in the response
             let largestCount = 0;
 
