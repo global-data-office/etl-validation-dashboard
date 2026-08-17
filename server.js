@@ -2230,8 +2230,18 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
                         || apiDataResult.data.items    // Items pattern
                         || apiDataResult.data;         // Direct data fallback
             
-            // Normalize data: expand keyed objects and convert camelCase to snake_case
-            jsonData = expandUUIDKeyedData(jsonData);
+            // Normalize data: expand keyed objects
+            // NOTE: We do NOT apply camelToSnake here because BQ tables typically use
+            // concatenated lowercase (e.g., "projectnumber" not "project_number").
+            // Field name matching is handled by the comparison engine's fuzzy matching.
+            if (Array.isArray(jsonData)) {
+                // Keep field names as-is from the API (preserve original casing)
+                // The comparison engine handles case-insensitive + underscore-insensitive matching
+            } else {
+                // For non-array responses, use expandUUIDKeyedData for structure detection
+                // but it will apply camelToSnake - we accept this for UUID-keyed formats
+                jsonData = expandUUIDKeyedData(jsonData);
+            }
         } else {
             console.log(`Tabular format parsed successfully - skipping expandUUIDKeyedData`);
         }
@@ -2250,6 +2260,31 @@ app.post('/api/compare-api-vs-bq-comprehensive', async (req, res) => {
         if (jsonData.length === 1 && jsonData[0].results && Array.isArray(jsonData[0].results)) {
             console.log('Detected wrapper object, extracting results array...');
             jsonData = jsonData[0].results;
+        }
+        
+        // Auto-detect wrapper objects with a single array field as the main data
+        // e.g., { "rackspace_accounts": [{...}, {...}] } → extract the array
+        if (jsonData.length === 1 && typeof jsonData[0] === 'object' && !Array.isArray(jsonData[0])) {
+            const keys = Object.keys(jsonData[0]);
+            // Find fields that contain arrays of objects (candidate data arrays)
+            const arrayFields = keys.filter(k => {
+                const val = jsonData[0][k];
+                return Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null;
+            });
+            
+            if (arrayFields.length === 1) {
+                // Single array field detected — this IS the data
+                const fieldName = arrayFields[0];
+                console.log(`Auto-detected wrapper with single data array field: '${fieldName}' (${jsonData[0][fieldName].length} records)`);
+                jsonData = jsonData[0][fieldName];
+            } else if (arrayFields.length > 1) {
+                // Multiple array fields — pick the largest one
+                const largestField = arrayFields.reduce((a, b) => 
+                    jsonData[0][a].length >= jsonData[0][b].length ? a : b
+                );
+                console.log(`Auto-detected wrapper with multiple arrays, using largest: '${largestField}' (${jsonData[0][largestField].length} records)`);
+                jsonData = jsonData[0][largestField];
+            }
         }
 
         console.log(`API data retrieved: ${jsonData.length} records`);

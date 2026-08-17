@@ -327,35 +327,55 @@ class ComparisonEngineService {
         if (commonFields.length === 0) {
             console.error('No common fields detected!');
 
+            // Helper: normalize field name by removing underscores and lowercasing
+            const normalizeFieldName = (field) => field.toLowerCase().replace(/_/g, '');
+
             const caseInsensitiveMatches = [];
+            const fieldMapping = {}; // Maps BQ field name → JSON field name for SQL use
+            
             for (const jsonField of jsonFields) {
-                const matchingBqField = bqFields.find(bqField =>
+                // Try exact case-insensitive match first
+                let matchingBqField = bqFields.find(bqField =>
                     bqField.toLowerCase() === jsonField.toLowerCase()
                 );
+                
+                // If no exact match, try underscore-stripped match
+                // e.g., project_number (API) ↔ projectnumber (BQ)
+                if (!matchingBqField) {
+                    matchingBqField = bqFields.find(bqField =>
+                        normalizeFieldName(bqField) === normalizeFieldName(jsonField)
+                    );
+                }
+                
                 if (matchingBqField) {
                     caseInsensitiveMatches.push(matchingBqField);
+                    fieldMapping[matchingBqField] = jsonField;
                 }
             }
 
             if (caseInsensitiveMatches.length > 0) {
+                console.log(`Fuzzy field matching found ${caseInsensitiveMatches.length} matches (case/underscore insensitive)`);
+                console.log(`Field mapping: ${JSON.stringify(fieldMapping)}`);
+                
                 return {
                     commonFields: caseInsensitiveMatches,
                     jsonOnlyFields: jsonFields.filter(jf =>
-                        !caseInsensitiveMatches.some(cf => cf.toLowerCase() === jf.toLowerCase())
+                        !caseInsensitiveMatches.some(cf => normalizeFieldName(cf) === normalizeFieldName(jf))
                     ),
                     bqOnlyFields: bqFields.filter(bf =>
-                        !caseInsensitiveMatches.some(cf => cf.toLowerCase() === bf.toLowerCase())
+                        !caseInsensitiveMatches.some(cf => normalizeFieldName(cf) === normalizeFieldName(bf))
                     ),
                     jsonFields: jsonFields, // All fields from API/JSON temp table
                     bqFields: bqFields, // All fields from BigQuery table
+                    fieldMapping: fieldMapping, // BQ field → JSON field mapping
                     primaryKeyCandidates: caseInsensitiveMatches.filter(field => {
                         const lowerField = field.toLowerCase();
-                        return lowerField.includes('id') || lowerField.includes('arn');
+                        return lowerField.includes('id') || lowerField.includes('number') || lowerField.includes('arn');
                     }),
                     totalJsonFields: jsonFields.length,
                     totalBqFields: bqFields.length,
                     schemaCompatibility: caseInsensitiveMatches.length / Math.max(jsonFields.length, bqFields.length),
-                    matchType: 'case-insensitive'
+                    matchType: 'fuzzy-normalized'
                 };
             }
 
@@ -1124,6 +1144,7 @@ class ComparisonEngineService {
         }
 
         // NEW: Validate that all primary key columns exist in BOTH tables
+        // Uses normalized matching (case-insensitive + underscore-insensitive)
         const pkColumns = this.parseCompositeKey(primaryKey);
         console.log(`Validating primary key columns: [${pkColumns.join(', ')}]`);
         
@@ -1133,9 +1154,32 @@ class ComparisonEngineService {
         const bqFields = new Set(schemaInfo.bqFields || []);
         const commonFields = new Set(schemaInfo.commonFields || []);
         
-        // Check each primary key column
-        const missingFromTemp = pkColumns.filter(col => !tempFields.has(col));
-        const missingFromBQ = pkColumns.filter(col => !bqFields.has(col));
+        // Helper: normalize for comparison (lowercase, no underscores)
+        const normalize = (field) => field.toLowerCase().replace(/_/g, '');
+        
+        // Build normalized lookup maps: normalized → actual field name
+        const tempFieldMap = {};
+        for (const f of tempFields) { tempFieldMap[normalize(f)] = f; }
+        const bqFieldMap = {};
+        for (const f of bqFields) { bqFieldMap[normalize(f)] = f; }
+        
+        // Resolve each PK column to its actual name in both tables
+        const resolvedPkColumns = []; // Actual temp table column names to use in queries
+        const missingFromTemp = [];
+        const missingFromBQ = [];
+        
+        for (const col of pkColumns) {
+            const normCol = normalize(col);
+            const tempActual = tempFields.has(col) ? col : tempFieldMap[normCol] || null;
+            const bqActual = bqFields.has(col) ? col : bqFieldMap[normCol] || null;
+            
+            if (!tempActual) missingFromTemp.push(col);
+            if (!bqActual) missingFromBQ.push(col);
+            
+            if (tempActual && bqActual) {
+                resolvedPkColumns.push({ requested: col, tempName: tempActual, bqName: bqActual });
+            }
+        }
         
         if (missingFromTemp.length > 0) {
             const availableInBoth = [...commonFields].slice(0, 10).join(', ');
@@ -1148,6 +1192,16 @@ class ComparisonEngineService {
         if (missingFromBQ.length > 0) {
             throw new Error(`Primary key column(s) '${missingFromBQ.join(', ')}' not found in BigQuery table. ` +
                 `Suggestion: Check the column names in your BigQuery table.`);
+        }
+        
+        // If the primary key name differs between tables, use the BQ name (user-specified)
+        // but map SQL queries to use the actual column name in each table
+        // For now, if the user supplied a BQ field name, remap primaryKey to the temp table equivalent
+        if (resolvedPkColumns.length > 0 && resolvedPkColumns[0].tempName !== resolvedPkColumns[0].requested) {
+            const originalPk = primaryKey;
+            primaryKey = resolvedPkColumns.map(r => r.tempName).join(',');
+            console.log(`Primary key remapped: '${originalPk}' → '${primaryKey}' (using temp table field names)`);
+            console.log(`BQ equivalents: ${resolvedPkColumns.map(r => r.bqName).join(',')}`);
         }
         
         console.log(`All primary key columns validated: [${pkColumns.join(', ')}]`);
