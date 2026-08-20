@@ -1490,6 +1490,7 @@ app.post('/api/bq-vs-bq', async (req, res) => {
         }
 
         const sourceWhereClause = sourceFilter ? `WHERE ${sourceFilter}` : '';
+		const targetWhereClause = sourceFilter ? `WHERE ${sourceFilter}` : '';
 
         // STEP 1: Full record counts
         console.log('Getting full record counts...');
@@ -1612,10 +1613,11 @@ app.post('/api/bq-vs-bq', async (req, res) => {
         const matchQuery = `
             WITH source_sample AS (${sampleSubquery}),
             target_keys AS (
-                SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) as pk
-                FROM \`${targetTable}\`
-                WHERE ${primaryKey} IS NOT NULL
-            )
+            SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING) as pk
+            FROM \`${targetTable}\`
+            ${targetWhereClause}
+            ${sourceFilter ? 'AND' : 'WHERE'} ${primaryKey} IS NOT NULL
+)
             SELECT
                 (SELECT COUNT(*) FROM source_sample s INNER JOIN target_keys t ON s.pk = t.pk) as matched,
                 (SELECT COUNT(*) FROM source_sample s LEFT JOIN target_keys t ON s.pk = t.pk WHERE t.pk IS NULL) as source_only,
