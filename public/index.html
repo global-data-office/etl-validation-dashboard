@@ -5180,10 +5180,9 @@ async function startBQvsBQComparison() {
     // Display results
     if (allResults.length === 1) {
         if (allResults[0].success) {
+            // Schema & Nulls is rendered as a built-in tab by displayRDBMSResults()
+            // and loaded on demand via loadSchemaNulls() - no extra injection needed.
             displayRDBMSResults(allResults[0].data, 'bigquery', resultsSection);
-            // Auto-call schema null check
-            const meta = allResults[0].data?.data?.metadata || {};
-            callSchemaNullCheck(meta.sourceTable || allResults[0].sourceTable, meta.targetTable || allResults[0].targetTable, meta.primaryKey || primaryKeys[0], 'bigquery');
         } else {
             resultsSection.innerHTML = `
                 <div style="color: #721c24; background: #f8d7da; padding: 20px; border-radius: 8px; margin: 20px;">
@@ -5765,7 +5764,15 @@ function displayRDBMSResults(result, dbType, targetDiv) {
     const matchCount = summary.recordsReachedTarget || 0;
     const failedCount = summary.recordsFailedToReachTarget || 0;
     const primaryKey = summary.primaryKeyUsed || 'unknown';
-    
+
+    // Schema & Nulls tab arguments.
+    // For BQ vs BQ both tables are real BigQuery tables, so the source vs target
+    // schema diff is meaningful. For RDBMS the source is not in BigQuery, and
+    // loadSchemaNulls() falls back to using the target table for both sides.
+    const nullTabSourceTable = data.metadata?.sourceTable || data.data?.metadata?.sourceTable || '';
+    const nullTabTargetTable = data.metadata?.targetTable || data.data?.metadata?.targetTable || '';
+    const nullTabPrimaryKey = data.metadata?.primaryKey || data.data?.metadata?.primaryKey || summary.primaryKeyUsed || '';
+
     // Build interface - EXACTLY like JSON vs BQ structure
    targetDiv.innerHTML = `
     <!-- SCROLLABLE WRAPPER -->
@@ -5811,7 +5818,7 @@ function displayRDBMSResults(result, dbType, targetDiv) {
                     <span class="results-tab-icon">🔄</span>
                     <span class="results-tab-label">Duplicates</span>
                 </button>
-                <button class="results-tab-button" onclick="switchRdbmsTab('${dbType}', 'null-analysis'); loadSchemaNulls('${dbType}', '${data.data?.metadata?.targetTable || data.metadata?.targetTable || data.data?.metadata?.sourceTable || data.metadata?.sourceTable || ''}', '${data.data?.metadata?.targetTable || data.metadata?.targetTable || ''}', '${data.data?.metadata?.primaryKey || data.metadata?.primaryKey || data.data?.summary?.primaryKeyUsed || ''}')">
+                <button class="results-tab-button" onclick="switchRdbmsTab('${dbType}', 'null-analysis'); loadSchemaNulls('${dbType}', '${nullTabSourceTable}', '${nullTabTargetTable}', '${nullTabPrimaryKey}')">
                     <span class="results-tab-icon">🔎</span>
                     <span class="results-tab-label">Schema & Nulls</span>
                 </button>
@@ -7498,69 +7505,6 @@ async function loadSchemaNulls(dbType, sourceTable, targetTable, primaryKey) {
     } catch (err) {
         container.innerHTML = '<div style="padding:15px;color:#721c24;background:#f8d7da;border-radius:8px;">Error: ' + err.message + '</div>';
     }
-}
-
-async function callSchemaNullCheck(sourceTable, targetTable, primaryKey, dbType) {
-    console.log('Calling schema-null-check for', sourceTable, '->', targetTable);
-    try {
-        const response = await fetch('/api/bq-schema-null-check', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sourceTable, targetTable, primaryKey })
-        });
-        const result = await response.json();
-        if (result.success) {
-            injectSchemaNullTab(result.data, dbType);
-        } else {
-            injectSchemaNullTab({ error: result.error || 'Unknown error' }, dbType);
-        }
-    } catch (err) {
-        injectSchemaNullTab({ error: err.message }, dbType);
-    }
-}
-
-function injectSchemaNullTab(schemaNullData, dbType) {
-    if (document.getElementById('rdbms-tab-' + dbType + '-schema-nulls')) return;
-
-    var tabNav = document.querySelector('#bq-vs-bq-results .results-navigation-tabs');
-    if (!tabNav) {
-        var recordCountTab = document.getElementById('rdbms-tab-' + dbType + '-record-count');
-        if (recordCountTab) {
-            tabNav = recordCountTab.closest('.comparison-results');
-            if (tabNav) tabNav = tabNav.querySelector('.results-navigation-tabs');
-        }
-    }
-    if (!tabNav) return;
-
-    var tabButton = document.createElement('button');
-    tabButton.className = 'results-tab-button';
-    tabButton.setAttribute('onclick', "switchRdbmsTab('" + dbType + "', 'schema-nulls')");
-    tabButton.innerHTML = '<span class="results-tab-icon">&#128270;</span><span class="results-tab-label">Schema & Nulls</span>';
-    tabNav.appendChild(tabButton);
-
-    var contentWrapper = document.getElementById('rdbms-tab-' + dbType + '-duplicates');
-    if (contentWrapper) {
-        contentWrapper = contentWrapper.parentElement;
-    } else {
-        var rcTab = document.getElementById('rdbms-tab-' + dbType + '-record-count');
-        if (rcTab) contentWrapper = rcTab.parentElement;
-    }
-    if (!contentWrapper) return;
-
-    var contentDiv = document.createElement('div');
-    contentDiv.id = 'rdbms-tab-' + dbType + '-schema-nulls';
-    contentDiv.className = 'results-tab-content';
-    contentDiv.style.display = 'none';
-
-    if (schemaNullData && schemaNullData.error) {
-        contentDiv.innerHTML = '<div style="padding: 20px; color: #721c24; background: #f8d7da; border-radius: 8px; border-left: 4px solid #dc3545;">'
-            + '<strong>Schema & Null check failed:</strong> ' + schemaNullData.error
-            + '<br><small style="color: #856404;">The other validation results are unaffected.</small></div>';
-    } else {
-        contentDiv.innerHTML = populateSchemaNullContent(schemaNullData);
-    }
-
-    contentWrapper.appendChild(contentDiv);
 }
 
 function populateSchemaNullContent(data) {
