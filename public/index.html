@@ -5022,9 +5022,17 @@ function exportRdbmsToExcel(dbType) {
         ];
         XLSX.utils.book_append_sheet(wb, recommendationsSheet, 'Recommendations');
 
-        // Generate filename with timestamp
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
-        const filename = `${dbName}_vs_BigQuery_Validation_${timestamp[0]}_${timestamp[1].split('.')[0]}.xlsx`;
+        // Generate filename: <Source>_vs_BigQuery_Validation_<YYYY-MM-DD>_<source dataset>.xlsx
+        const datePart = new Date().toISOString().slice(0, 10);
+        const filePrefix = (dbType === 'bigquery' ? 'BQ' : dbName).replace(/\s+/g, '_');
+        // Strip the table segment so only the dataset (BQ) or schema (RDBMS) remains
+        const sourceDataset = (results.metadata?.sourceTable || '')
+            .split('.')
+            .slice(0, -1)
+            .join('.')
+            .replace(/[^\w.-]+/g, '_');
+        const datasetSuffix = sourceDataset ? `_${sourceDataset}` : '';
+        const filename = `${filePrefix}_vs_BigQuery_Validation_${datePart}${datasetSuffix}.xlsx`;
         
         // Write file
         XLSX.writeFile(wb, filename);
