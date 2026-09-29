@@ -1682,6 +1682,12 @@
                             <small class="field-notice success">Type ANY field name that exists in both your JSON file and BigQuery table</small>
                         </div>
 
+                        <div class="option-group">
+                            <label>BigQuery Filter Condition (Optional)</label>
+                            <textarea id="bqFilter" rows="3" placeholder="e.g. account_key = '12345' OR status = 'active'" style="width: 100%; font-family: monospace; resize: vertical;"></textarea>
+                            <small class="field-notice info">Optional: Filter target BigQuery rows by any column before comparison. Use standard SQL WHERE syntax (without the WHERE keyword). Leave blank to compare all rows.</small>
+                        </div>
+
                         <button class="btn-primary" id="startComparison" style="width: 100%; margin-top: 20px;" disabled>
                             🚀 Start Comprehensive Comparison
                         </button>
@@ -1717,7 +1723,7 @@
                         <button class="btn-export" id="exportToExcel" onclick="exportResultsToExcel()" disabled>
                             📊 Export to Excel
                         </button>
-                        <button class="btn-secondary" onclick="if(confirm('Start a new ORACLE comparison? This will clear current results.')) { startNewMultiComparison('oracle'); }">
+                        <button class="btn-secondary" onclick="if(confirm('Start a new comparison? This will clear current results.')) { startNewComparison(); }">
                             New Comparison
                         </button>
                     </div>
@@ -3178,6 +3184,8 @@
             document.getElementById('fileInput').value = '';
             document.getElementById('primaryKey').value = '';
             document.getElementById('bqTable').value = '';
+            const bqFilterField = document.getElementById('bqFilter');
+            if (bqFilterField) bqFilterField.value = '';
             currentFileId = null;
             globalComparisonResults = null;
             
@@ -3483,6 +3491,8 @@
 
             const primaryKey = document.getElementById('primaryKey').value.trim();
             const sourceTable = document.getElementById('bqTable').value.trim();
+            const bqFilterEl = document.getElementById('bqFilter');
+            const bqFilter = bqFilterEl ? bqFilterEl.value.trim() : '';
 
             if (!sourceTable) {
                 alert('Please enter a BigQuery table name!');
@@ -3533,7 +3543,8 @@
                         fileId: currentFileId,
                         sourceTable: sourceTable,
                         primaryKey: primaryKey,
-                        comparisonFields: []
+                        comparisonFields: [],
+                        bqFilter: bqFilter
                     })
                 });
 

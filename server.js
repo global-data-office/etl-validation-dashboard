@@ -969,12 +969,14 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
             sourceTable,  // USER-SPECIFIED BigQuery table
             primaryKey,   // USER-SPECIFIED primary key (ANY DATA TYPE)
             comparisonFields = [],
-            strategy = 'enhanced' 
+            strategy = 'enhanced',
+            bqFilter = null  // OPTIONAL: filter target BigQuery rows by any column
         } = req.body;
         
         console.log(`ENHANCED: Starting UNIVERSAL DATA TYPE comparison for file: ${fileId}`);
         console.log(`User-specified BigQuery table: ${sourceTable}`);
         console.log(`User-specified primary key: ${primaryKey} (supports ANY data type)`);
+        console.log(`BigQuery filter: ${bqFilter && bqFilter.trim() ? bqFilter.trim() : 'None (compare all rows)'}`);
         
         if (!fileId || !sourceTable) {
             return res.status(400).json({
@@ -1130,13 +1132,39 @@ app.post('/api/compare-json-vs-bq', async (req, res) => {
         console.log(`Using user's primary key with universal casting: ${primaryKey}`);
         console.log(`Supports: STRING, INT64, FLOAT64, BOOLEAN, DATE, DATETIME, TIMESTAMP, NUMERIC, TIME, GEOGRAPHY, JSON`);
         
-        const results = await comparisonEngine.compareJSONvsBigQuery(
-            actualTempTableId, // Use actual table ID
-            sourceTable,      // Use user-specified table
-            primaryKey,       // Use user-specified primary key (ANY DATA TYPE)
-            comparisonFields,
-            strategy
-        );
+        // If a BigQuery filter is provided, use the filter-aware comparison method
+        // so the target BigQuery data is filtered by the given column condition before comparison.
+        let results;
+        if (bqFilter && bqFilter.trim()) {
+            console.log(`Applying BigQuery filter to target table: ${bqFilter.trim()}`);
+            results = await comparisonEngine.compareJSONvsBigQueryWithFilter(
+                actualTempTableId, // Use actual table ID
+                sourceTable,      // Use user-specified table
+                primaryKey,       // Use user-specified primary key (ANY DATA TYPE)
+                comparisonFields,
+                strategy,
+                bqFilter.trim(),  // BigQuery filter condition
+                null              // no unnest field for JSON vs BQ
+            );
+
+            // Surface filter validation errors clearly to the client
+            if (results && results.success === false && results.error) {
+                return res.status(400).json({
+                    success: false,
+                    error: results.error,
+                    details: 'BigQuery filter could not be applied - please check your filter syntax and column names',
+                    filterInformation: results.filterInformation
+                });
+            }
+        } else {
+            results = await comparisonEngine.compareJSONvsBigQuery(
+                actualTempTableId, // Use actual table ID
+                sourceTable,      // Use user-specified table
+                primaryKey,       // Use user-specified primary key (ANY DATA TYPE)
+                comparisonFields,
+                strategy
+            );
+        }
         
         console.log(`ENHANCED comparison completed successfully`);
         console.log(`Results summary: ${results.summary?.recordsReachedTarget || 0} matches found using '${primaryKey}' with universal data type support`);
