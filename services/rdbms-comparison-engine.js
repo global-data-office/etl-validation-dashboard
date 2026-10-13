@@ -5,6 +5,9 @@ class ComparisonEngineService {
         this.bigquery = new BigQuery({
             projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
         });
+
+        // Optional WHERE condition applied to the BigQuery target (set per comparison run)
+        this.targetFilter = null;
         
         console.log('Comparison Engine Service initialized - FIXED VERSION with Universal Data Types');
         console.log('FIXED: SQL table aliasing + universal data type support for ALL field comparisons');
@@ -16,6 +19,49 @@ class ComparisonEngineService {
             .replace(/^[0-9]/, '_$&')
             .substring(0, 128)
             .toLowerCase();
+    }
+
+    /**
+     * Normalise a user-supplied filter: trim, drop a leading WHERE and trailing ';'.
+     * Returns null when nothing usable remains.
+     */
+    normalizeTargetFilter(filter) {
+        if (!filter || typeof filter !== 'string') return null;
+        const cleaned = filter.trim().replace(/^where\s+/i, '').replace(/;+\s*$/, '').trim();
+        return cleaned || null;
+    }
+
+    /**
+     * FROM-clause reference for the BigQuery target table.
+     * With a target filter active this is a filtered subquery, otherwise the plain
+     * table. Callers append their own alias, e.g. `JOIN ${ref} bq_table`.
+     * Schema/INFORMATION_SCHEMA lookups deliberately use the raw table name instead,
+     * so a filter matching zero rows can't make the table look empty.
+     */
+    getTargetTableRef(tableName) {
+        if (!this.targetFilter) return `\`${tableName}\``;
+        // Parentheses keep an OR inside the filter from escaping the WHERE
+        return `(SELECT * FROM \`${tableName}\` WHERE (${this.targetFilter}))`;
+    }
+
+    /**
+     * Dry-run the filter against the BigQuery table (no bytes billed, no rows read)
+     * so a filter that is valid on the source database but not in BigQuery fails
+     * fast with a clear message instead of deep inside the comparison.
+     */
+    async validateTargetFilter(tableName, filter) {
+        const cleaned = this.normalizeTargetFilter(filter);
+        if (!cleaned) return { valid: true, filter: null };
+
+        try {
+            await this.bigquery.createQueryJob({
+                query: `SELECT 1 FROM \`${tableName}\` WHERE (${cleaned}) LIMIT 1`,
+                dryRun: true
+            });
+            return { valid: true, filter: cleaned };
+        } catch (error) {
+            return { valid: false, filter: cleaned, error: error.message };
+        }
     }
 
     /**
@@ -314,7 +360,7 @@ class ComparisonEngineService {
                             COUNT(*) as total_count, 
                             COUNT(${primaryKey}) as non_null_count,
                             COUNT(DISTINCT ${primaryKey}) as unique_count
-                        FROM \`${sourceTableName}\` 
+                        FROM ${this.getTargetTableRef(sourceTableName)}
                         WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
                             SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
                             FROM \`${tempTableId}\`
@@ -393,7 +439,7 @@ class ComparisonEngineService {
             const getMatchingKeysQuery = `
                 SELECT DISTINCT ${tempCast} as matched_key
                 FROM \`${tempTableId}\` json_table
-                INNER JOIN \`${sourceTableName}\` bq_table
+                INNER JOIN ${this.getTargetTableRef(sourceTableName)} bq_table
                 ON ${tempCast} = ${sourceCast}
                 WHERE json_table.${primaryKey} IS NOT NULL 
                 AND bq_table.${primaryKey} IS NOT NULL
@@ -448,7 +494,7 @@ class ComparisonEngineService {
                                 ELSE 'MISMATCH'
                             END as comparison_status
                         FROM \`${tempTableId}\` json_table
-                        INNER JOIN \`${sourceTableName}\` bq_table
+                        INNER JOIN ${this.getTargetTableRef(sourceTableName)} bq_table
                         ON ${tempCast} = ${sourceCast}
                         WHERE ${tempCast} IN (${keysStr})
                         AND json_table.${primaryKey} IS NOT NULL 
@@ -487,7 +533,7 @@ class ComparisonEngineService {
                     SELECT 
                         ${tempCast} as key_value
                     FROM \`${tempTableId}\` json_table
-                    INNER JOIN \`${sourceTableName}\` bq_table
+                    INNER JOIN ${this.getTargetTableRef(sourceTableName)} bq_table
                     ON ${tempCast} = ${sourceCast}
                     WHERE json_table.${primaryKey} IS NOT NULL 
                     AND bq_table.${primaryKey} IS NOT NULL
@@ -559,7 +605,7 @@ class ComparisonEngineService {
                 SELECT 
                 ${sourceCast} as duplicate_key,
                 COUNT(*) as occurrence_count
-            FROM \`${sourceTableName}\`
+            FROM ${this.getTargetTableRef(sourceTableName)}
             WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
                 SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
                 FROM \`${tempTableId}\`
@@ -676,11 +722,16 @@ class ComparisonEngineService {
     /**
      * MAIN: Schema-safe comparison using any common field with universal data type support
      */
-		async compareJSONvsBigQuery(tempTableId, sourceTableName, primaryKey = 'Id', comparisonFields = [], strategy = 'enhanced', actualSourceTotal = null, isFiltered = false) {
+		async compareJSONvsBigQuery(tempTableId, sourceTableName, primaryKey = 'Id', comparisonFields = [], strategy = 'enhanced', actualSourceTotal = null, isFiltered = false, targetFilter = null) {
         try {
 			  // NEW: Store actual source total if provided
              this.actualSourceTotal = actualSourceTotal;
 			 this.isFiltered = isFiltered;
+			 // Same filter as the source side, applied to the BigQuery target (null = no target filtering)
+			 this.targetFilter = this.normalizeTargetFilter(targetFilter);
+			 if (this.targetFilter) {
+			     console.log(`🔍 Target filter active on ${sourceTableName}: ${this.targetFilter}`);
+			 }
 			 this.requestedComparisonFields = comparisonFields;
     
              if (actualSourceTotal) {
@@ -798,6 +849,7 @@ class ComparisonEngineService {
                 metadata: {
                     tempTableId,
                     sourceTableName,
+                    targetFilter: this.targetFilter,
                     primaryKey: primaryKey,
                     comparisonFields: comparisonFields.length > 0 ? comparisonFields : schemaAnalysis.commonFields.slice(0, 10),
                     strategy: 'enhanced-universal-data-types',
@@ -834,11 +886,19 @@ async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actua
         
         // Query 2: BigQuery count - CONDITIONAL based on filter
         let bqTotalQuery;
-            if (isFiltered) {
+            if (this.targetFilter) {
+            // Filter applied to BigQuery as well: total = BQ rows matching the same filter,
+            // directly comparable to the filtered source total.
+            console.log('📊 Target filter active - counting BQ records matching the filter');
+            bqTotalQuery = `
+            SELECT COUNT(*) as total_records
+            FROM ${this.getTargetTableRef(sourceTableName)}
+           `;
+            } else if (isFiltered) {
             console.log('📊 Source filter active - counting only matching BQ records');
             bqTotalQuery = `
             SELECT COUNT(*) as total_records
-            FROM \`${sourceTableName}\`
+            FROM ${this.getTargetTableRef(sourceTableName)}
             WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
             SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
             FROM \`${tempTableId}\`
@@ -849,7 +909,7 @@ async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actua
             console.log('📊 No source filter - showing full BQ table count');
             bqTotalQuery = `
             SELECT COUNT(*) as total_records
-            FROM \`${sourceTableName}\`
+            FROM ${this.getTargetTableRef(sourceTableName)}
              `;
             }
 
@@ -861,7 +921,7 @@ async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actua
                 COUNT(${primaryKey}) as non_null_primary_keys,
                 COUNT(*) - COUNT(${primaryKey}) as null_primary_keys,
                 COUNT(*) - COUNT(DISTINCT ${primaryKey}) as duplicate_records
-            FROM \`${sourceTableName}\`
+            FROM ${this.getTargetTableRef(sourceTableName)}
             WHERE SAFE_CAST(${primaryKey} AS STRING) IN (
                SELECT DISTINCT SAFE_CAST(${primaryKey} AS STRING)
                FROM \`${tempTableId}\`
@@ -1013,7 +1073,7 @@ async getSchemaAwareRecordCounts(tempTableId, sourceTableName, primaryKey, actua
                                 ELSE 'DIFFER' 
                             END as comparison_result
                         FROM \`${tempTableId}\` json_table
-                        INNER JOIN \`${sourceTableName}\` bq_table
+                        INNER JOIN ${this.getTargetTableRef(sourceTableName)} bq_table
                         ON ${tempPkCast} = ${sourcePkCast}
                         WHERE ${tempPkCast} IN (${matchedIdsStr})
                         LIMIT 100

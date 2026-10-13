@@ -288,6 +288,43 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             });
         }
 
+        // Source filter also applies to the BigQuery target (same behaviour as BQ vs BQ).
+        // Currently enabled for Oracle only; add other dbTypes here to extend it.
+        const rdbmsComparisonEngine = new RDBMSComparisonEngineService();
+        const applyFilterToBqTarget = dbType.toLowerCase() === 'oracle';
+        const bqTargetFilter = applyFilterToBqTarget
+            ? rdbmsComparisonEngine.normalizeTargetFilter(sourceFilter)
+            : null;
+
+        if (bqTargetFilter) {
+            // Same blocklist guard used for the other user-supplied BigQuery filters
+            const guard = validateBigQueryFilter(bqTargetFilter);
+            if (!guard.isValid) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Invalid source filter: ${guard.error}`,
+                    suggestions: [
+                        'Use a plain condition, e.g. STATUS = \'ACTIVE\' AND DEPARTMENT_ID = 10',
+                        'Do not include the WHERE keyword, comments (--, /* */) or multiple statements'
+                    ]
+                });
+            }
+
+            // Fail fast (before touching Oracle) if the filter isn't valid in BigQuery
+            const bqFilterCheck = await rdbmsComparisonEngine.validateTargetFilter(bqTable, bqTargetFilter);
+            if (!bqFilterCheck.valid) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Source filter is not valid for BigQuery table ${bqTable}: ${bqFilterCheck.error}`,
+                    suggestions: [
+                        'The same filter is applied to both Oracle and BigQuery, so it must be valid SQL in both',
+                        'Avoid Oracle-only functions such as TO_DATE, SYSDATE or NVL',
+                        'Check that every column in the filter exists in the BigQuery table'
+                    ]
+                });
+            }
+        }
+
         // STEP 1: Get total count (fast - no data transfer)
         console.log(`ðŸ“Š Getting total record count from ${sourceTable}...`);
         let totalRecordCount = 0;
@@ -385,16 +422,16 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
 
         // Step 3: Use ENHANCED RDBMS comparison engine
         console.log('ðŸ” Using ENHANCED RDBMS Comparison Engine with comprehensive metrics...');
-        const rdbmsComparisonEngine = new RDBMSComparisonEngineService();
-        
-       const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
+        // (engine instance created earlier, after the connection test)
+        const results = await rdbmsComparisonEngine.compareJSONvsBigQuery(
     tempTableResult.tempTableId,
     bqTable,
     primaryKey,
     safeComparisonFields,
     'enhanced',
     totalRecordCount,
-    sourceFilter ? true : false
+    sourceFilter ? true : false,
+    bqTargetFilter
 );
 
         // Add enhanced metadata
@@ -409,6 +446,7 @@ app.post('/api/rdbms-vs-bq', async (req, res) => {
             sampleRecordsValidated: rdbmsResult.recordCount,
             validationApproach: 'sample-based-enhanced',
             sourceFilter: sourceFilter || 'None',
+            targetFilter: bqTargetFilter || 'None',
             samplingNote: totalRecordCount > 0 
                 ? `Total: ${totalRecordCount.toLocaleString()} records. Validated ${rdbmsResult.recordCount} sample with comprehensive metrics.`
                 : `Validated ${rdbmsResult.recordCount} sample records with comprehensive metrics.`,
